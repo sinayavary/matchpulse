@@ -1,0 +1,44 @@
+{
+  "data": [
+    {
+      "id": "evt_001",
+      "fixture_id": "demo-arg-cpv-001",
+      "minute": 1,
+      "timestamp": "2026-07-03T17:30:00Z",
+      "type": "PHASE_CHANGE",
+      "team": "unknown",
+      "title": "Kickoff",
+      "description": "The match started.",
+      "raw": { "mock": true }
+    },
+    {
+      "id": "evt_002",
+      "fixture_id": "demo-arg-cpv-001",
+      "minute": 44,
+      "timestamp": "2026-07-03T18:14:00Z",
+      "type": "YELLOW_CARD",
+      "team": "away",
+      "title": "Yellow card for Cape Verde",
+      "description": "Cape Verde received a yellow card before halftime.",
+      "raw": { "mock": true }
+    },
+    {
+      "id": "evt_003",
+      "fixture_id": "demo-arg-cpv-001",
+      "minute": 63,
+      "timestamp": "2026-07-03T18:33:40Z",
+      "type": "GOAL",
+      "team": "home",
+      "title": "Goal for Argentina",
+      "description": "Argentina scored in the 63rd minute.",
+      "raw": { "mock": true }
+    }
+  ],
+  "meta": {
+    "status": "live",
+    "last_updated": "2026-07-03T18:34:00Z",
+    "seconds_since_update": 12,
+    "source": "mock",
+    "mode": "mock"
+  }
+}

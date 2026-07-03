@@ -1,0 +1,111 @@
+id,priority,area,owner,task,depends_on,done_criteria,status
+P0-PROD-001,P0,PROD,Product,Finalize MVP scope,—,"MVP includes Agent, App, Telegram, Replay; excludes leaderboard and live chat",Backlog
+P0-PROD-002,P0,PROD,Product,Confirm two separate submissions,P0-PROD-001,Track 1 and Track 2 outputs are documented separately,Backlog
+P0-PROD-003,P0,PROD,Product,Freeze API response standard,—,"All responses follow `{ data, meta }` format",Backlog
+P0-PROD-004,P0,PROD,Product,Freeze compliance wording,—,"Product is described as sports intelligence / market insight, not betting advice",Backlog
+P0-PROD-005,P0,PROD,Product,Create demo acceptance checklist,P0-PROD-001,Every critical screen and endpoint has a demo/test requirement,Backlog
+P0-REPO-001,P0,REPO,Backend,Initialize monorepo,—,"Repo has `apps/web`, `apps/api`, `apps/worker`, `packages/shared`, `docs`, `mock-data`",Backlog
+P0-REPO-002,P0,REPO,Backend,Add TypeScript config,P0-REPO-001,Shared TS config works across web/api/worker,Backlog
+P0-REPO-003,P0,REPO,Backend,Add environment example files,P0-REPO-001,`.env.example` exists for web/api/worker,Backlog
+P0-REPO-004,P0,REPO,Backend,Add lint/format scripts,P0-REPO-001,"`lint`, `format`, `typecheck` scripts run successfully",Backlog
+P0-REPO-005,P0,REPO,Backend + Frontend,Add shared types package,P0-REPO-001,`packages/shared` exports API types used by frontend and backend,Backlog
+P0-BE-001,P0,BE,Backend,Create API app,P0-REPO-001,API runs locally and returns `/api/health`,Backlog
+P0-BE-002,P0,BE,Backend,Add global API response wrapper,P0-BE-001,All API responses include `data` and `meta`,Backlog
+P0-BE-003,P0,BE,Backend,Implement mock matches endpoint,P0-BE-002,`GET /api/matches` returns mock matches,Backlog
+P0-BE-004,P0,BE,Backend,Implement mock match state endpoint,P0-BE-002,`GET /api/matches/:fixtureId` returns mock match state,Backlog
+P0-BE-005,P0,BE,Backend,Implement mock raw data endpoint,P0-BE-002,`GET /api/matches/:fixtureId/raw` returns raw data mock,Backlog
+P0-BE-006,P0,BE,Backend,Implement mock timeline endpoint,P0-BE-002,`GET /api/matches/:fixtureId/timeline` returns timeline mock,Backlog
+P0-BE-007,P0,BE,Backend,Implement mock odds endpoint,P0-BE-002,`GET /api/matches/:fixtureId/odds` returns odds mock,Backlog
+P0-BE-008,P0,BE,Backend,Implement mock signals endpoint,P0-BE-002,`GET /api/matches/:fixtureId/signals` returns signal mock,Backlog
+P0-BE-009,P0,BE,Backend,Implement mock scenarios endpoint,P0-BE-002,`GET /api/matches/:fixtureId/scenarios` returns scenario mock,Backlog
+P0-BE-010,P0,BE,Backend,Implement mock evaluation endpoint,P0-BE-002,`GET /api/agent/evaluation` returns evaluation mock,Backlog
+P0-DB-001,P0,DB,Backend,Setup Postgres connection,P0-BE-001,API can connect to local/dev database,Backlog
+P0-DB-002,P0,DB,Backend,Add Prisma or ORM schema,P0-DB-001,Schema includes core tables,Backlog
+P0-DB-003,P0,DB,Backend,Create fixtures table,P0-DB-002,Fixtures can be inserted and queried,Backlog
+P0-DB-004,P0,DB,Backend,Create match_states table,P0-DB-002,Latest match state can be stored,Backlog
+P0-DB-005,P0,DB,Backend,Create match_events table,P0-DB-002,Match events can be stored with unique keys,Backlog
+P0-DB-006,P0,DB,Backend,Create odds_snapshots table,P0-DB-002,Odds snapshots can be stored,Backlog
+P0-DB-007,P0,DB,Backend,Create signals table,P0-DB-002,Agent signals can be stored,Backlog
+P0-DB-008,P0,DB,Backend,Create scenarios table,P0-DB-002,Scenario probabilities can be stored,Backlog
+P0-DB-009,P0,DB,Backend,Create health_status table,P0-DB-002,Worker status can be tracked,Backlog
+P0-DB-010,P0,DB,Backend,Add seed script,P0-DB-002,Seed script loads demo data into DB,Backlog
+P0-TX-001,P0,TX,Backend,Create dedicated project wallet/keypair,—,A separate dev wallet exists and private key is not committed,Backlog
+P0-TX-002,P0,TX,Backend,Configure Solana devnet,P0-TX-001,App has `TXLINE_NETWORK=devnet` config,Backlog
+P0-TX-003,P0,TX,Backend,Get devnet SOL if needed,P0-TX-001,Wallet can sign/send devnet transaction,Backlog
+P0-TX-004,P0,TX,Backend,Implement TxLINE network config,P0-TX-002,Mainnet/devnet config is switchable,Backlog
+P0-TX-005,P0,TX,Backend,Implement guest auth,P0-TX-004,Backend can call guest session endpoint,Backlog
+P0-TX-006,P0,TX,Backend,Implement subscription activation flow,P0-TX-005,API token can be activated or activation error is clearly logged,Backlog
+P0-TX-007,P0,TX,Backend,Store TxLINE credentials safely,P0-TX-006,"JWT/API token are stored in env/secret manager, not code",Backlog
+P0-TX-008,P0,TX,Backend,Fetch fixtures from TxLINE,P0-TX-006,Fixtures are stored in DB,Backlog
+P0-TX-009,P0,TX,Backend,Fetch scores snapshot,P0-TX-006,Score snapshot can be stored and returned by API,Backlog
+P0-TX-010,P0,TX,Backend,Fetch odds snapshot,P0-TX-006,Odds snapshot can be stored and returned by API,Backlog
+P0-AG-001,P0,AG,Backend,Create worker app,P0-REPO-001,Worker runs locally as a separate process,Backlog
+P0-AG-002,P0,AG,Backend,Add worker health heartbeat,"P0-AG-001, P0-DB-009",Worker writes heartbeat to `health_status`,Backlog
+P0-AG-003,P0,AG,Backend,Build match state builder,"P0-TX-009, P0-TX-010",Worker builds normalized match state,Backlog
+P0-AG-004,P0,AG,Backend,Build event detector,P0-AG-003,Detects goal/card/penalty/phase changes from data where available,Backlog
+P0-AG-005,P0,AG,Backend,Build odds movement detector,P0-AG-003,Detects odds rise/drop and percentage movement,Backlog
+P0-AG-006,P0,AG,Backend,Build signal generator,"P0-AG-004, P0-AG-005",Creates signals from event + odds logic,Backlog
+P0-AG-007,P0,AG,Backend,Build scenario engine v1,P0-AG-006,Produces 3 scenario probabilities per match state,Backlog
+P0-AG-008,P0,AG,Backend,Build risk/confidence score v1,P0-AG-006,Each signal has risk and confidence,Backlog
+P0-AG-009,P0,AG,Backend,Store signals/scenarios,"P0-AG-007, P0-AG-008",Signals and scenarios are saved in DB,Backlog
+P0-AG-010,P0,AG,Backend,Expose agent API endpoints,P0-AG-009,"Frontend can read signals, scenarios, and agent health",Backlog
+P0-RP-001,P0,RP,Backend,Define replay data format,"P0-BE-006, P0-BE-008",Replay uses timeline/signals/scenarios mock or historical data,Backlog
+P0-RP-002,P0,RP,Backend,Create replay session endpoint,P0-RP-001,`POST /api/replay/start` creates a replay session,Backlog
+P0-RP-003,P0,RP,Backend,Create replay state endpoint,P0-RP-002,`GET /api/replay/:sessionId` returns current replay state,Backlog
+P0-RP-004,P0,RP,Backend,Run Agent on replay data,"P0-RP-002, P0-AG-006",Replay produces live-like agent signals,Backlog
+P0-RP-005,P0,RP,Frontend,Build replay controls UI,P0-RP-003,User can start/pause/speed replay in UI,Backlog
+P0-FE-001,P0,FE,Frontend,Create Next.js app,P0-REPO-001,Web app runs locally,Backlog
+P0-FE-002,P0,FE,Frontend,Add Tailwind/shadcn setup,P0-FE-001,UI system is ready,Backlog
+P0-FE-003,P0,FE,Frontend,Add Web3/Solana visual direction,P0-FE-002,UI uses Solana/Web3 motifs clearly without requiring user wallet,Backlog
+P0-FE-004,P0,FE,Frontend,Build app layout,P0-FE-002,Header/sidebar/main layout exists,Backlog
+P0-FE-005,P0,FE,Frontend,Build landing page,P0-FE-004,Landing explains sports intelligence + TxLINE/Solana angle,Backlog
+P0-FE-006,P0,FE,Frontend,Build matches page,P0-BE-003,Page lists available matches,Backlog
+P0-FE-007,P0,FE,Frontend,Build live match room,P0-BE-004,"Page shows score, phase, teams, status",Backlog
+P0-FE-008,P0,FE,Frontend,Build raw data panel,P0-BE-005,UI displays raw data clearly,Backlog
+P0-FE-009,P0,FE,Frontend,Build odds panel,P0-BE-007,UI displays odds and movements,Backlog
+P0-FE-010,P0,FE,Frontend,Build timeline panel,P0-BE-006,UI displays events in timeline,Backlog
+P0-FE-011,P0,FE,Frontend,Build agent insights panel,"P0-BE-008, P0-BE-009",UI shows signals and scenarios,Backlog
+P0-FE-012,P0,FE,Frontend,Build risk/confidence cards,P0-AG-008,UI shows risk and confidence safely,Backlog
+P0-FE-013,P0,FE,Frontend,Build status banners,P0-BE-002,UI shows live/replay/stale/error states,Backlog
+P0-FE-014,P0,FE,Frontend,Build agent dashboard,P0-AG-010,Track 1 has standalone technical dashboard,Backlog
+P0-TG-001,P0,TG,Backend,Create Telegram bot,—,Bot token is configured securely,Backlog
+P0-TG-002,P0,TG,Backend,Implement webhook endpoint,"P0-BE-001, P0-TG-001",Telegram can call backend webhook,Backlog
+P0-TG-003,P0,TG,Backend,Implement `/start`,P0-TG-002,User receives intro and commands,Backlog
+P0-TG-004,P0,TG,Backend,Implement `/matches`,"P0-BE-003, P0-TG-002",User can see match list,Backlog
+P0-TG-005,P0,TG,Backend,Implement `/watch <fixtureId>`,P0-TG-002,User can subscribe to a match,Backlog
+P0-TG-006,P0,TG,Backend,Implement `/unwatch <fixtureId>`,P0-TG-005,User can unsubscribe,Backlog
+P0-TG-007,P0,TG,Backend,Send big signal alerts,"P0-AG-009, P0-TG-005",Subscribed users receive important signal alerts,Backlog
+P0-TG-008,P0,TG,Backend,Send replay/demo alert,P0-RP-004,Telegram can demonstrate alert behavior during replay,Backlog
+P0-FE-TG-001,P0,FE,Frontend,Build Telegram connect section,P0-TG-003,UI explains how to use bot,Backlog
+P0-COMP-001,P0,COMP,Product,Add app disclaimer,P0-FE-005,"UI says product is informational, not betting advice",Backlog
+P0-COMP-002,P0,COMP,Product + Frontend,Remove all betting action language,—,"No “bet now”, “guaranteed win”, “sure pick”, or wager language",Backlog
+P0-COMP-003,P0,COMP,Product + Backend,Ensure API has no betting action endpoint,—,API never places bets or links to betting services,Backlog
+P0-COMP-004,P0,COMP,Product,Review all copy before demo,P0-COMP-001,All copy uses market insight / scenario / risk wording,Backlog
+P0-DEP-001,P0,DEP,Backend,Deploy API to Railway,P0-BE-001,Public API URL works,Backlog
+P0-DEP-002,P0,DEP,Backend,Deploy worker to Railway,P0-AG-001,Worker runs and writes heartbeat,Backlog
+P0-DEP-003,P0,DEP,Backend,Deploy database,P0-DB-001,Production DB is connected securely,Backlog
+P0-DEP-004,P0,DEP,Frontend,Deploy frontend to Vercel,P0-FE-001,Public frontend URL works,Backlog
+P0-DEP-005,P0,DEP,Backend + Frontend,Configure production env variables,"P0-DEP-001, P0-DEP-004",Web/API/worker connect correctly,Backlog
+P0-DEP-006,P0,DEP,Product,Create judge test instructions,P0-DEP-005,"Judges can open app, API, replay, Telegram demo",Backlog
+P1-AG-001,P1,AG,Backend,Add adaptive timeout states,P0-AG-002,Worker tracks live/stale/degraded states,Backlog
+P1-AG-002,P1,AG,Backend,Add reconnect/backoff logic,P0-TX-009,TxLINE errors are retried safely,Backlog
+P1-AG-003,P1,AG,Backend,Add polling fallback,P1-AG-002,Worker falls back to snapshot polling,Backlog
+P1-AG-004,P1,AG,Backend,Build learning graph v1,P0-AG-009,Graph stores state → signal → scenario → outcome,Backlog
+P1-AG-005,P1,AG,Backend,Build post-match evaluation,P1-AG-004,Agent produces accuracy report,Backlog
+P1-AG-006,P1,AG,Backend,Add weight adjustment log,P1-AG-005,Agent explains what rule changed and why,Backlog
+P1-FE-001,P1,FE,Frontend,Add scenario cards with probability change,P0-FE-011,UI shows before/after scenario probability,Backlog
+P1-FE-002,P1,FE,Frontend,Add market reaction card,P0-FE-009,UI explains odds movement in plain English,Backlog
+P1-FE-003,P1,FE,Frontend,Add momentum meter,P0-FE-011,UI shows team momentum visually,Backlog
+P1-FE-004,P1,FE,Frontend,Add learning graph view,P1-AG-004,UI shows agent learning path,Backlog
+P1-FE-005,P1,FE,Frontend,Add post-match review page,P1-AG-005,UI shows correct/wrong signals and reasons,Backlog
+P1-FE-006,P1,FE,Frontend,Add mobile responsive polish,P0-FE-014,Main screens work on mobile widths,Backlog
+P1-W3-001,P1,W3,Frontend,Add Solana-powered data badge,P0-FE-003,UI clearly says data is anchored/verified by Solana/TxLINE where appropriate,Backlog
+P1-W3-002,P1,W3,Frontend,Add network indicator,P0-FE-003,UI shows devnet/mainnet mode for demo transparency,Backlog
+P1-W3-003,P1,W3,Frontend,Add TxLINE data source panel,P0-FE-008,"User can see source, timestamp, mode, status",Backlog
+P1-W3-004,P1,W3,Backend,Add validation/proof placeholder,P0-TX-010,API has placeholder or basic proof metadata if full proof is not implemented,Backlog
+P2-FE-001,P2,FE,Frontend,Add theme toggle,P0-FE-004,Dark/light mode works,Backlog
+P2-FE-002,P2,FE,Frontend,Add shareable insight cards,P1-FE-002,User can copy/share a signal summary,Backlog
+P2-BE-001,P2,BE,Backend,Add Redis cache,P0-DB-001,Latest match states can be cached,Backlog
+P2-AG-001,P2,AG,Backend,Add advanced signal filters,P0-AG-006,Agent can filter low-value signals,Backlog
+P2-TG-001,P2,TG,Backend,Add Telegram recap command,P0-TG-003,`/recap` returns latest match summary,Backlog
+P2-FE-003,P2,FE,Frontend,Add watchlist UI,P0-FE-007,User can save matches locally or via API,Backlog

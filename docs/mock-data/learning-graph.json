@@ -1,0 +1,24 @@
+{
+  "data": {
+    "nodes": [
+      { "id": "event_goal_home", "label": "Goal by Argentina", "type": "event" },
+      { "id": "market_odds_drop", "label": "Odds dropped 28.65%", "type": "market_reaction" },
+      { "id": "signal_confirmation", "label": "Goal Market Confirmation", "type": "signal" },
+      { "id": "scenario_control", "label": "Argentina controls match", "type": "scenario" },
+      { "id": "outcome_pending", "label": "Outcome pending", "type": "outcome" }
+    ],
+    "edges": [
+      { "from": "event_goal_home", "to": "market_odds_drop", "label": "triggered/confirmed", "weight": 0.82 },
+      { "from": "market_odds_drop", "to": "signal_confirmation", "label": "supports", "weight": 0.76 },
+      { "from": "signal_confirmation", "to": "scenario_control", "label": "increases", "weight": 0.78 },
+      { "from": "scenario_control", "to": "outcome_pending", "label": "to be evaluated", "weight": 0.5 }
+    ]
+  },
+  "meta": {
+    "status": "live",
+    "last_updated": "2026-07-03T18:34:00Z",
+    "seconds_since_update": 12,
+    "source": "mock",
+    "mode": "mock"
+  }
+}

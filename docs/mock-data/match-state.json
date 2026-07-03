@@ -1,0 +1,35 @@
+{
+  "data": {
+    "fixture_id": "demo-arg-cpv-001",
+    "home_team": "Argentina",
+    "away_team": "Cape Verde",
+    "minute": 63,
+    "phase": "H2",
+    "score": { "home": 1, "away": 0 },
+    "raw_game_state": { "phase": "H2", "inRunning": true },
+    "last_event": {
+      "id": "evt_003",
+      "fixture_id": "demo-arg-cpv-001",
+      "minute": 63,
+      "timestamp": "2026-07-03T18:33:40Z",
+      "type": "GOAL",
+      "team": "home",
+      "title": "Goal for Argentina",
+      "description": "Argentina scored in the 63rd minute.",
+      "raw": { "mock": true }
+    },
+    "market_mood": "home_favored",
+    "momentum": {
+      "side": "home",
+      "score": 72,
+      "label": "Argentina momentum rising"
+    }
+  },
+  "meta": {
+    "status": "live",
+    "last_updated": "2026-07-03T18:34:00Z",
+    "seconds_since_update": 12,
+    "source": "mock",
+    "mode": "mock"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "data": [
+    {
+      "fixture_id": "demo-arg-cpv-001",
+      "competition": "World Cup",
+      "stage": "Round of 32",
+      "start_time_utc": "2026-07-03T22:00:00Z",
+      "home_team": "Argentina",
+      "away_team": "Cape Verde",
+      "status": "H2",
+      "is_live": true,
+      "score": { "home": 1, "away": 0 },
+      "has_odds": true,
+      "latest_signal_type": "GOAL_MARKET_CONFIRMATION",
+      "market_mood": "home_favored"
+    }
+  ],
+  "meta": {
+    "status": "live",
+    "last_updated": "2026-07-03T18:34:00Z",
+    "seconds_since_update": 12,
+    "source": "mock",
+    "mode": "mock"
+  }
+}

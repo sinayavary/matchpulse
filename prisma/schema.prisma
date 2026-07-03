@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Fixture {
+  id            String   @id
+  homeTeam      String
+  awayTeam      String
+  competition   String
+  startTimeUtc  DateTime
+  status        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  states        MatchState[]
+  events        MatchEvent[]
+  oddsSnapshots OddsSnapshot[]
+  signals       Signal[]
+  scenarios     Scenario[]
+}
+
+model MatchState {
+  id        String   @id @default(cuid())
+  fixtureId String
+  scoreHome Int
+  scoreAway Int
+  phase     String
+  minute    Int
+  raw       Json
+  createdAt DateTime @default(now())
+
+  fixture Fixture @relation(fields: [fixtureId], references: [id])
+
+  @@index([fixtureId, createdAt])
+}
+
+model MatchEvent {
+  id        String   @id @default(cuid())
+  fixtureId String
+  seq       String
+  minute    Int?
+  type      String
+  team      String?
+  raw       Json
+  createdAt DateTime @default(now())
+
+  fixture Fixture @relation(fields: [fixtureId], references: [id])
+
+  @@unique([fixtureId, seq])
+  @@index([fixtureId, createdAt])
+}
+
+model OddsSnapshot {
+  id        String   @id @default(cuid())
+  fixtureId String
+  seq       String
+  market    String
+  data      Json
+  createdAt DateTime @default(now())
+
+  fixture Fixture @relation(fields: [fixtureId], references: [id])
+
+  @@unique([fixtureId, seq])
+  @@index([fixtureId, createdAt])
+}
+
+model Signal {
+  id          String   @id @default(cuid())
+  fixtureId   String
+  minute      Int?
+  type        String
+  title       String
+  explanation String
+  confidence  String
+  risk        String
+  data        Json
+  createdAt   DateTime @default(now())
+
+  fixture Fixture @relation(fields: [fixtureId], references: [id])
+
+  @@index([fixtureId, createdAt])
+}
+
+model Scenario {
+  id          String   @id @default(cuid())
+  fixtureId   String
+  label       String
+  probability Float
+  confidence  String
+  explanation String
+  data        Json
+  createdAt   DateTime @default(now())
+
+  fixture Fixture @relation(fields: [fixtureId], references: [id])
+
+  @@index([fixtureId, createdAt])
+}
+
+model AgentEvaluation {
+  id             String   @id @default(cuid())
+  fixtureId      String
+  totalSignals   Int
+  correctSignals Int
+  accuracy       Float
+  notes          Json
+  createdAt      DateTime @default(now())
+}
+
+model LearningEdge {
+  id          String   @id @default(cuid())
+  fromNode    String
+  toNode      String
+  relation    String
+  weight      Float
+  evidence    Json
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+}
+
+model ReplaySession {
+  id        String   @id @default(cuid())
+  fixtureId String
+  status    String
+  speed     Float    @default(1)
+  state     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WatchlistItem {
+  id        String   @id @default(cuid())
+  userKey   String
+  fixtureId String
+  createdAt DateTime @default(now())
+
+  @@unique([userKey, fixtureId])
+}
+
+model HealthStatus {
+  id        String   @id @default(cuid())
+  service   String   @unique
+  status    String
+  heartbeat DateTime
+  details   Json?
+  updatedAt DateTime @updatedAt
+}

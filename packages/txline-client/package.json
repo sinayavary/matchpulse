@@ -1,0 +1,15 @@
+{
+  "name": "@matchpulse/txline-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo 'txline-client lint placeholder'"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  }
+}

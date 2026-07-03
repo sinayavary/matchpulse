@@ -1,0 +1,44 @@
+{
+  "data": [
+    {
+      "id": "scn_001",
+      "fixture_id": "demo-arg-cpv-001",
+      "timestamp": "2026-07-03T18:34:00Z",
+      "name": "Argentina controls the match",
+      "probability": 0.78,
+      "previous_probability": 0.62,
+      "direction": "up",
+      "confidence": 0.76,
+      "explanation": "Goal advantage and market confirmation increased Argentina's control scenario."
+    },
+    {
+      "id": "scn_002",
+      "fixture_id": "demo-arg-cpv-001",
+      "timestamp": "2026-07-03T18:34:00Z",
+      "name": "Cape Verde comeback pressure",
+      "probability": 0.12,
+      "previous_probability": 0.23,
+      "direction": "down",
+      "confidence": 0.48,
+      "explanation": "The comeback scenario decreased after the goal and odds movement."
+    },
+    {
+      "id": "scn_003",
+      "fixture_id": "demo-arg-cpv-001",
+      "timestamp": "2026-07-03T18:34:00Z",
+      "name": "Market overreaction",
+      "probability": 0.1,
+      "previous_probability": 0.15,
+      "direction": "down",
+      "confidence": 0.42,
+      "explanation": "The market move is large, but it is supported by a confirmed goal event."
+    }
+  ],
+  "meta": {
+    "status": "live",
+    "last_updated": "2026-07-03T18:34:00Z",
+    "seconds_since_update": 12,
+    "source": "mock",
+    "mode": "mock"
+  }
+}

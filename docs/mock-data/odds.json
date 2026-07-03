@@ -1,0 +1,42 @@
+{
+  "data": {
+    "fixture_id": "demo-arg-cpv-001",
+    "timestamp": "2026-07-03T18:34:00Z",
+    "markets": [
+      {
+        "market_id": "match_winner",
+        "market_name": "Match Winner",
+        "selections": [
+          {
+            "name": "Argentina",
+            "odds": 1.32,
+            "previous_odds": 1.85,
+            "change_percent": -28.65,
+            "direction": "down"
+          },
+          {
+            "name": "Draw",
+            "odds": 4.9,
+            "previous_odds": 3.4,
+            "change_percent": 44.12,
+            "direction": "up"
+          },
+          {
+            "name": "Cape Verde",
+            "odds": 8.2,
+            "previous_odds": 5.1,
+            "change_percent": 60.78,
+            "direction": "up"
+          }
+        ]
+      }
+    ]
+  },
+  "meta": {
+    "status": "live",
+    "last_updated": "2026-07-03T18:34:00Z",
+    "seconds_since_update": 12,
+    "source": "mock",
+    "mode": "mock"
+  }
+}

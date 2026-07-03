@@ -1,0 +1,23 @@
+{
+  "data": {
+    "fixture_id": "demo-arg-cpv-001",
+    "total_predictions": 12,
+    "correct_predictions": 8,
+    "incorrect_predictions": 3,
+    "partial_predictions": 1,
+    "accuracy": 0.67,
+    "best_rule": "goal + odds confirmation",
+    "weakest_rule": "isolated odds spike",
+    "latest_adjustments": [
+      "Increased weight for goal + aligned market movement",
+      "Reduced weight for isolated sharp odds moves without a confirmed event"
+    ]
+  },
+  "meta": {
+    "status": "replay",
+    "last_updated": "2026-07-03T19:30:00Z",
+    "seconds_since_update": 0,
+    "source": "replay",
+    "mode": "replay"
+  }
+}
