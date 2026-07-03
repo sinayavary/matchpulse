@@ -11,3 +11,7 @@ coverage
 .DS_Store
 *.log
 prisma/dev.db
+secrets/
+.env.local
+*.keypair.json
+*.secret.json
