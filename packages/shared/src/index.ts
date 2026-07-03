@@ -13,6 +13,7 @@ export type ApiMeta = {
   seconds_since_update: number;
   source: "txline" | "mock" | "replay" | "internal";
   mode: "live" | "mock" | "replay";
+  message?: string;
 };
 
 export type ApiResponse<T> = {

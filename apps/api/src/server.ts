@@ -1,7 +1,8 @@
 import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { readMock, response } from "./mock-store.js";
+import { readMock, response, notFoundResponse } from "./mock-store.js";
+import type { MatchState } from "@matchpulse/shared";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -21,7 +22,17 @@ app.get("/api/health", async () =>
 
 app.get("/api/matches", async () => response(readMock("matches.json")));
 app.get("/api/matches/live", async () => response(readMock("matches.json")));
-app.get("/api/matches/:fixtureId", async () => response(readMock("match-state.json")));
+app.get("/api/matches/:fixtureId", async (request, reply) => {
+  const { fixtureId } = request.params as { fixtureId: string };
+  const matchState = readMock<MatchState>("match-state.json");
+
+  if (matchState.fixture_id !== fixtureId) {
+    reply.code(404);
+    return notFoundResponse("Fixture not found");
+  }
+
+  return response(matchState);
+});
 app.get("/api/matches/:fixtureId/raw", async () => response(readMock("raw-data.json")));
 app.get("/api/matches/:fixtureId/timeline", async () => response(readMock("timeline.json")));
 app.get("/api/matches/:fixtureId/odds", async () => response(readMock("odds.json")));
