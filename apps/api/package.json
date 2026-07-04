@@ -10,20 +10,26 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo 'api lint placeholder'",
     "txline:create-wallet": "tsx src/scripts/create-dev-wallet.ts",
-    "txline:guest-jwt": "tsx src/scripts/fetch-guest-jwt.ts"
+    "txline:guest-jwt": "tsx src/scripts/fetch-guest-jwt.ts",
+    "txline:activation-preflight": "tsx src/scripts/activation-preflight.ts",
+    "txline:activate-devnet": "tsx src/scripts/activate-txline-devnet.ts"
   },
   "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
     "@fastify/cors": "^10.0.1",
     "@matchpulse/shared": "workspace:*",
     "@matchpulse/txline-client": "workspace:*",
     "@prisma/client": "^6.0.1",
+    "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.98.0",
-    "dotenv": "^16.4.7",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.6.1",
     "fastify": "^5.2.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "tsx": "^4.19.2",
+    "tweetnacl": "^1.0.3",
     "typescript": "^5.7.2"
   }
 }

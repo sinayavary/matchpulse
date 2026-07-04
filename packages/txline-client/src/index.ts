@@ -25,6 +25,14 @@ export type { TxlineConfig, TxlineNetwork, TxlineStatusData };
 export { fetchGuestJwt, sanitizeJwt, TxlineAuthError } from "./auth.js";
 export type { FetchGuestJwtOptions } from "./auth.js";
 
+export {
+  getActivationConfigFromEnv,
+  buildActivationMessage,
+  postActivationRequest,
+  TxlineActivationError
+} from "./activation.js";
+export type { TxlineActivationConfig, ActivationRequestParams } from "./activation.js";
+
 /**
  * Credentials handed to TxlineClient explicitly. These are real secrets and
  * must never be placed in the exposable TxlineConfig object or surfaced by a

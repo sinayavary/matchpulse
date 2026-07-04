@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./load-env.js";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { readMock, response, notFoundResponse } from "./mock-store.js";
