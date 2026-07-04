@@ -1,54 +1,84 @@
-import { z } from "zod";
+/**
+ * @matchpulse/txline-client
+ *
+ * Public entrypoint for the TxLINE integration package. Re-exports the
+ * env-driven config, the guest JWT fetcher, and the low-level TxlineClient.
+ *
+ * Secret-handling boundary:
+ *   - getTxlineConfigFromEnv() returns a SECRET-FREE object (only booleans
+ *     describing whether a credential is configured). It is safe to expose
+ *     from status/debug endpoints.
+ *   - TxlineClient takes the actual credentials as an explicit constructor
+ *     argument. Those never flow through the exposable config object.
+ */
+import { getTxlineConfigFromEnv, toTxlineStatusData } from "./config.js";
+import type { TxlineConfig, TxlineNetwork, TxlineStatusData } from "./config.js";
+import { TxlineNetworkSchema } from "./config.js";
 
-export const TxlineNetworkSchema = z.enum(["devnet", "mainnet"]);
-export type TxlineNetwork = z.infer<typeof TxlineNetworkSchema>;
+export {
+  getTxlineConfigFromEnv,
+  toTxlineStatusData,
+  TxlineNetworkSchema
+};
+export type { TxlineConfig, TxlineNetwork, TxlineStatusData };
 
-export type TxlineConfig = {
-  network: TxlineNetwork;
-  serviceLevelId: number;
+export { fetchGuestJwt, sanitizeJwt, TxlineAuthError } from "./auth.js";
+export type { FetchGuestJwtOptions } from "./auth.js";
+
+/**
+ * Credentials handed to TxlineClient explicitly. These are real secrets and
+ * must never be placed in the exposable TxlineConfig object or surfaced by a
+ * status endpoint.
+ */
+export type TxlineCredentials = {
   guestJwt?: string;
   apiToken?: string;
-  apiOrigin: string;
 };
 
-export function getTxlineConfigFromEnv(env: NodeJS.ProcessEnv = process.env): TxlineConfig {
-  const network = TxlineNetworkSchema.parse(env.TXLINE_NETWORK ?? "devnet");
-  const serviceLevelId = Number(env.TXLINE_SERVICE_LEVEL_ID ?? (network === "mainnet" ? 12 : 1));
-  const apiOrigin =
-    network === "mainnet"
-      ? env.TXLINE_MAINNET_API_ORIGIN ?? "https://txline.txodds.com"
-      : env.TXLINE_DEVNET_API_ORIGIN ?? "https://txline-dev.txodds.com";
-
-  return {
-    network,
-    serviceLevelId,
-    apiOrigin,
-    guestJwt: env.TXLINE_GUEST_JWT,
-    apiToken: env.TXLINE_API_TOKEN
-  };
-}
-
+/**
+ * Low-level TxLINE HTTP client.
+ *
+ * The non-secret config (origin, base url, network) comes from the env-driven
+ * loader; the secrets are supplied separately so the config object itself
+ * remains safe to log or return from a status endpoint.
+ */
 export class TxlineClient {
-  constructor(private readonly config: TxlineConfig) {}
+  constructor(
+    private readonly config: Pick<TxlineConfig, "apiBaseUrl" | "apiOrigin" | "network">,
+    private readonly credentials: TxlineCredentials = {}
+  ) {}
 
+  /** Headers required on every TxLINE data request. */
   get dataHeaders(): Record<string, string> {
     return {
-      Authorization: `Bearer ${this.config.guestJwt ?? ""}`,
-      "X-Api-Token": this.config.apiToken ?? ""
+      Authorization: `Bearer ${this.credentials.guestJwt ?? ""}`,
+      "X-Api-Token": this.credentials.apiToken ?? ""
     };
   }
 
   get apiBaseUrl(): string {
-    return `${this.config.apiOrigin}/api`;
+    return this.config.apiBaseUrl;
   }
 
-  async getGuestSession(): Promise<{ token: string }> {
-    // TODO: implement real call: POST `${apiOrigin}/auth/guest/start`
-    throw new Error("TxLINE guest session not implemented yet. See docs/TXLINE_ACCESS_CHECKLIST.md");
+  /**
+   * Convenience factory: builds a client from the current environment using
+   * any configured credentials. Credentials remain optional so a partially
+   * configured client can still be constructed for diagnostics.
+   */
+  static fromEnv(credentials: TxlineCredentials = {}): TxlineClient {
+    const config = getTxlineConfigFromEnv();
+    return new TxlineClient(
+      {
+        apiBaseUrl: config.apiBaseUrl,
+        apiOrigin: config.apiOrigin,
+        network: config.network
+      },
+      credentials
+    );
   }
 
   async getFixturesSnapshot(): Promise<unknown> {
-    // TODO: implement real call after access token activation.
+    // TODO: implement real call once the API token is provisioned.
     throw new Error("TxLINE fixtures snapshot not implemented yet.");
   }
 

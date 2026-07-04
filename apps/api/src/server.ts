@@ -3,6 +3,10 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { readMock, response, notFoundResponse } from "./mock-store.js";
 import type { MatchState } from "@matchpulse/shared";
+import {
+  getTxlineConfigFromEnv,
+  toTxlineStatusData
+} from "@matchpulse/txline-client";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -19,6 +23,20 @@ app.get("/api/health", async () =>
     service_level_id: Number(process.env.TXLINE_SERVICE_LEVEL_ID ?? 1)
   })
 );
+
+app.get("/api/internal/txline/status", async () => {
+  const txlineConfig = getTxlineConfigFromEnv();
+  const statusData = toTxlineStatusData(txlineConfig);
+
+  return {
+    data: statusData,
+    meta: {
+      status: "live",
+      source: "backend",
+      mode: txlineConfig.network
+    }
+  };
+});
 
 app.get("/api/matches", async () => response(readMock("matches.json")));
 app.get("/api/matches/live", async () => response(readMock("matches.json")));

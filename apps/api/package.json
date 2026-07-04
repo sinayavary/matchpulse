@@ -9,7 +9,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo 'api lint placeholder'",
-    "txline:create-wallet": "tsx src/scripts/create-dev-wallet.ts"
+    "txline:create-wallet": "tsx src/scripts/create-dev-wallet.ts",
+    "txline:guest-jwt": "tsx src/scripts/fetch-guest-jwt.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",
