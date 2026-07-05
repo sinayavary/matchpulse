@@ -32,6 +32,12 @@ import {
   buildTxlineReplayTimeline
 } from "./txline-replay.js";
 import { checkDbHealth } from "./db-health.js";
+import {
+  buildReplayState,
+  createReplaySession,
+  getReplaySession,
+  ReplaySessionValidationError
+} from "./replay-sessions.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -781,8 +787,64 @@ app.get("/api/agent/signals", async () => response(readMock("signals.json")));
 app.get("/api/agent/evaluation", async () => response(readMock("evaluation.json")));
 app.get("/api/agent/learning-graph", async () => response(readMock("learning-graph.json")));
 
-app.post("/api/replay/start", async () => response(readMock("replay-state.json"), "replay"));
-app.get("/api/replay/:sessionId", async () => response(readMock("replay-state.json"), "replay"));
+const replayMeta = {
+  status: "replay" as const,
+  source: "replay" as const,
+  mode: "demo" as const
+};
+
+app.post("/api/replay/start", async (request, reply) => {
+  const body = request.body as { seed?: string; speed?: unknown } | undefined;
+
+  try {
+    const { session, timeline } = createReplaySession(body);
+    const state = buildReplayState(session, timeline);
+
+    return {
+      data: {
+        session,
+        replay: {
+          fixture_id: state.fixture_id,
+          current_event: state.current_event,
+          timeline_count: state.timeline_count,
+          summary: state.summary
+        }
+      },
+      meta: replayMeta
+    };
+  } catch (error) {
+    if (error instanceof ReplaySessionValidationError) {
+      reply.code(400);
+      return {
+        data: null,
+        meta: { ...replayMeta, error: error.code, message: error.message }
+      };
+    }
+
+    throw error;
+  }
+});
+
+app.get("/api/replay/:sessionId", async (request, reply) => {
+  const { sessionId } = request.params as { sessionId: string };
+  const replay = getReplaySession(sessionId);
+
+  if (replay === null) {
+    reply.code(404);
+    return {
+      data: null,
+      meta: { ...replayMeta, error: "session_not_found", message: "Replay session not found." }
+    };
+  }
+
+  return {
+    data: {
+      session: replay.session,
+      state: buildReplayState(replay.session, replay.timeline)
+    },
+    meta: replayMeta
+  };
+});
 
 const watchlist: string[] = [];
 app.get("/api/watchlist", async () => response({ items: watchlist }));
