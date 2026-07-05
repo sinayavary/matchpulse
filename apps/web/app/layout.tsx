@@ -20,6 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="navlinks">
               <Link href="/matches">Matches</Link>
               <Link href="/agent">SignalCore</Link>
+              <Link href="/demo">Demo</Link>
               <Link href="/replay">Replay</Link>
             </div>
           </nav>
