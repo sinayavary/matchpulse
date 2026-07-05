@@ -4,9 +4,17 @@ import cors from "@fastify/cors";
 import { readMock, response, notFoundResponse } from "./mock-store.js";
 import type { MatchState } from "@matchpulse/shared";
 import {
+  createTxlineLiveClient,
   getTxlineConfigFromEnv,
-  toTxlineStatusData
+  toTxlineStatusData,
+  TxlineLiveError
 } from "@matchpulse/txline-client";
+import {
+  isRecord,
+  normalizeTxlineFixture,
+  normalizeTxlineMatchPreview,
+  parseFixtureId
+} from "./txline-normalizer.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -33,14 +41,265 @@ app.get("/api/internal/txline/status", async () => {
     meta: {
       status: "live",
       source: "backend",
-      mode: txlineConfig.network
+      mode: txlineConfig.dataMode
     }
   };
 });
 
-app.get("/api/matches", async () => response(readMock("matches.json")));
+function txlineMeta(status: "live" | "degraded" | "error", message?: string) {
+  return {
+    status,
+    source: "txline" as const,
+    mode: "live" as const,
+    last_updated: new Date().toISOString(),
+    seconds_since_update: 0,
+    ...(message ? { message } : {})
+  };
+}
+
+function normalizedTxlineMeta(
+  mode: "live" | "auto",
+  status: "live" | "degraded" | "error",
+  message?: string
+) {
+  return {
+    status,
+    source: "txline" as const,
+    mode,
+    last_updated: new Date().toISOString(),
+    seconds_since_update: 0,
+    ...(message ? { message } : {})
+  };
+}
+
+function safeTxlineError(error: unknown) {
+  return error instanceof TxlineLiveError
+    ? error.safe
+    : {
+        endpointPath: "unknown",
+        endpointHost: "unknown",
+        kind: "unknown" as const,
+        message: "The TxLINE request failed."
+      };
+}
+
+function normalizedTxlineError(
+  mode: "live" | "auto",
+  error: unknown
+) {
+  const safeError = safeTxlineError(error);
+  const degradableKinds = new Set([
+    "unauthorized", "forbidden", "rate_limited", "server_error", "timeout", "network"
+  ]);
+  const status = mode === "auto" && degradableKinds.has(safeError.kind)
+    ? "degraded"
+    : "error";
+  return {
+    data: { error: safeError },
+    meta: normalizedTxlineMeta(mode, status, safeError.message)
+  };
+}
+
+function normalizedRouteMode(dataMode: "mock" | "live" | "auto"): "live" | "auto" {
+  return dataMode === "auto" ? "auto" : "live";
+}
+
+function publicLiveNormalizationUnavailable() {
+  return {
+    data: null,
+    meta: txlineMeta("error", "not_implemented_for_live_normalization")
+  };
+}
+
+async function runRawLiveRequest(request: () => Promise<unknown>) {
+  const config = getTxlineConfigFromEnv();
+  if (config.dataMode === "mock") {
+    return {
+      data: null,
+      meta: txlineMeta("error", "Raw TxLINE routes require live or auto mode.")
+    };
+  }
+
+  try {
+    return { data: await request(), meta: txlineMeta("live") };
+  } catch (error) {
+    const safeError = error instanceof TxlineLiveError
+      ? error.safe
+      : {
+          endpointPath: "unknown",
+          endpointHost: "unknown",
+          kind: "unknown" as const,
+          message: "The TxLINE request failed."
+        };
+    const degradableKinds = new Set([
+      "unauthorized", "forbidden", "rate_limited", "server_error", "timeout", "network"
+    ]);
+    const status = config.dataMode === "auto" && degradableKinds.has(safeError.kind)
+      ? "degraded"
+      : "error";
+    return {
+      data: { error: safeError },
+      meta: txlineMeta(status, safeError.message)
+    };
+  }
+}
+
+app.get("/api/internal/txline/live/fixtures/snapshot", async (request) => {
+  const config = getTxlineConfigFromEnv();
+  if (config.dataMode === "mock") return runRawLiveRequest(async () => null);
+  const query = request.query as { competitionId?: string; startEpochDay?: string };
+  const competitionId = query.competitionId ?? config.defaultCompetitionId;
+  const startEpochDay = Number(query.startEpochDay ?? config.defaultStartEpochDay);
+  if (!competitionId || !Number.isFinite(startEpochDay)) {
+    return { data: null, meta: txlineMeta("error", "competitionId and startEpochDay are required.") };
+  }
+  return runRawLiveRequest(() =>
+    createTxlineLiveClient().getFixtureSnapshot({ competitionId, startEpochDay })
+  );
+});
+
+app.get("/api/internal/txline/live/scores/snapshot/:fixtureId", async (request) => {
+  if (getTxlineConfigFromEnv().dataMode === "mock") return runRawLiveRequest(async () => null);
+  const { fixtureId } = request.params as { fixtureId: string };
+  const { asOf: rawAsOf } = request.query as { asOf?: string };
+  const asOf = Number(rawAsOf);
+  if (!rawAsOf || !Number.isFinite(asOf)) {
+    return { data: null, meta: txlineMeta("error", "asOf is required.") };
+  }
+  return runRawLiveRequest(() => createTxlineLiveClient().getScoreSnapshot({ fixtureId, asOf }));
+});
+
+app.get("/api/internal/txline/live/odds/snapshot/:fixtureId", async (request) => {
+  if (getTxlineConfigFromEnv().dataMode === "mock") return runRawLiveRequest(async () => null);
+  const { fixtureId } = request.params as { fixtureId: string };
+  const { asOf: rawAsOf } = request.query as { asOf?: string };
+  const asOf = Number(rawAsOf);
+  if (!rawAsOf || !Number.isFinite(asOf)) {
+    return { data: null, meta: txlineMeta("error", "asOf is required.") };
+  }
+  return runRawLiveRequest(() => createTxlineLiveClient().getOddsSnapshot({ fixtureId, asOf }));
+});
+
+app.get("/api/internal/txline/normalized/fixtures/preview", async (request) => {
+  const config = getTxlineConfigFromEnv();
+  const mode = normalizedRouteMode(config.dataMode);
+  if (config.dataMode === "mock") {
+    return {
+      data: null,
+      meta: normalizedTxlineMeta(mode, "error", "Normalized TxLINE routes require live or auto mode.")
+    };
+  }
+
+  const query = request.query as {
+    competitionId?: string;
+    startEpochDay?: string;
+    includeRaw?: string;
+  };
+  const competitionId = query.competitionId ?? config.defaultCompetitionId;
+  const startEpochDay = Number(query.startEpochDay ?? config.defaultStartEpochDay);
+  if (!competitionId || !Number.isFinite(startEpochDay)) {
+    return {
+      data: null,
+      meta: normalizedTxlineMeta(mode, "error", "competitionId and startEpochDay are required.")
+    };
+  }
+
+  try {
+    const rawFixtures = await createTxlineLiveClient().getFixtureSnapshot({
+      competitionId,
+      startEpochDay
+    });
+    const items = Array.isArray(rawFixtures)
+      ? rawFixtures.flatMap((rawFixture) => {
+          const normalized = normalizeTxlineFixture(rawFixture, {
+            includeRaw: query.includeRaw === "true"
+          });
+          return normalized === null ? [] : [normalized];
+        })
+      : [];
+    return {
+      data: { items, count: items.length },
+      meta: normalizedTxlineMeta(mode, "live")
+    };
+  } catch (error) {
+    return normalizedTxlineError(mode, error);
+  }
+});
+
+app.get("/api/internal/txline/normalized/matches/:fixtureId/preview", async (request, reply) => {
+  const config = getTxlineConfigFromEnv();
+  const mode = normalizedRouteMode(config.dataMode);
+  if (config.dataMode === "mock") {
+    return {
+      data: null,
+      meta: normalizedTxlineMeta(mode, "error", "Normalized TxLINE routes require live or auto mode.")
+    };
+  }
+
+  const { fixtureId } = request.params as { fixtureId: string };
+  const query = request.query as {
+    competitionId?: string;
+    startEpochDay?: string;
+    asOf?: string;
+    includeRaw?: string;
+  };
+  const competitionId = query.competitionId ?? config.defaultCompetitionId;
+  const startEpochDay = Number(query.startEpochDay ?? config.defaultStartEpochDay);
+  const asOf = Number(query.asOf);
+  if (!competitionId || !Number.isFinite(startEpochDay) || !query.asOf || !Number.isFinite(asOf)) {
+    return {
+      data: null,
+      meta: normalizedTxlineMeta(
+        mode,
+        "error",
+        "competitionId, startEpochDay, and asOf are required."
+      )
+    };
+  }
+
+  try {
+    const client = createTxlineLiveClient();
+    const rawFixtures = await client.getFixtureSnapshot({ competitionId, startEpochDay });
+    const rawFixture = Array.isArray(rawFixtures)
+      ? rawFixtures.find((candidate) =>
+          isRecord(candidate) && parseFixtureId(candidate.FixtureId) === fixtureId
+        )
+      : undefined;
+    if (rawFixture === undefined) {
+      reply.code(404);
+      return {
+        data: null,
+        meta: normalizedTxlineMeta(mode, "error", "Fixture not found.")
+      };
+    }
+
+    const rawScores = await client.getScoreSnapshot({ fixtureId, asOf });
+    const preview = normalizeTxlineMatchPreview(rawFixture, rawScores, {
+      includeRaw: query.includeRaw === "true"
+    });
+    if (preview === null) {
+      reply.code(404);
+      return {
+        data: null,
+        meta: normalizedTxlineMeta(mode, "error", "Fixture not found.")
+      };
+    }
+    return { data: preview, meta: normalizedTxlineMeta(mode, "live") };
+  } catch (error) {
+    return normalizedTxlineError(mode, error);
+  }
+});
+
+app.get("/api/matches", async () => {
+  const config = getTxlineConfigFromEnv();
+  return config.dataMode === "live"
+    ? publicLiveNormalizationUnavailable()
+    : response(readMock("matches.json"));
+});
 app.get("/api/matches/live", async () => response(readMock("matches.json")));
 app.get("/api/matches/:fixtureId", async (request, reply) => {
+  const config = getTxlineConfigFromEnv();
+  if (config.dataMode === "live") return publicLiveNormalizationUnavailable();
   const { fixtureId } = request.params as { fixtureId: string };
   const matchState = readMock<MatchState>("match-state.json");
 

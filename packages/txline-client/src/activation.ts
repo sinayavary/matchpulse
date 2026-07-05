@@ -1,254 +1,545 @@
-/**
- * TxLINE on-chain activation support.
- *
- * The full TxLINE access flow (see docs/TXLINE_ACCESS_CHECKLIST.md):
- *   1. Guest JWT          — implemented in auth.ts
- *   2. On-chain subscribe — create a subscription transaction on Solana
- *   3. Signed message      — sign an activation payload with the wallet
- *   4. Activation POST     — exchange the signed payload for an API token
- *   5. Authenticated API   — use both JWT + API token on every request
- *
- * Steps 2-4 are scaffolded here. Several on-chain details depend on TxLINE's
- * program IDL and activation endpoint spec that have not yet been captured in
- * the project docs. getActivationConfigFromEnv() reports exactly which fields
- * are missing so the operator knows what to fill in before running activation.
- *
- * Security:
- *   - No secret is logged or returned by status endpoints.
- *   - The activation config reports only field presence, never values.
- */
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { AnchorProvider, Program, Wallet } from "@coral-xyz/anchor";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAssociatedTokenAddressSync
+} from "@solana/spl-token";
+import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import axios, { type AxiosResponse } from "axios";
+import nacl from "tweetnacl";
+import TxoracleJson from "./idl/txoracle.json" with { type: "json" };
+import type { Txoracle } from "./types/txoracle.js";
 
-import { sanitizeJwt } from "./auth.js";
-import { getTxlineConfigFromEnv } from "./config.js";
+const REQUIRED_ACCOUNTS = [
+  "user", "pricing_matrix", "token_mint", "user_token_account",
+  "token_treasury_vault", "token_treasury_pda", "token_program",
+  "system_program", "associated_token_program"
+] as const;
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-/**
- * Subset of the on-chain / activation parameters required to perform a
- * TxLINE subscription activation. Fields that are present carry their value;
- * fields that are absent must be obtained from TxLINE documentation before
- * activation can proceed.
- */
-export type TxlineActivationConfig = {
-  /** Solana on-chain program ID for TxLINE subscribe instruction. */
-  programId?: string;
-  /** TxL SPL token mint address used in the subscription. */
-  txlTokenMint?: string;
-  /** Subscription duration in weeks. */
-  durationWeeks?: number;
-  /** Comma-separated league IDs or empty string for all. */
-  selectedLeagues: string;
-  /** List of field names that are still missing. */
-  missingFields: string[];
+export type TxlineActivationDiagnostics = {
+  endpointHost?: string;
+  endpointPath?: string;
+  responseContentType?: string;
+  responseErrorCode?: string;
+  responseMessage?: string;
+  responseBodyPreview?: string;
+  errorName?: string;
+  errorMessage?: string;
+  causeCode?: string;
 };
-
-/**
- * Parameters supplied to the activation endpoint POST request.
- * All fields are known values at call-time — no secrets from env leak here.
- */
-export type ActivationRequestParams = {
-  apiBaseUrl: string;
-  guestJwt: string;
-  txSignature: string;
-  walletSignatureBase64: string;
-  walletPublicKey: string;
-  selectedLeagues: string;
-  /** Override the activation URL (for tests). */
-  activationUrl?: string;
-  /** Override fetch implementation (for tests). */
-  fetchImpl?: typeof fetch;
-};
-
-// ---------------------------------------------------------------------------
-// Error
-// ---------------------------------------------------------------------------
 
 export class TxlineActivationError extends Error {
   constructor(
     message: string,
-    public readonly status?: number
+    public readonly status?: number,
+    public readonly diagnostics: TxlineActivationDiagnostics = {}
   ) {
     super(message);
     this.name = "TxlineActivationError";
   }
 }
 
-// ---------------------------------------------------------------------------
-// Config loader
-// ---------------------------------------------------------------------------
+const MAX_DIAGNOSTIC_LENGTH = 500;
+const SENSITIVE_RESPONSE_KEY = /(?:authorization|api.?token|token|jwt|signature|secret|private.?key|wallet)/i;
 
-function isPresent(value: string | undefined): boolean {
-  return typeof value === "string" && value.trim().length > 0;
+function truncateDiagnostic(value: string): string {
+  return value.length <= MAX_DIAGNOSTIC_LENGTH
+    ? value
+    : `${value.slice(0, MAX_DIAGNOSTIC_LENGTH - 3)}...`;
 }
 
-/**
- * Reads TxLINE activation-related env vars and returns a typed config object
- * together with a list of field names whose values are still missing.
- *
- * Recognised env vars (all optional — missing ones are reported in `missingFields`):
- *   TXLINE_PROGRAM_ID        — Solana program ID for subscribe instruction
- *   TXLINE_TXL_TOKEN_MINT     — TxL token mint address
- *   TXLINE_DURATION_WEEKS     — subscription duration in weeks
- *   TXLINE_SELECTED_LEAGUES   — league filter (empty = all)
- *
- * The returned config is safe to log — it carries only a boolean-style
- * `missingFields` list, never the raw secret values.
- */
-export function getActivationConfigFromEnv(
+function sanitizeDiagnosticText(value: string, secrets: string[] = []): string {
+  let sanitized = value;
+  for (const secret of secrets) {
+    if (secret) sanitized = sanitized.split(secret).join("[REDACTED]");
+  }
+  sanitized = sanitized
+    .replace(/Bearer\s+[^\s"'<>]+/gi, "Bearer [REDACTED]")
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED_JWT]")
+    .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/gi, "[REDACTED_PRIVATE_KEY]")
+    .replace(/\[(?:\s*\d+\s*,){31,}\s*\d+\s*\]/g, "[REDACTED_KEY_ARRAY]")
+    .replace(/\b(?:sk|api)[-_][A-Za-z0-9_-]{16,}\b/gi, "[REDACTED_API_TOKEN]")
+    .replace(
+      /(["']?(?:authorization|api.?token|token|jwt|signature|secret|private.?key|walletSignature)["']?\s*[:=]\s*["']?)([^\s,"'<>}]+)/gi,
+      "$1[REDACTED]"
+    );
+  return truncateDiagnostic(sanitized.replace(/\s+/g, " ").trim());
+}
+
+function sanitizeJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeJsonValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        SENSITIVE_RESPONSE_KEY.test(key) ? "[REDACTED]" : sanitizeJsonValue(item)
+      ])
+    );
+  }
+  return value;
+}
+
+function diagnosticScalar(value: unknown, secrets: string[]): string | undefined {
+  if (typeof value !== "string" && typeof value !== "number") return undefined;
+  const sanitized = sanitizeDiagnosticText(String(value), secrets);
+  return sanitized || undefined;
+}
+
+function responseJsonFields(body: unknown, secrets: string[]): {
+  errorCode?: string;
+  message?: string;
+} {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return {};
+  const record = body as Record<string, unknown>;
+  const nestedError = record.error && typeof record.error === "object" && !Array.isArray(record.error)
+    ? record.error as Record<string, unknown>
+    : undefined;
+  return {
+    errorCode: diagnosticScalar(
+      record.error_code ?? record.errorCode ?? record.code ?? nestedError?.code,
+      secrets
+    ),
+    message: diagnosticScalar(record.message ?? nestedError?.message ?? record.error, secrets)
+  };
+}
+
+function errorCauseCode(error: unknown): string | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const cause = "cause" in error ? (error as { cause?: unknown }).cause : undefined;
+  if (!cause || typeof cause !== "object" || !("code" in cause)) return undefined;
+  const code = (cause as { code?: unknown }).code;
+  return typeof code === "string" || typeof code === "number"
+    ? sanitizeDiagnosticText(String(code))
+    : undefined;
+}
+
+function requireEnv(name: string, env: NodeJS.ProcessEnv = process.env): string {
+  const value = env[name]?.trim();
+  if (!value) throw new TxlineActivationError(`${name} is not configured.`);
+  return value;
+}
+
+function repoRoot(): string {
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+}
+
+export function resolveProjectWalletPath(env: NodeJS.ProcessEnv = process.env): string {
+  return path.resolve(repoRoot(), requireEnv("SOLANA_KEYPAIR_PATH", env));
+}
+
+export function loadProjectWalletFromEnv(env: NodeJS.ProcessEnv = process.env): Keypair {
+  const walletPath = resolveProjectWalletPath(env);
+  if (!existsSync(walletPath)) {
+    throw new TxlineActivationError("SOLANA_KEYPAIR_PATH does not point to an existing file.");
+  }
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(walletPath, "utf8"));
+    if (!Array.isArray(parsed) || !parsed.every(Number.isInteger)) throw new Error("invalid keypair");
+    return Keypair.fromSecretKey(Uint8Array.from(parsed as number[]));
+  } catch {
+    throw new TxlineActivationError("The configured project wallet could not be loaded.");
+  }
+}
+
+export type TxlineAnchorProgram = Program<Txoracle>;
+
+export function createTxlineAnchorProgram(
+  wallet: Keypair = loadProjectWalletFromEnv(),
   env: NodeJS.ProcessEnv = process.env
-): TxlineActivationConfig {
-  const missingFields: string[] = [];
+): TxlineAnchorProgram {
+  const connection = new Connection(requireEnv("TXLINE_RPC_URL", env), "confirmed");
+  const programId = new PublicKey(requireEnv("TXLINE_PROGRAM_ID", env));
+  const provider = new AnchorProvider(connection, new Wallet(wallet), {
+    commitment: "confirmed",
+    preflightCommitment: "confirmed"
+  });
+  const idl = { ...TxoracleJson, address: programId.toBase58() } as unknown as Txoracle;
+  return new Program<Txoracle>(idl, provider);
+}
 
-  const programId = env.TXLINE_PROGRAM_ID?.trim();
-  if (!programId) missingFields.push("TXLINE_PROGRAM_ID");
+export type TxlineSubscribeAccounts = {
+  user: PublicKey;
+  pricingMatrix: PublicKey;
+  tokenMint: PublicKey;
+  userTokenAccount: PublicKey;
+  tokenTreasuryVault: PublicKey;
+  tokenTreasuryPda: PublicKey;
+  tokenProgram: PublicKey;
+  systemProgram: PublicKey;
+  associatedTokenProgram: PublicKey;
+};
 
-  const txlTokenMint = env.TXLINE_TXL_TOKEN_MINT?.trim();
-  if (!txlTokenMint) missingFields.push("TXLINE_TXL_TOKEN_MINT");
+export function deriveTxlineSubscribeAccounts(params: {
+  program: TxlineAnchorProgram;
+  wallet: Keypair;
+  tokenMint?: PublicKey;
+  env?: NodeJS.ProcessEnv;
+}): TxlineSubscribeAccounts {
+  const tokenMint = params.tokenMint ?? new PublicKey(requireEnv("TXLINE_TXL_TOKEN_MINT", params.env));
+  const [pricingMatrix] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pricing_matrix")], params.program.programId
+  );
+  const [tokenTreasuryPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("token_treasury_v2")], params.program.programId
+  );
+  return {
+    user: params.wallet.publicKey,
+    pricingMatrix,
+    tokenMint,
+    userTokenAccount: getAssociatedTokenAddressSync(
+      tokenMint, params.wallet.publicKey, false, TOKEN_2022_PROGRAM_ID
+    ),
+    tokenTreasuryVault: getAssociatedTokenAddressSync(
+      tokenMint, tokenTreasuryPda, true, TOKEN_2022_PROGRAM_ID
+    ),
+    tokenTreasuryPda,
+    tokenProgram: TOKEN_2022_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+  };
+}
 
-  const durationWeeksRaw = env.TXLINE_DURATION_WEEKS?.trim();
-  const durationWeeks = durationWeeksRaw ? Number(durationWeeksRaw) : undefined;
-  if (!durationWeeksRaw || Number.isNaN(durationWeeks)) {
-    missingFields.push("TXLINE_DURATION_WEEKS");
+function validateSubscription(serviceLevelId: number, durationWeeks: number): void {
+  if (!Number.isInteger(serviceLevelId) || serviceLevelId < 0 || serviceLevelId > 65_535) {
+    throw new TxlineActivationError("TXLINE_SERVICE_LEVEL_ID must be a valid u16.");
+  }
+  if (!Number.isInteger(durationWeeks) || durationWeeks < 4 || durationWeeks % 4 !== 0 || durationWeeks > 255) {
+    throw new TxlineActivationError(
+      "TXLINE_DURATION_WEEKS must be a valid u8 that is at least 4 and divisible by 4."
+    );
+  }
+}
+
+export async function buildSubscribeTransaction(params: {
+  program: TxlineAnchorProgram;
+  wallet: Keypair;
+  serviceLevelId: number;
+  durationWeeks: number;
+  tokenMint?: PublicKey;
+  env?: NodeJS.ProcessEnv;
+}): Promise<Transaction> {
+  validateSubscription(params.serviceLevelId, params.durationWeeks);
+  const accounts = deriveTxlineSubscribeAccounts(params);
+  const subscribeTransaction = await params.program.methods
+    .subscribe(params.serviceLevelId, params.durationWeeks)
+    .accounts(accounts)
+    .transaction();
+  const userTokenAccountInfo = await params.program.provider.connection.getAccountInfo(
+    accounts.userTokenAccount,
+    "confirmed"
+  );
+
+  if (userTokenAccountInfo) return subscribeTransaction;
+
+  return new Transaction().add(
+    createAssociatedTokenAccountIdempotentInstruction(
+      params.wallet.publicKey,
+      accounts.userTokenAccount,
+      params.wallet.publicKey,
+      accounts.tokenMint,
+      TOKEN_2022_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    ),
+    ...subscribeTransaction.instructions
+  );
+}
+
+export async function sendSubscribeTransaction(params: {
+  program: TxlineAnchorProgram;
+  wallet: Keypair;
+  serviceLevelId: number;
+  durationWeeks: number;
+  tokenMint?: PublicKey;
+  env?: NodeJS.ProcessEnv;
+}): Promise<string> {
+  const transaction = await buildSubscribeTransaction(params);
+  const connection = params.program.provider.connection;
+  const latestBlockhash = await connection.getLatestBlockhash("confirmed");
+  transaction.recentBlockhash = latestBlockhash.blockhash;
+  transaction.feePayer = params.wallet.publicKey;
+  transaction.sign(params.wallet);
+  const txSig = await connection.sendRawTransaction(transaction.serialize(), {
+    skipPreflight: false,
+    preflightCommitment: "confirmed"
+  });
+  const confirmation = await connection.confirmTransaction(
+    { signature: txSig, ...latestBlockhash }, "confirmed"
+  );
+  if (confirmation.value.err) {
+    throw new TxlineActivationError(`Subscribe transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+  }
+  return txSig;
+}
+
+export function buildActivationMessage(
+  txSig: string,
+  selectedLeagues: number[],
+  guestJwt: string
+): string {
+  return `${txSig}:${selectedLeagues.join(",")}:${guestJwt}`;
+}
+
+export function signActivationMessage(message: string, wallet: Keypair): string {
+  const signature = nacl.sign.detached(new TextEncoder().encode(message), wallet.secretKey);
+  return Buffer.from(signature).toString("base64");
+}
+
+export async function activateApiToken(params: {
+  apiBaseUrl?: string;
+  guestJwt: string;
+  txSig: string;
+  walletSignature: string;
+  selectedLeagues: number[];
+  onResponseStatus?: (status: number) => void;
+  env?: NodeJS.ProcessEnv;
+}): Promise<string> {
+  const apiBaseUrl = (params.apiBaseUrl ?? requireEnv("TXLINE_API_BASE_URL", params.env)).replace(/\/$/, "");
+  const endpoint = new URL(`${apiBaseUrl}/token/activate`);
+  const endpointDiagnostics = {
+    endpointHost: endpoint.host,
+    endpointPath: endpoint.pathname
+  };
+  let response: AxiosResponse<unknown>;
+  try {
+    response = await axios.post(
+      endpoint.toString(),
+      {
+        txSig: params.txSig,
+        walletSignature: params.walletSignature,
+        leagues: params.selectedLeagues
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${params.guestJwt}`
+        },
+        validateStatus: () => true
+      }
+    );
+  } catch (error) {
+    const errorName = error instanceof Error ? error.name : typeof error;
+    const message = sanitizeDiagnosticText(error instanceof Error ? error.message : String(error), [
+      params.guestJwt,
+      params.walletSignature
+    ]);
+    throw new TxlineActivationError("Activation request failed.", undefined, {
+      ...endpointDiagnostics,
+      errorName: sanitizeDiagnosticText(errorName),
+      errorMessage: message,
+      causeCode: errorCauseCode(error)
+    });
+  }
+  params.onResponseStatus?.(response.status);
+  if (response.status < 200 || response.status >= 300) {
+    const contentType = sanitizeDiagnosticText(String(response.headers["content-type"] ?? "unknown"));
+    const responseBody: unknown = response.data;
+    const secrets = [params.guestJwt, params.walletSignature];
+    const jsonFields = responseJsonFields(responseBody, secrets);
+    const previewSource = typeof responseBody === "string"
+      ? responseBody
+      : responseBody === undefined
+        ? ""
+        : JSON.stringify(sanitizeJsonValue(responseBody));
+    throw new TxlineActivationError(`Activation request returned HTTP ${response.status}.`, response.status, {
+      ...endpointDiagnostics,
+      responseContentType: contentType,
+      responseErrorCode: jsonFields.errorCode,
+      responseMessage: jsonFields.message,
+      responseBodyPreview: previewSource
+        ? sanitizeDiagnosticText(previewSource, secrets)
+        : undefined
+    });
+  }
+  const body: unknown = response.data;
+  const token = body && typeof body === "object" && "token" in body
+    ? (body as { token?: unknown }).token
+    : body;
+  if (typeof token !== "string" || token.length === 0) {
+    throw new TxlineActivationError("Activation response did not contain a token.", response.status);
+  }
+  return token;
+}
+
+export function parseSelectedLeagues(value: string | undefined): number[] {
+  const raw = value?.trim() ?? "";
+  if (!raw) return [];
+  const leagues = raw.split(",").map((item) => Number(item.trim()));
+  if (leagues.some((item) => !Number.isInteger(item))) {
+    throw new TxlineActivationError("TXLINE_SELECTED_LEAGUES must be a comma-separated number array.");
+  }
+  return leagues;
+}
+
+export type ActivationPreflightResult = {
+  activationReady: boolean;
+  invalidItems: string[];
+  rpcConnected: boolean;
+  walletFileExists: boolean;
+  walletPublicKey: string | null;
+  walletBalanceSol: number | null;
+  guestJwtConfigured: boolean;
+  apiTokenConfigured: boolean;
+  apiBaseConfigured: boolean;
+  serviceLevelConfigured: boolean;
+  durationWeeksConfigured: boolean;
+  programIdValid: boolean;
+  tokenMintValid: boolean;
+  idlLoaded: boolean;
+  subscribeInstructionImplemented: boolean;
+  subscribeAccountsValid: boolean;
+  derivationSucceeded: boolean;
+  userTokenAccountAddress: string | null;
+  userTokenAccountInitialized: boolean;
+  userTokenAccountWillBeCreated: boolean;
+  activationEndpointValid: boolean;
+  selectedLeagues: number[] | null;
+  wallet: Keypair | null;
+  program: TxlineAnchorProgram | null;
+  serviceLevelId: number | null;
+  durationWeeks: number | null;
+};
+
+export async function runActivationPreflight(
+  env: NodeJS.ProcessEnv = process.env
+): Promise<ActivationPreflightResult> {
+  const invalidItems: string[] = [];
+  const present = (name: string) => Boolean(env[name]?.trim());
+  const guestJwtConfigured = present("TXLINE_GUEST_JWT");
+  const apiTokenConfigured = present("TXLINE_API_TOKEN");
+  const apiBaseConfigured = present("TXLINE_API_BASE_URL");
+  const serviceLevelConfigured = present("TXLINE_SERVICE_LEVEL_ID");
+  const durationWeeksConfigured = present("TXLINE_DURATION_WEEKS");
+  if (!guestJwtConfigured) invalidItems.push("TXLINE_GUEST_JWT (missing)");
+  if (!apiBaseConfigured) invalidItems.push("TXLINE_API_BASE_URL (missing)");
+  if (!serviceLevelConfigured) invalidItems.push("TXLINE_SERVICE_LEVEL_ID (missing)");
+  if (!durationWeeksConfigured) invalidItems.push("TXLINE_DURATION_WEEKS (missing)");
+
+  const serviceLevelId = serviceLevelConfigured ? Number(env.TXLINE_SERVICE_LEVEL_ID) : null;
+  if (serviceLevelId !== null && (!Number.isInteger(serviceLevelId) || serviceLevelId < 0 || serviceLevelId > 65_535)) {
+    invalidItems.push("TXLINE_SERVICE_LEVEL_ID (must be a valid u16)");
+  }
+  const durationWeeks = durationWeeksConfigured ? Number(env.TXLINE_DURATION_WEEKS) : null;
+  if (durationWeeks !== null && (!Number.isInteger(durationWeeks) || durationWeeks < 4)) {
+    invalidItems.push("TXLINE_DURATION_WEEKS (must be an integer >= 4)");
+  }
+  if (durationWeeks !== null && Number.isInteger(durationWeeks) && durationWeeks % 4 !== 0) {
+    invalidItems.push("TXLINE_DURATION_WEEKS (must be divisible by 4)");
+  }
+  if (durationWeeks !== null && durationWeeks > 255) {
+    invalidItems.push("TXLINE_DURATION_WEEKS (must fit IDL u8)");
   }
 
-  const selectedLeagues = env.TXLINE_SELECTED_LEAGUES?.trim() ?? "";
+  let programIdValid = false;
+  let tokenMintValid = false;
+  try { new PublicKey(requireEnv("TXLINE_PROGRAM_ID", env)); programIdValid = true; }
+  catch { invalidItems.push("TXLINE_PROGRAM_ID (missing or invalid)"); }
+  try { new PublicKey(requireEnv("TXLINE_TXL_TOKEN_MINT", env)); tokenMintValid = true; }
+  catch { invalidItems.push("TXLINE_TXL_TOKEN_MINT (missing or invalid)"); }
+
+  const idl = TxoracleJson as { instructions?: Array<{ name?: string; accounts?: Array<{ name?: string }> }> };
+  const idlLoaded = Array.isArray(idl.instructions);
+  const subscribe = idl.instructions?.find((instruction) => instruction.name === "subscribe");
+  const subscribeInstructionImplemented = Boolean(subscribe);
+  const idlAccounts = new Set(subscribe?.accounts?.map((account) => account.name));
+  const subscribeAccountsValid = REQUIRED_ACCOUNTS.every((name) => idlAccounts.has(name));
+  if (!idlLoaded) invalidItems.push("official IDL (could not load)");
+  if (!subscribeInstructionImplemented) invalidItems.push("official IDL subscribe instruction (missing)");
+  if (!subscribeAccountsValid) invalidItems.push("official IDL subscribe accounts (missing or invalid)");
+
+  let selectedLeagues: number[] | null = null;
+  try { selectedLeagues = parseSelectedLeagues(env.TXLINE_SELECTED_LEAGUES); }
+  catch { invalidItems.push("TXLINE_SELECTED_LEAGUES (must parse as number[])"); }
+
+  let activationEndpointValid = false;
+  if (apiBaseConfigured) {
+    try {
+      const endpoint = new URL(`${env.TXLINE_API_BASE_URL!.replace(/\/$/, "")}/token/activate`);
+      activationEndpointValid = endpoint.protocol === "https:" || endpoint.protocol === "http:";
+    } catch { /* reported below */ }
+  }
+  if (!activationEndpointValid) invalidItems.push("activation endpoint (cannot be constructed)");
+
+  let walletFileExists = false;
+  try { walletFileExists = existsSync(resolveProjectWalletPath(env)); }
+  catch { /* reported below */ }
+  if (!walletFileExists) invalidItems.push("SOLANA_KEYPAIR_PATH (wallet file not found)");
+  let wallet: Keypair | null = null;
+  if (walletFileExists) {
+    try { wallet = loadProjectWalletFromEnv(env); }
+    catch { invalidItems.push("SOLANA_KEYPAIR_PATH (wallet public key could not be loaded)"); }
+  }
+
+  let rpcConnected = false;
+  let walletBalanceSol: number | null = null;
+  let program: TxlineAnchorProgram | null = null;
+  let connection: Connection | null = null;
+  if (!present("TXLINE_RPC_URL")) {
+    invalidItems.push("TXLINE_RPC_URL (missing)");
+  } else {
+    try {
+      connection = new Connection(env.TXLINE_RPC_URL!, "confirmed");
+      if (wallet) {
+        walletBalanceSol = (await connection.getBalance(wallet.publicKey, "confirmed")) / LAMPORTS_PER_SOL;
+      } else {
+        await connection.getSlot("confirmed");
+      }
+      rpcConnected = true;
+    } catch { invalidItems.push("TXLINE_RPC_URL (RPC unreachable)"); }
+  }
+  if (walletBalanceSol !== null && walletBalanceSol < 0.1) {
+    invalidItems.push("wallet balance (must be >= 0.1 SOL)");
+  }
+
+  let derivationSucceeded = false;
+  let userTokenAccountAddress: string | null = null;
+  let userTokenAccountInitialized = false;
+  let userTokenAccountWillBeCreated = false;
+  if (wallet && programIdValid && tokenMintValid && present("TXLINE_RPC_URL")) {
+    try {
+      program = createTxlineAnchorProgram(wallet, env);
+      const accounts = deriveTxlineSubscribeAccounts({ program, wallet, env });
+      userTokenAccountAddress = accounts.userTokenAccount.toBase58();
+      if (rpcConnected && connection) {
+        userTokenAccountInitialized = Boolean(
+          await connection.getAccountInfo(accounts.userTokenAccount, "confirmed")
+        );
+        userTokenAccountWillBeCreated = !userTokenAccountInitialized;
+      }
+      derivationSucceeded = true;
+    } catch { invalidItems.push("PDA/ATA derivation (failed)"); }
+  } else {
+    invalidItems.push("PDA/ATA derivation (blocked by invalid configuration)");
+  }
 
   return {
-    programId,
-    txlTokenMint,
-    durationWeeks,
+    activationReady: invalidItems.length === 0,
+    invalidItems,
+    rpcConnected,
+    walletFileExists,
+    walletPublicKey: wallet?.publicKey.toBase58() ?? null,
+    walletBalanceSol,
+    guestJwtConfigured,
+    apiTokenConfigured,
+    apiBaseConfigured,
+    serviceLevelConfigured,
+    durationWeeksConfigured,
+    programIdValid,
+    tokenMintValid,
+    idlLoaded,
+    subscribeInstructionImplemented,
+    subscribeAccountsValid,
+    derivationSucceeded,
+    userTokenAccountAddress,
+    userTokenAccountInitialized,
+    userTokenAccountWillBeCreated,
+    activationEndpointValid,
     selectedLeagues,
-    missingFields
+    wallet,
+    program,
+    serviceLevelId,
+    durationWeeks
   };
-}
-
-// ---------------------------------------------------------------------------
-// Activation message builder (placeholder)
-// ---------------------------------------------------------------------------
-
-/**
- * Builds the message that the wallet must sign for the activation request.
- *
- * **IMPORTANT:** The exact format of this message is unconfirmed. It is a
- * best-effort scaffold that must be verified against TxLINE's activation
- * documentation once available. The structure below follows the conceptual
- * flow in TXLINE_ACCESS_CHECKLIST.md but may need adjustment.
- */
-export function buildActivationMessage(
-  txSignature: string,
-  selectedLeagues: string,
-  guestJwt: string
-): Uint8Array {
-  // Sanitize JWT in the message — we only need the payload, not a full copy.
-  const jwtPreview = sanitizeJwt(guestJwt);
-  const raw = `${txSignature}:${selectedLeagues}:${jwtPreview}`;
-  return new TextEncoder().encode(raw);
-}
-
-// ---------------------------------------------------------------------------
-// Activation endpoint POST
-// ---------------------------------------------------------------------------
-
-/**
- * Pulls the API token from an activation response. Mirrors the flexible
- * field-name guessing in auth.ts since the exact response shape is unconfirmed.
- */
-function extractActivationToken(body: unknown): string | null {
-  if (!body || typeof body !== "object") return null;
-
-  const root = body as Record<string, unknown>;
-  const data =
-    root.data && typeof root.data === "object"
-      ? (root.data as Record<string, unknown>)
-      : {};
-
-  const candidates = [
-    root.apiToken,
-    root.api_token,
-    root.token,
-    root.accessToken,
-    root.access_token,
-    data.apiToken,
-    data.api_token,
-    data.token,
-    data.accessToken,
-    data.access_token
-  ];
-
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim().length > 0) {
-      return candidate.trim();
-    }
-  }
-  return null;
-}
-
-/**
- * POSTs the signed activation payload to the TxLINE activation endpoint.
- *
- * The default activation URL is `${apiBaseUrl}/token/activate` — this matches
- * the convention in the project docs but is **unconfirmed** and may need to
- * change once the official TxLINE API spec is available.
- *
- * On success the raw API token string is returned so the caller (script)
- * can decide what to do with it. It is NOT saved or logged by this function.
- */
-export async function postActivationRequest(
-  params: ActivationRequestParams
-): Promise<string> {
-  const activationUrl =
-    params.activationUrl ?? `${params.apiBaseUrl}/token/activate`;
-  const fetchImpl = params.fetchImpl ?? fetch;
-
-  const body = {
-    txSignature: params.txSignature,
-    walletSignature: params.walletSignatureBase64,
-    walletPublicKey: params.walletPublicKey,
-    selectedLeagues: params.selectedLeagues
-  };
-
-  let response: Response;
-  try {
-    response = await fetchImpl(activationUrl, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${params.guestJwt}`
-      },
-      body: JSON.stringify(body)
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new TxlineActivationError(
-      `Activation request failed: ${message} (url: ${activationUrl}).`
-    );
-  }
-
-  if (!response.ok) {
-    throw new TxlineActivationError(
-      `Activation request returned HTTP ${response.status} from ${activationUrl}.`,
-      response.status
-    );
-  }
-
-  let responseBody: unknown;
-  try {
-    responseBody = await response.json();
-  } catch {
-    throw new TxlineActivationError(
-      `Activation response from ${activationUrl} was not valid JSON.`
-    );
-  }
-
-  const token = extractActivationToken(responseBody);
-  if (!token) {
-    throw new TxlineActivationError(
-      `Activation response from ${activationUrl} did not contain a recognized API token field.`
-    );
-  }
-
-  return token;
 }

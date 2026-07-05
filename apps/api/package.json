@@ -7,12 +7,14 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
     "lint": "echo 'api lint placeholder'",
+    "test:normalizer": "tsx --test src/txline-normalizer.test.ts",
     "txline:create-wallet": "tsx src/scripts/create-dev-wallet.ts",
     "txline:guest-jwt": "tsx src/scripts/fetch-guest-jwt.ts",
     "txline:activation-preflight": "tsx src/scripts/activation-preflight.ts",
-    "txline:activate-devnet": "tsx src/scripts/activate-txline-devnet.ts"
+    "txline:activate-devnet": "tsx src/scripts/activate-txline-devnet.ts",
+    "txline:activate-token": "tsx src/scripts/activate-token-from-txsig.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",

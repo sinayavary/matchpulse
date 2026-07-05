@@ -12,26 +12,42 @@
  *     argument. Those never flow through the exposable config object.
  */
 import { getTxlineConfigFromEnv, toTxlineStatusData } from "./config.js";
-import type { TxlineConfig, TxlineNetwork, TxlineStatusData } from "./config.js";
-import { TxlineNetworkSchema } from "./config.js";
+import type { TxlineConfig, TxlineDataMode, TxlineNetwork, TxlineStatusData } from "./config.js";
+import { TxlineDataModeSchema, TxlineNetworkSchema } from "./config.js";
 
 export {
   getTxlineConfigFromEnv,
   toTxlineStatusData,
-  TxlineNetworkSchema
+  TxlineNetworkSchema,
+  TxlineDataModeSchema
 };
-export type { TxlineConfig, TxlineNetwork, TxlineStatusData };
+export type { TxlineConfig, TxlineDataMode, TxlineNetwork, TxlineStatusData };
+
+export { createTxlineLiveClient, TxlineLiveError } from "./live.js";
+export type { TxlineLiveErrorKind, TxlineSafeError } from "./live.js";
 
 export { fetchGuestJwt, sanitizeJwt, TxlineAuthError } from "./auth.js";
 export type { FetchGuestJwtOptions } from "./auth.js";
 
 export {
-  getActivationConfigFromEnv,
+  loadProjectWalletFromEnv,
+  resolveProjectWalletPath,
+  createTxlineAnchorProgram,
+  deriveTxlineSubscribeAccounts,
+  buildSubscribeTransaction,
+  sendSubscribeTransaction,
   buildActivationMessage,
-  postActivationRequest,
+  signActivationMessage,
+  activateApiToken,
+  parseSelectedLeagues,
+  runActivationPreflight,
   TxlineActivationError
 } from "./activation.js";
-export type { TxlineActivationConfig, ActivationRequestParams } from "./activation.js";
+export type {
+  TxlineAnchorProgram,
+  TxlineSubscribeAccounts,
+  ActivationPreflightResult
+} from "./activation.js";
 
 /**
  * Credentials handed to TxlineClient explicitly. These are real secrets and

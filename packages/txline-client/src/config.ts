@@ -14,6 +14,8 @@ import { z } from "zod";
 
 export const TxlineNetworkSchema = z.enum(["devnet", "mainnet"]);
 export type TxlineNetwork = z.infer<typeof TxlineNetworkSchema>;
+export const TxlineDataModeSchema = z.enum(["mock", "live", "auto"]);
+export type TxlineDataMode = z.infer<typeof TxlineDataModeSchema>;
 
 const DEFAULT_DEVNET_ORIGIN = "https://txline-dev.txodds.com";
 const DEFAULT_MAINNET_ORIGIN = "https://txline.txodds.com";
@@ -34,6 +36,10 @@ export type TxlineConfig = {
   solanaKeypairPath: string;
   guestJwtConfigured: boolean;
   apiTokenConfigured: boolean;
+  dataMode: TxlineDataMode;
+  httpTimeoutMs: number;
+  defaultCompetitionId?: string;
+  defaultStartEpochDay?: number;
 };
 
 function isPresent(value: string | undefined): boolean {
@@ -79,6 +85,20 @@ export function getTxlineConfigFromEnv(
     (network === "mainnet" ? DEFAULT_MAINNET_RPC_URL : DEFAULT_DEVNET_RPC_URL);
 
   const solanaKeypairPath = env.SOLANA_KEYPAIR_PATH ?? "";
+  const dataMode = TxlineDataModeSchema.parse(env.TXLINE_DATA_MODE ?? "mock");
+  const parsedTimeout = Number(env.TXLINE_HTTP_TIMEOUT_MS ?? 8000);
+  const httpTimeoutMs = Number.isFinite(parsedTimeout) && parsedTimeout > 0
+    ? parsedTimeout
+    : 8000;
+  const defaultCompetitionId = isPresent(env.TXLINE_DEFAULT_COMPETITION_ID)
+    ? env.TXLINE_DEFAULT_COMPETITION_ID!.trim()
+    : undefined;
+  const parsedStartEpochDay = isPresent(env.TXLINE_DEFAULT_START_EPOCH_DAY)
+    ? Number(env.TXLINE_DEFAULT_START_EPOCH_DAY)
+    : undefined;
+  const defaultStartEpochDay = parsedStartEpochDay !== undefined && Number.isFinite(parsedStartEpochDay)
+    ? parsedStartEpochDay
+    : undefined;
 
   return {
     network,
@@ -89,7 +109,11 @@ export function getTxlineConfigFromEnv(
     rpcUrl,
     solanaKeypairPath,
     guestJwtConfigured: isPresent(env.TXLINE_GUEST_JWT),
-    apiTokenConfigured: isPresent(env.TXLINE_API_TOKEN)
+    apiTokenConfigured: isPresent(env.TXLINE_API_TOKEN),
+    dataMode,
+    httpTimeoutMs,
+    defaultCompetitionId,
+    defaultStartEpochDay
   };
 }
 
@@ -100,14 +124,11 @@ export function getTxlineConfigFromEnv(
  * raw JWT, API token, private key, or seed phrase.
  */
 export type TxlineStatusData = {
-  network: TxlineNetwork;
-  service_level_id: number;
-  api_origin_configured: boolean;
   api_base_url_configured: boolean;
-  guest_auth_url_configured: boolean;
   guest_jwt_configured: boolean;
   api_token_configured: boolean;
-  wallet_path_configured: boolean;
+  data_mode: TxlineDataMode;
+  timeout_ms: number;
 };
 
 /**
@@ -116,13 +137,10 @@ export type TxlineStatusData = {
  */
 export function toTxlineStatusData(config: TxlineConfig): TxlineStatusData {
   return {
-    network: config.network,
-    service_level_id: config.serviceLevelId,
-    api_origin_configured: isPresent(config.apiOrigin),
     api_base_url_configured: isPresent(config.apiBaseUrl),
-    guest_auth_url_configured: isPresent(config.guestAuthUrl),
     guest_jwt_configured: config.guestJwtConfigured,
     api_token_configured: config.apiTokenConfigured,
-    wallet_path_configured: isPresent(config.solanaKeypairPath)
+    data_mode: config.dataMode,
+    timeout_ms: config.httpTimeoutMs
   };
 }
