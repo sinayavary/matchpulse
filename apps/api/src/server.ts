@@ -70,6 +70,7 @@ import {
   runFixtureIngestionPipeline,
   type IngestionRunnerInput
 } from "./ingestion-runner.js";
+import { getSignalCoreContract } from "./signalcore-contract.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -86,6 +87,15 @@ app.get("/api/health", async () =>
     service_level_id: Number(process.env.TXLINE_SERVICE_LEVEL_ID ?? 1)
   })
 );
+
+app.get("/api/internal/signalcore/contract", async () => ({
+  data: getSignalCoreContract(),
+  meta: {
+    status: "live" as const,
+    source: "contract" as const,
+    mode: "internal" as const
+  }
+}));
 
 app.get("/api/internal/db/status", async () => {
   const health = await checkDbHealth();
