@@ -83,6 +83,7 @@ import {
   getDemoBridgeMatches,
   isAllowedDemoFixtureId
 } from "./demo-bridge.js";
+import { registerPublicApiRoutes } from "./public-api.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -264,6 +265,8 @@ app.get("/api/internal/demo/matches/:fixtureId/bundle", async (request) => {
 });
 
 app.get("/api/demo/matches", async () => getDemoBridgeMatches());
+
+registerPublicApiRoutes(app);
 
 app.get("/api/demo/matches/:fixtureId/bundle", async (request, reply) => {
   const { fixtureId } = request.params as { fixtureId: string };
