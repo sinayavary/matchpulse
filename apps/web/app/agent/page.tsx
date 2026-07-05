@@ -1,23 +1,18 @@
-import { getApi } from "../../lib/api";
-
-type ApiResponse<T> = { data: T; meta: { status: string } };
-
-export default async function AgentPage() {
-  const [health, evaluation, graph] = await Promise.all([
-    getApi<ApiResponse<unknown>>("/api/agent/health"),
-    getApi<ApiResponse<unknown>>("/api/agent/evaluation"),
-    getApi<ApiResponse<unknown>>("/api/agent/learning-graph")
-  ]);
-
+export default function AgentPage() {
   return (
     <main className="container">
-      <div className="badge">Track 1 · Standalone Agent</div>
-      <h1>SignalCore Agent</h1>
-      <p className="subtitle">Autonomous sports market intelligence agent with signals, scenarios, replay, and learning graph outputs.</p>
-      <section className="grid cols-3">
-        <div className="card"><h3>Health</h3><pre className="muted">{JSON.stringify(health?.data ?? { mode: "mock fallback" }, null, 2)}</pre></div>
-        <div className="card"><h3>Evaluation</h3><pre className="muted">{JSON.stringify(evaluation?.data ?? {}, null, 2)}</pre></div>
-        <div className="card"><h3>Learning Graph</h3><pre className="muted">{JSON.stringify(graph?.data ?? {}, null, 2)}</pre></div>
+      <div className="badge">Agent overview</div>
+      <h1>Agent brief lives in the public match room.</h1>
+      <p className="subtitle">
+        This phase keeps the frontend on public-safe match routes only. Open a match
+        room to review headline, overview, signal feed, freshness, and quality data.
+      </p>
+      <section className="card">
+        <h3>Where to look next</h3>
+        <p className="muted">
+          Visit the Matches page for the DB-backed public browser, or use the Demo page
+          for the deterministic fallback flow.
+        </p>
       </section>
     </main>
   );

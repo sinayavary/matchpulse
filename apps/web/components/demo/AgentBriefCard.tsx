@@ -1,6 +1,7 @@
 "use client";
 
 import type { AgentBrief } from "../../lib/demo-api";
+import { sanitizeSafeScopeNote } from "../../lib/public-api";
 
 interface AgentBriefCardProps {
   brief: AgentBrief | null;
@@ -56,9 +57,9 @@ export default function AgentBriefCard({ brief }: AgentBriefCardProps) {
         <p className="demo-brief-note muted">{brief.freshness_note}</p>
       )}
 
-      {brief.safe_scope_note && (
-        <p className="demo-brief-note muted">{brief.safe_scope_note}</p>
-      )}
+      <p className="demo-brief-note muted">
+        {sanitizeSafeScopeNote(brief.safe_scope_note)}
+      </p>
     </div>
   );
 }

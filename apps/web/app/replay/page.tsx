@@ -1,17 +1,18 @@
-import { getApi } from "../../lib/api";
-
-type ApiResponse<T> = { data: T; meta: { status: string } };
-
-export default async function ReplayPage() {
-  const replay = await getApi<ApiResponse<unknown>>("/api/replay/demo-session");
+export default function ReplayPage() {
   return (
     <main className="container">
-      <div className="badge">Replay Mode · Demo without live matches</div>
-      <h1>Replay-ready intelligence</h1>
-      <p className="subtitle">Replay mode lets judges see the Agent generate signals and scenario updates even when no live match is active.</p>
+      <div className="badge">Replay</div>
+      <h1>Use the demo fallback for replay-safe viewing.</h1>
+      <p className="subtitle">
+        This phase keeps non-demo frontend flows on the public API. For deterministic
+        replay behavior, use the Demo page instead of a separate replay fetch route.
+      </p>
       <section className="card">
-        <h3>Replay state</h3>
-        <pre className="muted" style={{ overflowX: "auto" }}>{JSON.stringify(replay?.data ?? { mode: "mock fallback" }, null, 2)}</pre>
+        <h3>Replay path</h3>
+        <p className="muted">
+          Open the Demo page to inspect the fallback bundle, raw JSON, and safe data
+          availability states without relying on live public match data.
+        </p>
       </section>
     </main>
   );
