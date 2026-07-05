@@ -43,6 +43,10 @@ import {
   summarizeScoreIngestion
 } from "./txline-score-ingestion.js";
 import {
+  getDbOddsSnapshotsByFixtureId,
+  ingestTxlineOddsSnapshot
+} from "./txline-odds-ingestion.js";
+import {
   buildReplayState,
   createReplaySession,
   getReplaySession,
@@ -167,6 +171,32 @@ app.get("/api/internal/db/match-states/:fixtureId", async (request) => {
   } catch {
     return {
       data: { found: false, match_state: null },
+      meta: { status: "degraded" as const, source: "database" as const }
+    };
+  }
+});
+
+app.get("/api/internal/db/odds-snapshots/:fixtureId", async (request) => {
+  const { fixtureId } = request.params as { fixtureId: string };
+  if (!process.env.DATABASE_URL) {
+    return {
+      data: { found: false, count: 0, odds_snapshots: [] },
+      meta: { status: "no_data" as const, source: "database" as const }
+    };
+  }
+
+  try {
+    const data = await getDbOddsSnapshotsByFixtureId(fixtureId);
+    return {
+      data,
+      meta: {
+        status: data.found ? "live" as const : "no_data" as const,
+        source: "database" as const
+      }
+    };
+  } catch {
+    return {
+      data: { found: false, count: 0, odds_snapshots: [] },
       meta: { status: "degraded" as const, source: "database" as const }
     };
   }
@@ -343,6 +373,87 @@ app.post("/api/internal/txline/ingest/score", async (request) => {
       data: { requested, result: emptyResult, match_state: null },
       meta: {
         status: "error" as const,
+        source: "database" as const,
+        mode: "internal" as const,
+        message: safeTxlineError(error).message
+      }
+    };
+  }
+});
+
+app.post("/api/internal/txline/ingest/odds", async (request, reply) => {
+  const config = getTxlineConfigFromEnv();
+  const body = request.body as {
+    fixtureId?: unknown;
+    asOf?: unknown;
+    includeRaw?: unknown;
+  } | undefined;
+  const fixtureId = typeof body?.fixtureId === "string" ? body.fixtureId.trim() : "";
+  const rawAsOf = body?.asOf ?? Date.now();
+  const asOf = normalizeAsOfToEpochMs(String(rawAsOf));
+  const requested = {
+    fixture_id: fixtureId,
+    as_of: asOf ?? String(rawAsOf)
+  };
+  const emptyResult = {
+    fetched_count: 0,
+    mapped_count: 0,
+    upserted_count: 0,
+    skipped_count: 0,
+    failed_count: 0
+  };
+
+  if (!fixtureId || asOf === null) {
+    reply.code(400);
+    return {
+      data: { requested, result: emptyResult, odds_snapshots: [] },
+      meta: {
+        status: "error" as const,
+        source: "database" as const,
+        mode: "internal" as const,
+        message: "fixtureId is required and asOf must be epoch milliseconds or an ISO date string."
+      }
+    };
+  }
+
+  if (config.dataMode === "mock" || !process.env.DATABASE_URL) {
+    return {
+      data: { requested, result: emptyResult, odds_snapshots: [] },
+      meta: {
+        status: config.dataMode === "mock" ? "error" as const : "no_data" as const,
+        source: "database" as const,
+        mode: "internal" as const,
+        message: config.dataMode === "mock"
+          ? "Odds ingestion requires live or auto TxLINE mode."
+          : "Database is not configured."
+      }
+    };
+  }
+
+  try {
+    const ingestion = await ingestTxlineOddsSnapshot({
+      fixtureId,
+      asOf,
+      includeRaw: body?.includeRaw === true
+    });
+    const hasFailures = ingestion.result.failed_count > 0;
+    return {
+      data: ingestion,
+      meta: {
+        status: hasFailures
+          ? "degraded" as const
+          : ingestion.result.fetched_count === 0
+            ? "no_data" as const
+            : "live" as const,
+        source: "database" as const,
+        mode: "internal" as const
+      }
+    };
+  } catch (error) {
+    return {
+      data: { requested, result: emptyResult, odds_snapshots: [] },
+      meta: {
+        status: "degraded" as const,
         source: "database" as const,
         mode: "internal" as const,
         message: safeTxlineError(error).message
