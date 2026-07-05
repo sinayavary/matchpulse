@@ -85,6 +85,14 @@ function optionalString(value: unknown): string | null {
     (typeof value === "number" && Number.isFinite(value) ? String(value) : null);
 }
 
+function readTxlineField(
+  item: Record<string, unknown>,
+  camelCaseKey: string,
+  pascalCaseKey: string
+): unknown {
+  return item[camelCaseKey] ?? item[pascalCaseKey];
+}
+
 function epochMsToDate(value: unknown): Date | null {
   if (
     typeof value !== "number" ||
@@ -110,10 +118,10 @@ export function buildOddsMarketId(rawOdds: unknown): string {
   if (!isRecord(rawOdds)) return "unknown";
 
   const parts = [
-    ["bookmaker", stableValue(rawOdds.bookmakerId)],
-    ["type", stableValue(rawOdds.superOddsType)],
-    ["period", stableValue(rawOdds.marketPeriod)],
-    ["parameters", stableValue(rawOdds.marketParameters)]
+    ["bookmaker", stableValue(readTxlineField(rawOdds, "bookmakerId", "BookmakerId"))],
+    ["type", stableValue(readTxlineField(rawOdds, "superOddsType", "SuperOddsType"))],
+    ["period", stableValue(readTxlineField(rawOdds, "marketPeriod", "MarketPeriod"))],
+    ["parameters", stableValue(readTxlineField(rawOdds, "marketParameters", "MarketParameters"))]
   ]
     .filter((part): part is [string, string] => part[1] !== null)
     .map(([key, value]) => `${key}:${value}`);
@@ -129,15 +137,22 @@ export function mapTxlineOddsSnapshotToOddsRows(
   let skippedCount = 0;
 
   for (const rawOdds of rawOddsItems) {
-    if (!isRecord(rawOdds) || !Array.isArray(rawOdds.prices)) {
+    if (!isRecord(rawOdds)) {
       skippedCount += 1;
       continue;
     }
 
-    const priceNames = Array.isArray(rawOdds.priceNames) ? rawOdds.priceNames : [];
+    const prices = readTxlineField(rawOdds, "prices", "Prices");
+    if (!Array.isArray(prices)) {
+      skippedCount += 1;
+      continue;
+    }
+
+    const rawPriceNames = readTxlineField(rawOdds, "priceNames", "PriceNames");
+    const priceNames = Array.isArray(rawPriceNames) ? rawPriceNames : [];
     const raw = options.includeRaw ? rawOdds : undefined;
-    for (let index = 0; index < rawOdds.prices.length; index += 1) {
-      const odds = rawOdds.prices[index];
+    for (let index = 0; index < prices.length; index += 1) {
+      const odds = prices[index];
       if (typeof odds !== "number" || !Number.isFinite(odds)) {
         skippedCount += 1;
         continue;
@@ -145,15 +160,15 @@ export function mapTxlineOddsSnapshotToOddsRows(
 
       rows.push({
         fixtureId: options.fixtureId,
-        externalSeq: optionalString(rawOdds.messageId),
+        externalSeq: optionalString(readTxlineField(rawOdds, "messageId", "MessageId")),
         marketId: buildOddsMarketId(rawOdds),
-        marketName: optionalString(rawOdds.superOddsType),
+        marketName: optionalString(readTxlineField(rawOdds, "superOddsType", "SuperOddsType")),
         selectionName: readString(priceNames[index]) ?? `selection_${index}`,
         odds,
         previousOdds: null,
         changePercent: null,
         direction: "flat",
-        sourceTimestamp: epochMsToDate(rawOdds.ts),
+        sourceTimestamp: epochMsToDate(readTxlineField(rawOdds, "ts", "Ts")),
         ...(raw === undefined ? {} : { raw })
       });
     }

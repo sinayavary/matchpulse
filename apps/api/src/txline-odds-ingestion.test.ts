@@ -20,6 +20,22 @@ const sample = {
   prices: [2.1, 3.2, 2.8]
 };
 
+const pascalCaseSample = {
+  FixtureId: 17588223,
+  MessageId: "pascal-message-1",
+  Ts: 1781226000000,
+  Bookmaker: "PascalBook",
+  BookmakerId: 42,
+  SuperOddsType: "MATCH_WINNER",
+  GameState: "PRE_MATCH",
+  InRunning: false,
+  MarketParameters: { line: "main" },
+  MarketPeriod: "FULL_TIME",
+  PriceNames: ["Mexico", "Draw", "South Korea", "Invalid", "Infinite"],
+  Prices: [2.25, 3.1, 2.9, "bad", Infinity],
+  Pct: [40, 30, 30]
+};
+
 test("buildOddsMarketId returns a stable non-empty market id", () => {
   const first = buildOddsMarketId(sample);
   const second = buildOddsMarketId({
@@ -56,6 +72,39 @@ test("maps each valid price conservatively", () => {
     assert.ok(row.sourceTimestamp instanceof Date);
     assert.equal(Number.isFinite(row.sourceTimestamp.getTime()), true);
   }
+});
+
+test("maps PascalCase TxLINE prices and price names conservatively", () => {
+  const result = mapTxlineOddsSnapshotToOddsRows([pascalCaseSample], { fixtureId });
+
+  assert.equal(result.rows.length, 3);
+  assert.equal(result.skipped_count, 2);
+  assert.deepEqual(result.rows.map((row) => row.selectionName), [
+    "Mexico", "Draw", "South Korea"
+  ]);
+  assert.deepEqual(result.rows.map((row) => row.odds), [2.25, 3.1, 2.9]);
+  for (const row of result.rows) {
+    assert.equal(row.fixtureId, fixtureId);
+    assert.equal(row.externalSeq, "pascal-message-1");
+    assert.equal(row.marketName, "MATCH_WINNER");
+    assert.match(row.marketId, /bookmaker:42/);
+    assert.match(row.marketId, /type:MATCH_WINNER/);
+    assert.match(row.marketId, /period:FULL_TIME/);
+    assert.equal(row.sourceTimestamp?.getTime(), 1781226000000);
+    assert.equal(row.previousOdds, null);
+    assert.equal(row.changePercent, null);
+    assert.equal(row.direction, "flat");
+    assert.equal(Object.hasOwn(row, "raw"), false);
+  }
+});
+
+test("includes the original PascalCase raw item only when requested", () => {
+  const result = mapTxlineOddsSnapshotToOddsRows([pascalCaseSample], {
+    fixtureId,
+    includeRaw: true
+  });
+
+  assert.equal(result.rows[0]?.raw, pascalCaseSample);
 });
 
 test("skips non-finite and non-numeric prices", () => {
