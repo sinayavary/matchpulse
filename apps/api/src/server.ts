@@ -70,7 +70,11 @@ import {
   runFixtureIngestionPipeline,
   type IngestionRunnerInput
 } from "./ingestion-runner.js";
-import { getSignalCoreContract } from "./signalcore-contract.js";
+import {
+  assertNoForbiddenSignalFields,
+  getSignalCoreContract
+} from "./signalcore-contract.js";
+import { getSignalCoreV0ForFixture } from "./signalcore-v0.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -96,6 +100,57 @@ app.get("/api/internal/signalcore/contract", async () => ({
     mode: "internal" as const
   }
 }));
+
+app.get("/api/internal/signalcore/matches/:fixtureId", async (request) => {
+  const { fixtureId } = request.params as { fixtureId: string };
+  const query = request.query as {
+    includeState?: unknown;
+    oddsLimit?: unknown;
+    staleAfterMinutes?: unknown;
+  };
+  const includeState = typeof query.includeState === "string"
+    ? query.includeState.toLowerCase() === "true"
+    : query.includeState === true;
+  const oddsLimit = typeof query.oddsLimit === "string"
+    ? Number(query.oddsLimit)
+    : typeof query.oddsLimit === "number" ? query.oddsLimit : undefined;
+  const staleAfterMinutes = typeof query.staleAfterMinutes === "string"
+    ? Number(query.staleAfterMinutes)
+    : typeof query.staleAfterMinutes === "number" ? query.staleAfterMinutes : undefined;
+
+  try {
+    const output = await getSignalCoreV0ForFixture(fixtureId, {
+      includeState,
+      oddsLimit,
+      staleAfterMinutes
+    });
+    assertNoForbiddenSignalFields(output);
+    return output;
+  } catch {
+    return {
+      data: {
+        fixture_id: fixtureId,
+        summary: {
+          status: "empty" as const,
+          signal_count: 0,
+          critical_count: 0,
+          warning_count: 0,
+          info_count: 0,
+          has_fixture: false,
+          has_scoreboard: false,
+          has_odds: false,
+          latest_data_timestamp: null
+        },
+        signals: []
+      },
+      meta: {
+        status: "degraded" as const,
+        source: "signalcore" as const,
+        mode: "internal" as const
+      }
+    };
+  }
+});
 
 app.get("/api/internal/db/status", async () => {
   const health = await checkDbHealth();
