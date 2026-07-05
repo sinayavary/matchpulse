@@ -21,6 +21,11 @@ import {
   readString,
   selectLatestTxlineScore
 } from "./txline-normalizer.js";
+import {
+  DEFAULT_TXLINE_DEMO_SEED_ID,
+  findTxlineDemoSeedById,
+  TXLINE_DEMO_SEEDS
+} from "./txline-demo-seeds.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -47,6 +52,22 @@ app.get("/api/internal/txline/status", async () => {
     meta: {
       status: "live",
       source: "backend",
+      mode: txlineConfig.dataMode
+    }
+  };
+});
+
+app.get("/api/internal/txline/demo/seeds", async () => {
+  const txlineConfig = getTxlineConfigFromEnv();
+
+  return {
+    data: {
+      items: TXLINE_DEMO_SEEDS,
+      count: TXLINE_DEMO_SEEDS.length
+    },
+    meta: {
+      status: "live" as const,
+      source: "backend" as const,
       mode: txlineConfig.dataMode
     }
   };
@@ -108,6 +129,33 @@ function normalizedTxlineError(
 
 function normalizedRouteMode(dataMode: "mock" | "live" | "auto"): "live" | "auto" {
   return dataMode === "auto" ? "auto" : "live";
+}
+
+function buildScoreQaSummary(rawFixture: unknown, rawScores: unknown, fixtureId: string) {
+  const selectedScore = selectLatestTxlineScore(rawScores, fixtureId);
+  const score = selectedScore !== null && isRecord(rawFixture)
+    ? normalizeTxlineScore(selectedScore, rawFixture.Participant1IsHome)
+    : { home: null, away: null };
+  const hasGoalScore = hasFiniteGoalScore(score);
+
+  return {
+    has_score_snapshot: selectedScore !== null,
+    has_goal_score: hasGoalScore,
+    selected_seq: selectedScore !== null && isRecord(selectedScore)
+      ? readFiniteNumber(selectedScore.Seq)
+      : null,
+    selected_ts: selectedScore !== null && isRecord(selectedScore)
+      ? readFiniteNumber(selectedScore.Ts)
+      : null,
+    action: selectedScore !== null && isRecord(selectedScore)
+      ? readString(selectedScore.Action)
+      : null,
+    note: selectedScore === null
+      ? "no_score_snapshot"
+      : hasGoalScore
+        ? "goal_score_available"
+        : "score_snapshot_without_goals"
+  };
 }
 
 function publicLiveNormalizationUnavailable() {
@@ -296,6 +344,95 @@ app.get("/api/internal/txline/normalized/matches/:fixtureId/preview", async (req
   }
 });
 
+app.get("/api/internal/txline/demo/live-preview", async (request, reply) => {
+  const config = getTxlineConfigFromEnv();
+  const mode = normalizedRouteMode(config.dataMode);
+  if (config.dataMode === "mock") {
+    return {
+      data: null,
+      meta: normalizedTxlineMeta(mode, "error", "Normalized TxLINE routes require live or auto mode.")
+    };
+  }
+
+  const query = request.query as {
+    seed?: string;
+    asOf?: string;
+    includeRaw?: string;
+  };
+  const seedId = query.seed ?? DEFAULT_TXLINE_DEMO_SEED_ID;
+  const seed = findTxlineDemoSeedById(seedId);
+
+  if (seed === undefined) {
+    reply.code(404);
+    return {
+      data: null,
+      meta: normalizedTxlineMeta(mode, "error", "Demo seed not found.")
+    };
+  }
+
+  const normalizedAsOf = query.asOf === undefined
+    ? Date.now().toString()
+    : normalizeAsOfToEpochMs(query.asOf);
+  if (normalizedAsOf === null) {
+    return {
+      data: null,
+      meta: normalizedTxlineMeta(
+        mode,
+        "error",
+        "asOf must be a valid ISO date string or epoch milliseconds."
+      )
+    };
+  }
+
+  try {
+    const client = createTxlineLiveClient();
+    const rawFixtures = await client.getFixtureSnapshot({
+      competitionId: String(seed.competitionId),
+      startEpochDay: seed.startEpochDay
+    });
+    const rawFixture = Array.isArray(rawFixtures)
+      ? rawFixtures.find((candidate) =>
+          isRecord(candidate) && parseFixtureId(candidate.FixtureId) === seed.fixtureId
+        )
+      : undefined;
+
+    if (rawFixture === undefined) {
+      reply.code(404);
+      return {
+        data: null,
+        meta: normalizedTxlineMeta(mode, "error", "Fixture not found for demo seed.")
+      };
+    }
+
+    const rawScores = await client.getScoreSnapshot({
+      fixtureId: seed.fixtureId,
+      asOf: Number(normalizedAsOf)
+    });
+    const preview = normalizeTxlineMatchPreview(rawFixture, rawScores, {
+      includeRaw: query.includeRaw === "true"
+    });
+
+    if (preview === null) {
+      reply.code(404);
+      return {
+        data: null,
+        meta: normalizedTxlineMeta(mode, "error", "Fixture not found for demo seed.")
+      };
+    }
+
+    return {
+      data: {
+        seed,
+        preview,
+        qa: buildScoreQaSummary(rawFixture, rawScores, seed.fixtureId)
+      },
+      meta: normalizedTxlineMeta(mode, "live")
+    };
+  } catch (error) {
+    return normalizedTxlineError(mode, error);
+  }
+});
+
 app.get("/api/internal/txline/normalized/qa/score-samples", async (request, reply) => {
   const config = getTxlineConfigFromEnv();
   const mode = normalizedRouteMode(config.dataMode);
@@ -427,28 +564,18 @@ app.get("/api/internal/txline/normalized/qa/score-samples", async (request, repl
         const score = selectedScore === null
           ? { home: null, away: null }
           : normalizeTxlineScore(selectedScore, rawFixture.Participant1IsHome);
-        const hasGoalScore = hasFiniteGoalScore(score);
-        if (hasGoalScore) foundGoalScores += 1;
+        const qa = buildScoreQaSummary(rawFixture, rawScores, normalizedFixture.fixture_id);
+        if (qa.has_goal_score) foundGoalScores += 1;
 
         items.push({
           ...baseItem,
-          has_score_snapshot: selectedScore !== null,
-          has_goal_score: hasGoalScore,
+          has_score_snapshot: qa.has_score_snapshot,
+          has_goal_score: qa.has_goal_score,
           score,
-          selected_seq: selectedScore !== null && isRecord(selectedScore)
-            ? readFiniteNumber(selectedScore.Seq)
-            : null,
-          selected_ts: selectedScore !== null && isRecord(selectedScore)
-            ? readFiniteNumber(selectedScore.Ts)
-            : null,
-          action: selectedScore !== null && isRecord(selectedScore)
-            ? readString(selectedScore.Action)
-            : null,
-          note: selectedScore === null
-            ? "no_score_snapshot"
-            : hasGoalScore
-              ? "goal_score_available"
-              : "score_snapshot_without_goals",
+          selected_seq: qa.selected_seq,
+          selected_ts: qa.selected_ts,
+          action: qa.action,
+          note: qa.note,
           ...(includeRaw ? { raw: { fixture: rawFixture, score: selectedScore } } : {})
         });
       } catch (error) {
