@@ -77,6 +77,12 @@ import {
 import { getSignalCoreV0ForFixture } from "./signalcore-v0.js";
 import { getAgentPresenterBriefForFixture } from "./agent-presenter-v0.js";
 import { getDemoBundleForFixture } from "./demo-bundle.js";
+import {
+  buildDemoBridgeNotFoundResponse,
+  getDemoBridgeBundle,
+  getDemoBridgeMatches,
+  isAllowedDemoFixtureId
+} from "./demo-bridge.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -255,6 +261,55 @@ app.get("/api/internal/demo/matches/:fixtureId/bundle", async (request) => {
     staleAfterMinutes: readNumber(query.staleAfterMinutes),
     format: query.format === "compact" ? "compact" : "full"
   });
+});
+
+app.get("/api/demo/matches", async () => getDemoBridgeMatches());
+
+app.get("/api/demo/matches/:fixtureId/bundle", async (request, reply) => {
+  const { fixtureId } = request.params as { fixtureId: string };
+  if (!isAllowedDemoFixtureId(fixtureId)) {
+    reply.code(404);
+    return buildDemoBridgeNotFoundResponse(fixtureId);
+  }
+
+  const query = request.query as {
+    includeState?: unknown;
+    includeSignals?: unknown;
+    includeBrief?: unknown;
+    oddsLimit?: unknown;
+    staleAfterMinutes?: unknown;
+    format?: unknown;
+  };
+  const readBoolean = (value: unknown): boolean | undefined => {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string" && value.toLowerCase() === "true") return true;
+    if (typeof value === "string" && value.toLowerCase() === "false") return false;
+    return undefined;
+  };
+  const readNumber = (value: unknown): number | undefined =>
+    typeof value === "number" ? value : typeof value === "string" ? Number(value) : undefined;
+
+  try {
+    return await getDemoBridgeBundle(fixtureId, {
+      includeState: readBoolean(query.includeState),
+      includeSignals: readBoolean(query.includeSignals),
+      includeBrief: readBoolean(query.includeBrief),
+      oddsLimit: readNumber(query.oddsLimit),
+      staleAfterMinutes: readNumber(query.staleAfterMinutes),
+      format: query.format === "compact" ? "compact" : "full"
+    });
+  } catch {
+    reply.code(503);
+    return {
+      data: null,
+      meta: {
+        status: "degraded" as const,
+        source: "demo-bridge" as const,
+        mode: "public-demo" as const,
+        message: "Demo data is temporarily unavailable."
+      }
+    };
+  }
 });
 
 app.get("/api/internal/db/status", async () => {
