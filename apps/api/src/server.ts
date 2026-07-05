@@ -24,8 +24,13 @@ import {
 import {
   DEFAULT_TXLINE_DEMO_SEED_ID,
   findTxlineDemoSeedById,
-  TXLINE_DEMO_SEEDS
+  TXLINE_DEMO_SEEDS,
+  type TxlineDemoSeed
 } from "./txline-demo-seeds.js";
+import {
+  buildTxlineReplaySummary,
+  buildTxlineReplayTimeline
+} from "./txline-replay.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -155,6 +160,20 @@ function buildScoreQaSummary(rawFixture: unknown, rawScores: unknown, fixtureId:
       : hasGoalScore
         ? "goal_score_available"
         : "score_snapshot_without_goals"
+  };
+}
+
+function toSafeTxlineDemoSeed(seed: TxlineDemoSeed) {
+  return {
+    id: seed.id,
+    label: seed.label,
+    fixtureId: seed.fixtureId,
+    competitionId: seed.competitionId,
+    startEpochDay: seed.startEpochDay,
+    knownScore: seed.knownScore,
+    knownAction: seed.knownAction,
+    knownSeq: seed.knownSeq,
+    description: seed.description
   };
 }
 
@@ -425,6 +444,100 @@ app.get("/api/internal/txline/demo/live-preview", async (request, reply) => {
         seed,
         preview,
         qa: buildScoreQaSummary(rawFixture, rawScores, seed.fixtureId)
+      },
+      meta: normalizedTxlineMeta(mode, "live")
+    };
+  } catch (error) {
+    return normalizedTxlineError(mode, error);
+  }
+});
+
+app.get("/api/internal/txline/demo/replay", async (request, reply) => {
+  const config = getTxlineConfigFromEnv();
+  const mode = normalizedRouteMode(config.dataMode);
+  if (config.dataMode === "mock") {
+    return {
+      data: null,
+      meta: normalizedTxlineMeta(mode, "error", "Normalized TxLINE routes require live or auto mode.")
+    };
+  }
+
+  const query = request.query as {
+    seed?: string;
+    asOf?: string;
+  };
+  const seedId = query.seed ?? DEFAULT_TXLINE_DEMO_SEED_ID;
+  const seed = findTxlineDemoSeedById(seedId);
+
+  if (seed === undefined) {
+    reply.code(404);
+    return {
+      data: null,
+      meta: normalizedTxlineMeta(mode, "error", "Demo seed not found.")
+    };
+  }
+
+  const normalizedAsOf = query.asOf === undefined
+    ? Date.now().toString()
+    : normalizeAsOfToEpochMs(query.asOf);
+  if (normalizedAsOf === null) {
+    return {
+      data: null,
+      meta: normalizedTxlineMeta(
+        mode,
+        "error",
+        "asOf must be a valid ISO date string or epoch milliseconds."
+      )
+    };
+  }
+
+  try {
+    const client = createTxlineLiveClient();
+    const rawFixtures = await client.getFixtureSnapshot({
+      competitionId: String(seed.competitionId),
+      startEpochDay: seed.startEpochDay
+    });
+    const rawFixture = Array.isArray(rawFixtures)
+      ? rawFixtures.find((candidate) =>
+          isRecord(candidate) && parseFixtureId(candidate.FixtureId) === seed.fixtureId
+        )
+      : undefined;
+
+    if (rawFixture === undefined) {
+      reply.code(404);
+      return {
+        data: null,
+        meta: normalizedTxlineMeta(mode, "error", "Fixture not found for demo seed.")
+      };
+    }
+
+    const rawScores = await client.getScoreSnapshot({
+      fixtureId: seed.fixtureId,
+      asOf: Number(normalizedAsOf)
+    });
+    const fixture = normalizeTxlineMatchPreview(rawFixture, rawScores);
+
+    if (fixture === null) {
+      reply.code(404);
+      return {
+        data: null,
+        meta: normalizedTxlineMeta(mode, "error", "Fixture not found for demo seed.")
+      };
+    }
+
+    const timeline = buildTxlineReplayTimeline(rawScores, {
+      fixtureId: seed.fixtureId,
+      participant1IsHome: rawFixture.Participant1IsHome
+    });
+    const summary = buildTxlineReplaySummary(timeline);
+
+    return {
+      data: {
+        seed: toSafeTxlineDemoSeed(seed),
+        fixture,
+        timeline,
+        count: timeline.length,
+        summary
       },
       meta: normalizedTxlineMeta(mode, "live")
     };
