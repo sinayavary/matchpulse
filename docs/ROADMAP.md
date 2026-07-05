@@ -58,8 +58,8 @@ Frontend starts from mock data and API contract. Backend starts by exposing mock
 
 ### Backend
 
-- setup PostgreSQL
-- setup Prisma
+- keep Phase 9B focused on the minimal normalizer first
+- start Phase 10 with Neon.tech Postgres and Prisma
 - implement core database schema
 - implement `/api/matches`
 - implement `/api/matches/:fixtureId`
@@ -272,4 +272,3 @@ A feature is done only when:
 6. It is visible in the demo flow.
 7. It does not violate the no-direct-betting rule.
 8. It fits the visible Solana/Web3 + modern sports design direction.
-

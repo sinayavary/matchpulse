@@ -13,6 +13,10 @@ This file records owner decisions made after the first documentation draft.
 7. Normal users should not need a wallet. Wallet/keypair is only for TxLINE subscription activation and backend credentials.
 8. Product language remains English.
 9. The product shows odds and market insights but must not provide direct betting execution or guaranteed betting recommendations.
+10. Neon.tech is the planned managed Postgres provider.
+11. Upstash Redis is optional and only used if a concrete need appears for cache, queue, rate limiting, worker health, or latest match state cache.
+12. Redis is not required for Phase 9A or Phase 9B, and Neon/Prisma work starts in Phase 10.
+13. Phase 9B stays focused on the minimal normalizer first.
 
 ## Wallet Clarification
 

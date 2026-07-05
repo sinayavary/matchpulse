@@ -6,10 +6,15 @@ This file defines the first version of the database model for SignalCore Agent a
 
 Recommended stack:
 
-- PostgreSQL
-- Prisma ORM
+- Neon.tech managed PostgreSQL
+- Prisma ORM starting in Phase 10
 - UUID primary keys for internal records
 - TxLINE fixture IDs stored as strings
+
+Optional later infrastructure:
+
+- Upstash Redis for cache, queue, rate limiting, worker health, or latest match state cache when there is a concrete need
+- Redis is not required for Phase 9A or Phase 9B
 
 ---
 
@@ -410,4 +415,3 @@ For MVP:
 - store every generated signal
 - store every scenario update linked to a signal or material state change
 - store all replay demo data needed for the demo
-
