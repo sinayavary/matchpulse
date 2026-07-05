@@ -75,6 +75,67 @@ model MatchEvent {
   @@map("match_events")
 }
 
+model OddsSnapshot {
+  id              String    @id @default(uuid()) @db.Uuid
+  fixtureId       String    @map("fixture_id")
+  externalSeq     String?   @map("external_seq")
+  marketId        String    @map("market_id")
+  marketName      String?   @map("market_name")
+  selectionName   String    @map("selection_name")
+  odds            Decimal   @db.Decimal(12, 4)
+  previousOdds    Decimal?  @map("previous_odds") @db.Decimal(12, 4)
+  changePercent   Decimal?  @map("change_percent") @db.Decimal(12, 4)
+  direction       String
+  sourceTimestamp DateTime? @map("source_timestamp") @db.Timestamptz(3)
+  raw             Json?
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([fixtureId, externalSeq, marketId, selectionName])
+  @@index([fixtureId, sourceTimestamp])
+  @@index([marketId])
+  @@map("odds_snapshots")
+}
+
+model Signal {
+  id                 String   @id @default(uuid()) @db.Uuid
+  fixtureId          String   @map("fixture_id")
+  relatedEventId     String?  @map("related_event_id") @db.Uuid
+  signalType         String   @map("signal_type")
+  title              String
+  severity           String
+  confidence         Decimal  @db.Decimal(5, 4)
+  riskLevel          String   @map("risk_level")
+  eventMinute        Int?     @map("event_minute")
+  explanation        String
+  technicalReasoning Json?    @map("technical_reasoning")
+  rawInputs          Json?    @map("raw_inputs")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([fixtureId, createdAt])
+  @@index([signalType])
+  @@index([severity])
+  @@index([riskLevel])
+  @@map("signals")
+}
+
+model Scenario {
+  id                  String   @id @default(uuid()) @db.Uuid
+  fixtureId           String   @map("fixture_id")
+  signalId            String?  @map("signal_id") @db.Uuid
+  scenarioName        String   @map("scenario_name")
+  probability         Decimal  @db.Decimal(5, 4)
+  previousProbability Decimal? @map("previous_probability") @db.Decimal(5, 4)
+  direction           String
+  confidence          Decimal  @db.Decimal(5, 4)
+  explanation         String
+  inputs              Json?
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([fixtureId, createdAt])
+  @@index([scenarioName])
+  @@map("scenarios")
+}
+
 model ReplaySession {
   id            String    @id @default(uuid()) @db.Uuid
   sessionId     String    @unique @map("session_id")

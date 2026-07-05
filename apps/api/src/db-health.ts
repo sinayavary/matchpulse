@@ -6,10 +6,24 @@ export type DbHealthResult = {
   checkedAt: string;
 };
 
-export async function checkDbHealth(): Promise<DbHealthResult> {
-  const checkedAt = new Date().toISOString();
+type DbHealthOptions = {
+  databaseUrl?: string | null;
+  query?: () => Promise<unknown>;
+  now?: () => Date;
+};
 
-  if (!process.env.DATABASE_URL) {
+async function queryDatabase() {
+  return getDbClient().$queryRaw`SELECT 1`;
+}
+
+export async function checkDbHealth({
+  databaseUrl = process.env.DATABASE_URL,
+  query = queryDatabase,
+  now = () => new Date()
+}: DbHealthOptions = {}): Promise<DbHealthResult> {
+  const checkedAt = now().toISOString();
+
+  if (!databaseUrl) {
     return {
       configured: false,
       connected: false,
@@ -18,7 +32,7 @@ export async function checkDbHealth(): Promise<DbHealthResult> {
   }
 
   try {
-    await getDbClient().$queryRaw`SELECT 1`;
+    await query();
     return {
       configured: true,
       connected: true,
