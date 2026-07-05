@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  hasFiniteGoalScore,
   normalizeTxlineFixture,
   normalizeTxlineMatchPreview,
   normalizeTxlineScore,
+  normalizeAsOfToEpochMs,
+  parseEpochMsToIso,
   selectLatestTxlineScore
 } from "./txline-normalizer.js";
 
@@ -84,6 +87,25 @@ test("normalizes goals for both orientations without inventing zeroes", () => {
     away: null
   });
   assert.deepEqual(normalizeTxlineScore(raw, undefined), { home: null, away: null });
+});
+
+test("detects whether a normalized score contains usable goal totals", () => {
+  assert.equal(hasFiniteGoalScore({ home: 1, away: null }), true);
+  assert.equal(hasFiniteGoalScore({ home: null, away: 0 }), true);
+  assert.equal(hasFiniteGoalScore({ home: null, away: null }), false);
+});
+
+test("parses asOf values from ISO strings and epoch-millisecond strings", () => {
+  assert.equal(parseEpochMsToIso("2025-01-01T00:00:00.000Z"), "2025-01-01T00:00:00.000Z");
+  assert.equal(parseEpochMsToIso("1735689600000"), "2025-01-01T00:00:00.000Z");
+  assert.equal(parseEpochMsToIso("not-a-date"), null);
+});
+
+test("normalizes QA asOf values to epoch-millisecond strings", () => {
+  assert.equal(normalizeAsOfToEpochMs("1735689600000"), "1735689600000");
+  assert.equal(normalizeAsOfToEpochMs("2025-01-01T00:00:00.000Z"), "1735689600000");
+  assert.equal(normalizeAsOfToEpochMs("not-a-date"), null);
+  assert.equal(normalizeAsOfToEpochMs("1735689600"), null);
 });
 
 test("combines the fixture with its latest score and leaves uncertain fields unknown", () => {

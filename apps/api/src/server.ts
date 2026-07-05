@@ -10,10 +10,16 @@ import {
   TxlineLiveError
 } from "@matchpulse/txline-client";
 import {
+  hasFiniteGoalScore,
   isRecord,
+  normalizeTxlineScore,
   normalizeTxlineFixture,
   normalizeTxlineMatchPreview,
-  parseFixtureId
+  normalizeAsOfToEpochMs,
+  parseFixtureId,
+  readFiniteNumber,
+  readString,
+  selectLatestTxlineScore
 } from "./txline-normalizer.js";
 
 const app = Fastify({ logger: true });
@@ -285,6 +291,191 @@ app.get("/api/internal/txline/normalized/matches/:fixtureId/preview", async (req
       };
     }
     return { data: preview, meta: normalizedTxlineMeta(mode, "live") };
+  } catch (error) {
+    return normalizedTxlineError(mode, error);
+  }
+});
+
+app.get("/api/internal/txline/normalized/qa/score-samples", async (request, reply) => {
+  const config = getTxlineConfigFromEnv();
+  const mode = normalizedRouteMode(config.dataMode);
+  if (config.dataMode === "mock") {
+    return {
+      data: null,
+      meta: normalizedTxlineMeta(mode, "error", "Normalized TxLINE routes require live or auto mode.")
+    };
+  }
+
+  const query = request.query as {
+    competitionId?: string;
+    startEpochDay?: string;
+    asOf?: string;
+    fixtureId?: string;
+    limit?: string;
+    includeRaw?: string;
+  };
+  const competitionId = query.competitionId ?? config.defaultCompetitionId;
+  const startEpochDay = Number(query.startEpochDay ?? config.defaultStartEpochDay);
+  const rawAsOf = query.asOf;
+  const fixtureId = query.fixtureId === undefined ? undefined : parseFixtureId(query.fixtureId);
+  const includeRaw = query.includeRaw === "true";
+
+  if (!competitionId || !Number.isFinite(startEpochDay) || !rawAsOf) {
+    return {
+      data: null,
+      meta: normalizedTxlineMeta(
+        mode,
+        "error",
+        "competitionId, startEpochDay, and asOf are required."
+      )
+    };
+  }
+
+  if (query.fixtureId !== undefined && fixtureId === null) {
+    return {
+      data: null,
+      meta: normalizedTxlineMeta(mode, "error", "fixtureId must be a valid fixture id.")
+    };
+  }
+
+  const asOf = normalizeAsOfToEpochMs(rawAsOf);
+  if (asOf === null) {
+    return {
+      data: null,
+      meta: normalizedTxlineMeta(
+        mode,
+        "error",
+        "asOf must be a valid ISO date string or epoch milliseconds."
+      )
+    };
+  }
+
+  const parsedLimit = query.limit === undefined ? 10 : Number(query.limit);
+  if (fixtureId === undefined && (!Number.isInteger(parsedLimit) || parsedLimit <= 0)) {
+    return {
+      data: null,
+      meta: normalizedTxlineMeta(mode, "error", "limit must be a positive integer.")
+    };
+  }
+
+  const limit = fixtureId === undefined ? Math.min(parsedLimit, 15) : 1;
+
+  try {
+    const client = createTxlineLiveClient() as ReturnType<typeof createTxlineLiveClient> & {
+      getScoreSnapshot(params: { fixtureId: string; asOf: string }): Promise<unknown>;
+    };
+    const rawFixtures = await client.getFixtureSnapshot({ competitionId, startEpochDay });
+    let fixtures: unknown[] = [];
+    if (Array.isArray(rawFixtures)) {
+      if (fixtureId === undefined) {
+        fixtures = rawFixtures.slice(0, limit);
+      } else {
+        const targetFixture = rawFixtures.find((candidate) =>
+          isRecord(candidate) && parseFixtureId(candidate.FixtureId) === fixtureId
+        );
+        if (targetFixture === undefined) {
+          reply.code(404);
+          return {
+            data: null,
+            meta: normalizedTxlineMeta(mode, "error", "Fixture not found.")
+          };
+        }
+        fixtures = [targetFixture];
+      }
+    } else if (fixtureId !== undefined) {
+      reply.code(404);
+      return {
+        data: null,
+        meta: normalizedTxlineMeta(mode, "error", "Fixture not found.")
+      };
+    }
+
+    const items: Array<Record<string, unknown>> = [];
+    let foundGoalScores = 0;
+    let hadFixtureError = false;
+
+    for (const rawFixture of fixtures) {
+      const normalizedFixture = normalizeTxlineFixture(rawFixture, { includeRaw: false });
+      const baseItem = {
+        fixture_id: normalizedFixture?.fixture_id ?? "unknown",
+        competition: normalizedFixture?.competition ?? "unknown",
+        home_team: normalizedFixture?.home_team ?? "unknown",
+        away_team: normalizedFixture?.away_team ?? "unknown",
+        start_time_utc: normalizedFixture?.start_time_utc ?? null
+      };
+
+      if (normalizedFixture === null || !isRecord(rawFixture)) {
+        items.push({
+          ...baseItem,
+          has_score_snapshot: false,
+          has_goal_score: false,
+          score: { home: null, away: null },
+          selected_seq: null,
+          selected_ts: null,
+          action: null,
+          note: "no_score_snapshot"
+        });
+        continue;
+      }
+
+      try {
+        const rawScores = await client.getScoreSnapshot({
+          fixtureId: normalizedFixture.fixture_id,
+          asOf
+        });
+        const selectedScore = selectLatestTxlineScore(rawScores, normalizedFixture.fixture_id);
+        const score = selectedScore === null
+          ? { home: null, away: null }
+          : normalizeTxlineScore(selectedScore, rawFixture.Participant1IsHome);
+        const hasGoalScore = hasFiniteGoalScore(score);
+        if (hasGoalScore) foundGoalScores += 1;
+
+        items.push({
+          ...baseItem,
+          has_score_snapshot: selectedScore !== null,
+          has_goal_score: hasGoalScore,
+          score,
+          selected_seq: selectedScore !== null && isRecord(selectedScore)
+            ? readFiniteNumber(selectedScore.Seq)
+            : null,
+          selected_ts: selectedScore !== null && isRecord(selectedScore)
+            ? readFiniteNumber(selectedScore.Ts)
+            : null,
+          action: selectedScore !== null && isRecord(selectedScore)
+            ? readString(selectedScore.Action)
+            : null,
+          note: selectedScore === null
+            ? "no_score_snapshot"
+            : hasGoalScore
+              ? "goal_score_available"
+              : "score_snapshot_without_goals",
+          ...(includeRaw ? { raw: { fixture: rawFixture, score: selectedScore } } : {})
+        });
+      } catch (error) {
+        hadFixtureError = true;
+        items.push({
+          ...baseItem,
+          has_score_snapshot: false,
+          has_goal_score: false,
+          score: { home: null, away: null },
+          selected_seq: null,
+          selected_ts: null,
+          action: null,
+          note: "score_fetch_failed",
+          error: safeTxlineError(error),
+          ...(includeRaw ? { raw: { fixture: rawFixture } } : {})
+        });
+      }
+    }
+
+    return {
+      data: {
+        checked: items.length,
+        found_goal_scores: foundGoalScores,
+        items
+      },
+      meta: normalizedTxlineMeta(mode, hadFixtureError ? "degraded" : "live")
+    };
   } catch (error) {
     return normalizedTxlineError(mode, error);
   }

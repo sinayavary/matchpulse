@@ -61,8 +61,16 @@ export function parseFixtureId(value: unknown): string | null {
 
 export function parseEpochMsToIso(value: unknown): string | null {
   if (typeof value === "string") {
-    if (value.trim().length === 0 || !Number.isFinite(Date.parse(value))) return null;
-    return new Date(value).toISOString();
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return null;
+
+    if (/^\d+$/.test(trimmed)) {
+      const epochMs = Number(trimmed);
+      return parseEpochMsToIso(epochMs);
+    }
+
+    if (!Number.isFinite(Date.parse(trimmed))) return null;
+    return new Date(trimmed).toISOString();
   }
 
   if (
@@ -74,6 +82,25 @@ export function parseEpochMsToIso(value: unknown): string | null {
 
   const date = new Date(value);
   return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+export function normalizeAsOfToEpochMs(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
+
+  if (/^\d+$/.test(trimmed)) {
+    const epochMs = Number(trimmed);
+    if (
+      !Number.isSafeInteger(epochMs) ||
+      epochMs < 1_000_000_000_000 ||
+      !Number.isFinite(new Date(epochMs).getTime())
+    ) return null;
+    return epochMs.toString();
+  }
+
+  const date = new Date(trimmed);
+  return Number.isFinite(date.getTime()) ? date.getTime().toString() : null;
 }
 
 function participantNames(fixture: Record<string, unknown>) {
@@ -181,6 +208,10 @@ export function normalizeTxlineScore(
   return participant1IsHome
     ? { home: p1Goals, away: p2Goals }
     : { home: p2Goals, away: p1Goals };
+}
+
+export function hasFiniteGoalScore(score: NullableScore): boolean {
+  return Number.isFinite(score.home) || Number.isFinite(score.away);
 }
 
 export function normalizeTxlineMatchPreview(
