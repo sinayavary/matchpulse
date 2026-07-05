@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo 'worker lint placeholder'"
+    "lint": "echo 'worker lint placeholder'",
+    "test": "tsx --test src/worker-config.test.ts src/worker-runner.test.ts"
   },
   "dependencies": {
     "@matchpulse/shared": "workspace:*",
