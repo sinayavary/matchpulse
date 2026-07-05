@@ -1,113 +1,206 @@
-# MatchPulse / SignalCore Monorepo
+# MatchPulse / SignalCore
 
-Working-name repository for the TxLINE / TxODDS World Cup Hackathon project.
+**Real-time sports data intelligence platform** — ingests live fixture, score, and odds data via TxLINE on Solana, builds canonical match state, and surfaces actionable data-quality signals through a safe public demo.
 
-This repo contains two related submissions:
+## What It Is
 
-1. **SignalCore Agent** — autonomous sports market intelligence agent for Track 1.
-2. **MatchPulse Intelligence App** — user-facing sports intelligence product for Track 2.
+MatchPulse is a **sports data intelligence** tool, not a betting platform. It answers the question: *"What do we actually know about this match right now, and how reliable is that data?"*
 
-The final product name can be changed near the end of the project.
+The system ingests structured sports data (fixtures, scores, odds) from the TxLINE oracle on Solana, persists it in Neon PostgreSQL, assembles a canonical match state, then runs it through SignalCore (data-quality analysis) and Agent Presenter (natural-language briefing). A safe public demo bridge exposes a curated subset of this pipeline to the frontend without exposing internals or secrets.
 
-## Current positioning
+## Architecture
 
-MatchPulse is a **sports intelligence and market insight tool** powered by TxLINE data and Solana/Web3 infrastructure.
-It shows live match data, odds movement, scenario probabilities, risk/confidence levels, replay mode, and Telegram alerts.
+```
+TxLINE (Solana Oracle)
+    │
+    ▼
+Backend Ingestion (fixture / score / odds)
+    │
+    ▼
+Neon PostgreSQL (Prisma ORM)
+    │
+    ▼
+Canonical Match State Builder
+    │
+    ▼
+SignalCore v0 — data-quality signal analysis
+    │
+    ▼
+Agent Presenter v0 — natural-language brief
+    │
+    ▼
+Demo Bundle — composite response assembly
+    │
+    ▼
+Safe Public Demo Bridge — allowlisted fixtures, sanitized output
+    │
+    ▼
+Demo UI (/demo) — Next.js frontend
+```
 
-It must **not** include direct betting, wagers, bet buttons, bookmaker links, or promises of winning.
+## Monorepo Structure
 
-## Monorepo structure
-
-```txt
+```
 apps/
-  web/       Next.js frontend
-  api/       Fastify backend API
-  worker/    SignalCore background worker
+  web/          Next.js 15 + React 19 frontend (port 3000)
+  api/          Fastify backend API (port 4000)
 packages/
-  shared/    Shared TypeScript types/utilities
-  txline-client/ TxLINE client/config wrapper
-prisma/      Prisma schema
-mock-data/   Mock data for frontend/backend development
-docs/        Project documentation, task board, prompts, contracts
+  shared/       Shared TypeScript types and utilities
+  txline-client/ TxLINE Solana client wrapper
+prisma/         Prisma schema and migrations
+mock-data/      Mock data for development
+docs/           Documentation, contracts, and task boards
 ```
 
-## Tech stack
+## Tech Stack
 
-- Monorepo: pnpm workspaces + Turborepo
-- Frontend: Next.js + TypeScript + Tailwind-ready CSS structure
-- Backend API: Fastify + TypeScript
-- Worker: Node.js + TypeScript
-- Database: PostgreSQL + Prisma
-- Deploy target:
-  - Frontend: Vercel
-  - API + Worker + DB: Railway
+| Layer          | Technology                          |
+| -------------- | ----------------------------------- |
+| Monorepo       | pnpm workspaces + Turborepo        |
+| Frontend       | Next.js 15, React 19, TypeScript   |
+| Backend API    | Fastify, TypeScript                 |
+| Database       | PostgreSQL (Neon) via Prisma ORM    |
+| Data Source    | TxLINE oracle on Solana (devnet)    |
+| Build          | TypeScript strict mode              |
 
-## First-time setup
+## What the Demo Shows
 
-```bash
-pnpm install
-cp .env.example .env
-pnpm dev
+The demo page at `/demo` showcases the full data pipeline with two curated fixtures that demonstrate different data-availability scenarios:
+
+1. **Slovenia vs Cyprus** (fixture 17952170) — Scoreboard data available, odds data missing. Demonstrates `DATA_READY` and `ODDS_MISSING` signals.
+
+2. **Mexico vs South Korea** (fixture 17588223) — Odds data available, scoreboard data missing. Demonstrates `ODDS_AVAILABLE` and `SCOREBOARD_MISSING` signals.
+
+For each fixture, the UI displays:
+- **Match Intelligence Card** — readiness overview and key stats
+- **Agent Brief** — natural-language summary of what data is available
+- **Signal Feed** — categorized data-quality signals (info/warning/critical)
+- **Data Quality Panel** — structured readiness breakdown
+- **Raw JSON Toggle** — full API response for transparency
+
+## How to Run Locally
+
+### Prerequisites
+
+- Node.js (v18+)
+- pnpm (v9+)
+- Access to the TxLINE oracle (devnet) — credentials configured in `.env`
+- Neon PostgreSQL database — connection string configured in `.env`
+
+### Start Backend
+
+```powershell
+cd D:\money\matchpulse_repo
+pnpm.cmd --filter @matchpulse/api dev
 ```
 
-Run apps separately:
+Backend starts on **http://localhost:4000**.
 
-```bash
-pnpm dev:web
-pnpm dev:api
-pnpm dev:worker
+### Start Frontend (separate terminal)
+
+```powershell
+cd D:\money\matchpulse_repo
+pnpm.cmd --filter @matchpulse/web dev
 ```
 
-## Environment strategy
+Frontend starts on **http://localhost:3000**.
 
-Development starts with TxLINE **devnet first**:
+### Open the Demo
 
-```env
-TXLINE_NETWORK=devnet
-TXLINE_SERVICE_LEVEL_ID=1
+```
+http://localhost:3000/demo
 ```
 
-Final submission can switch to mainnet service level 12 if access is ready:
+## Demo Routes
 
-```env
-TXLINE_NETWORK=mainnet
-TXLINE_SERVICE_LEVEL_ID=12
+These are the **only** routes the frontend calls. They are served by the Safe Public Demo Bridge — no internal routes, no secrets, no database credentials are exposed.
+
+| Method | Route                                      | Description              |
+| ------ | ------------------------------------------ | ------------------------ |
+| GET    | `/api/health`                              | API health check         |
+| GET    | `/api/demo/matches`                        | List demo fixture cards  |
+| GET    | `/api/demo/matches/:fixtureId/bundle`      | Full bundle for a fixture |
+
+All responses include `meta.source: "demo-bridge"` and `meta.mode: "public-demo"`.
+
+The existing `/api/matches` endpoint remains mock-backed and independent of the demo pipeline.
+
+## Expected Demo Output
+
+### `/api/demo/matches`
+
+Returns two fixture cards:
+```json
+{
+  "data": [
+    { "fixture_id": "17952170", "label": "Slovenia vs Cyprus", "demo_case": "scoreboard_available" },
+    { "fixture_id": "17588223", "label": "Mexico vs South Korea", "demo_case": "odds_available" }
+  ],
+  "meta": { "source": "demo-bridge", "mode": "public-demo", "status": "live" }
+}
 ```
 
-Never mix devnet and mainnet TxLINE values.
+### `/api/demo/matches/17952170/bundle`
 
-## Important docs to read first
+Returns `display_ready: true`, scoreboard showing `1 – 1`, and signals including `DATA_READY` and `ODDS_MISSING`.
 
-- `docs/PROJECT_SCOPE.md`
-- `docs/API_CONTRACT.md`
-- `docs/DATA_MODEL.md`
-- `docs/AGENT_LOGIC.md`
-- `docs/TASK_BOARD.md`
-- `docs/COMPLIANCE_GUIDELINES.md`
-- `docs/BACKEND_DEVELOPER_PROMPT.md`
-- `docs/FRONTEND_DEVELOPER_PROMPT.md`
+### `/api/demo/matches/17588223/bundle`
 
-## GitHub import
+Returns `display_ready: true`, odds data present, and signals including `ODDS_AVAILABLE` and `SCOREBOARD_MISSING`.
 
-1. Unzip this package.
-2. Create a new empty GitHub repository.
-3. From the repo folder:
+### `/api/demo/matches/not-real/bundle`
 
-```bash
-git init
-git add .
-git commit -m "Initial MatchPulse monorepo scaffold"
-git branch -M main
-git remote add origin <YOUR_GITHUB_REPO_URL>
-git push -u origin main
-```
+Returns `data: null` with `meta.status: "no_data"` and a safe message — no errors leaked.
 
-## MVP rule
+## Safety Boundaries
 
-Every feature is done only when it:
+MatchPulse is explicitly **not** any of the following:
 
-1. Works with mock data.
-2. Works with API/replay data or has a clear integration TODO.
-3. Has loading/error/empty states where relevant.
-4. Is demoable.
-5. Does not violate compliance guidelines.
+- ❌ A betting or wagering platform
+- ❌ A prediction or recommendation engine
+- ❌ A wallet, payment, deposit, or payout system
+- ❌ A probability, confidence, edge, or expected-value calculator
+- ❌ A source of betting advice
+
+The system reports **what data exists and its quality** — nothing more. All output passes through `assertNoForbiddenSignalFields` which rejects any content that could be interpreted as betting guidance.
+
+Additional safety measures:
+- The public demo bridge uses a **hardcoded allowlist** of two fixtures — no arbitrary fixture IDs are served.
+- The frontend calls **only** public demo bridge routes (`/api/demo/*`). Internal routes (`/api/internal/*`) are never exposed to the client.
+- Raw JSON output is available for **transparency**, not for automated consumption.
+- Signal fields are **sanitized** to `{ type, severity, title, message }` only.
+
+## Current Limitations
+
+- Demo fixtures are hardcoded — no dynamic fixture discovery in the demo.
+- Only two demo fixtures are available; the full database may contain more.
+- The `/api/matches` endpoint is mock-backed, not connected to the live pipeline.
+- No authentication, no user accounts, no persistent watchlists.
+- No automated worker/scheduler — data ingestion is manual or script-driven.
+- No production deployment configured.
+
+## Next Steps
+
+Future development could include:
+- Production deployment (Vercel + Railway)
+- Full match browser backed by the database
+- Automated ingestion worker/scheduler
+- Watchlist persistence and Telegram alerts
+- Authentication and user accounts
+- Expanded demo fixtures with more data scenarios
+
+## Important Documentation
+
+| Document | Purpose |
+| -------- | ------- |
+| `docs/demo-script.md` | Step-by-step demo walkthrough for judges/reviewers |
+| `docs/final-smoke-checklist.md` | Command-by-command verification checklist |
+| `docs/project-status.md` | Current build status and what is/isn't built |
+| `docs/PROJECT_SCOPE.md` | Full project scope and decisions |
+| `docs/API_CONTRACT.md` | Backend API contract specification |
+| `docs/DATA_MODEL.md` | Database schema and data model |
+| `docs/COMPLIANCE_GUIDELINES.md` | Compliance and safety guidelines |
+
+## License
+
+Private project — not for public distribution without authorization.
