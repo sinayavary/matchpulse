@@ -35,6 +35,11 @@ import { checkDbHealth } from "./db-health.js";
 import { getDbClient } from "./db.js";
 import { verifyDemoSeed } from "./db-seed-verification.js";
 import {
+  buildCanonicalMatchState,
+  getDbBackedMatchState,
+  normalizeMatchStateOptions
+} from "./match-state-builder.js";
+import {
   ingestTxlineFixtures,
   summarizeFixtureIngestion
 } from "./txline-fixture-ingestion.js";
@@ -50,6 +55,10 @@ import {
   discoverTxlineOddsAvailability,
   TxlineOddsDiscoveryError
 } from "./txline-odds-discovery.js";
+import {
+  discoverTxlineOddsAvailabilityWindow,
+  normalizeDiscoveryWindowInput
+} from "./txline-odds-discovery-window.js";
 import {
   buildReplayState,
   createReplaySession,
@@ -86,6 +95,58 @@ app.get("/api/internal/db/status", async () => {
 });
 
 app.get("/api/internal/db/demo-seed/status", async () => verifyDemoSeed());
+
+app.get("/api/internal/state/matches/:fixtureId", async (request) => {
+  const { fixtureId } = request.params as { fixtureId: string };
+  const query = request.query as { includeOdds?: unknown; oddsLimit?: unknown };
+  const includeOdds = typeof query.includeOdds === "string"
+    ? query.includeOdds.toLowerCase() !== "false"
+    : query.includeOdds !== false;
+  const rawOddsLimit = typeof query.oddsLimit === "string"
+    ? Number(query.oddsLimit)
+    : typeof query.oddsLimit === "number" ? query.oddsLimit : undefined;
+  const options = normalizeMatchStateOptions({ includeOdds, oddsLimit: rawOddsLimit });
+
+  if (!process.env.DATABASE_URL) {
+    const data = buildCanonicalMatchState({
+      fixtureId,
+      fixture: null,
+      scoreboard: null,
+      odds: [],
+      includeOdds: options.includeOdds
+    });
+    return {
+      data,
+      meta: { status: "no_data" as const, source: "database" as const, mode: "internal" as const }
+    };
+  }
+
+  try {
+    const data = await getDbBackedMatchState(fixtureId, options);
+    return {
+      data,
+      meta: {
+        status: data.quality.status === "complete"
+          ? "live" as const
+          : data.quality.status === "partial" ? "degraded" as const : "no_data" as const,
+        source: "database" as const,
+        mode: "internal" as const
+      }
+    };
+  } catch {
+    const data = buildCanonicalMatchState({
+      fixtureId,
+      fixture: null,
+      scoreboard: null,
+      odds: [],
+      includeOdds: options.includeOdds
+    });
+    return {
+      data,
+      meta: { status: "degraded" as const, source: "database" as const, mode: "internal" as const }
+    };
+  }
+});
 
 app.get("/api/internal/db/fixtures/:fixtureId", async (request) => {
   const { fixtureId } = request.params as { fixtureId: string };
@@ -540,6 +601,76 @@ app.get("/api/internal/txline/odds/discover", async (request, reply) => {
         source: "txline" as const,
         mode: "internal" as const,
         message: isDiscoveryError ? error.message : safeTxlineError(error).message
+      }
+    };
+  }
+});
+
+app.get("/api/internal/txline/odds/discover-window", async (request) => {
+  const config = getTxlineConfigFromEnv();
+  const query = request.query as {
+    competitionId?: string;
+    startEpochDayFrom?: string;
+    startEpochDayTo?: string;
+    limitPerDay?: string;
+    includeDiagnostics?: string;
+  };
+  const input = normalizeDiscoveryWindowInput(query);
+  const emptyData = {
+    found: false,
+    reason: "no_odds_found" as const,
+    competition_id: input.competitionId,
+    start_epoch_day_from: input.startEpochDayFrom,
+    start_epoch_day_to: input.startEpochDayTo,
+    checked_days: 0,
+    checked_fixtures: 0,
+    checked_candidates: 0,
+    error_count: 0,
+    candidate: null
+  };
+
+  if (config.dataMode === "mock") {
+    return {
+      data: emptyData,
+      meta: {
+        status: "degraded" as const,
+        source: "txline" as const,
+        mode: "internal" as const,
+        message: "Odds discovery requires live or auto TxLINE mode."
+      }
+    };
+  }
+
+  try {
+    const data = await discoverTxlineOddsAvailabilityWindow(input);
+    if (data.reason === "raw_odds_shape_seen_but_not_mapped") {
+      return {
+        data,
+        meta: {
+          status: "degraded" as const,
+          source: "txline" as const,
+          mode: "internal" as const,
+          message: "Raw odds-like payload was observed but no rows were mapped."
+        }
+      };
+    }
+
+    return {
+      data,
+      meta: {
+        status: data.found ? "live" as const : "no_data" as const,
+        source: "txline" as const,
+        mode: "internal" as const
+      }
+    };
+  } catch {
+    return {
+      data: { ...emptyData, error_count: 1 },
+      meta: {
+        status: "degraded" as const,
+        source: "txline" as const,
+        mode: "internal" as const,
+        message: "The TxLINE discovery window request failed."
       }
     };
   }
