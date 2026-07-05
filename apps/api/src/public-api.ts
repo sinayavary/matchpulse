@@ -9,8 +9,7 @@ import {
   type MatchStateBuilderOptions
 } from "./match-state-builder.js";
 import {
-  SIGNALCORE_FORBIDDEN_OUTPUT_FIELDS,
-  assertNoForbiddenSignalFields
+  SIGNALCORE_FORBIDDEN_OUTPUT_FIELDS
 } from "./signalcore-contract.js";
 
 export type PublicApiMode = "public";
@@ -41,6 +40,25 @@ type PublicApiDbClient = {
         status: true;
       };
     }): Promise<PublicFixtureRow[]>;
+  };
+  matchState: {
+    findUnique(args: {
+      where: { fixtureId: string };
+      select: {
+        homeScore: true;
+        awayScore: true;
+        phase: true;
+        lastDataReceivedAt: true;
+      };
+    }): Promise<{
+      homeScore: number | null;
+      awayScore: number | null;
+      phase: string | null;
+      lastDataReceivedAt: Date | null;
+    } | null>;
+  };
+  oddsSnapshot: {
+    count(args: { where: { fixtureId: string } }): Promise<number>;
   };
 };
 
@@ -197,6 +215,63 @@ function normalizeStaleAfterMinutes(value: unknown, defaultValue = 60): number {
   return normalizeLimit(value, defaultValue, 10080);
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object") return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+export function sanitizePublicPayload<T>(value: T): T {
+  const visited = new WeakMap<object, unknown>();
+
+  function sanitize(current: unknown): unknown {
+    if (Array.isArray(current)) {
+      return current.map((item) => sanitize(item));
+    }
+    if (!isPlainObject(current)) {
+      return current;
+    }
+    const cached = visited.get(current);
+    if (cached !== undefined) return cached;
+
+    const output: Record<string, unknown> = {};
+    visited.set(current, output);
+    for (const [key, nested] of Object.entries(current)) {
+      if (forbiddenPublicFields.has(key.toLowerCase())) continue;
+      output[key] = sanitize(nested);
+    }
+    return output;
+  }
+
+  return sanitize(value) as T;
+}
+
+export function assertNoForbiddenPublicKeys(value: unknown): void {
+  const visited = new WeakSet<object>();
+
+  function inspect(current: unknown, path: string): void {
+    if (!isPlainObject(current) && !Array.isArray(current)) return;
+    if (visited.has(current as object)) return;
+    visited.add(current as object);
+
+    if (Array.isArray(current)) {
+      current.forEach((item, index) => inspect(item, `${path}[${index}]`));
+      return;
+    }
+
+    for (const [key, nestedValue] of Object.entries(current)) {
+      const normalizedKey = key.toLowerCase();
+      const fieldPath = path ? `${path}.${key}` : key;
+      if (forbiddenPublicFields.has(normalizedKey)) {
+        throw new TypeError(`Forbidden public field: ${fieldPath}`);
+      }
+      inspect(nestedValue, fieldPath);
+    }
+  }
+
+  inspect(value, "");
+}
+
 export function normalizePublicMatchesQuery(query: {
   range?: unknown;
   competitionId?: unknown;
@@ -216,6 +291,8 @@ export function normalizePublicMatchesQuery(query: {
 
   const competitionId = typeof query.competitionId === "string" && query.competitionId.trim() !== ""
     ? query.competitionId.trim()
+    : typeof query.competitionId === "number" && Number.isFinite(query.competitionId)
+      ? String(query.competitionId)
     : undefined;
 
   return {
@@ -259,20 +336,10 @@ export function normalizePublicBundleQuery(query: {
   };
 }
 
-export function stripForbiddenFields<T>(value: T): T {
-  if (Array.isArray(value)) {
-    return value.map((item) => stripForbiddenFields(item)) as T;
-  }
-  if (value === null || typeof value !== "object") {
-    return value;
-  }
-
-  const output: Record<string, unknown> = {};
-  for (const [key, nested] of Object.entries(value)) {
-    if (forbiddenPublicFields.has(key.toLowerCase())) continue;
-    output[key] = stripForbiddenFields(nested);
-  }
-  return output as T;
+function sanitizeAndAssertPublicPayload<T>(value: T): T {
+  const sanitized = sanitizePublicPayload(value);
+  assertNoForbiddenPublicKeys(sanitized);
+  return sanitized;
 }
 
 function parseTimestamp(value: string | null): number | null {
@@ -331,6 +398,24 @@ function matchesRequestedRange(
   return isUpcomingState(state, now);
 }
 
+function fixtureMatchesRequestedRange(
+  fixture: PublicFixtureRow,
+  range: PublicMatchesRange,
+  now: Date
+): boolean {
+  if (range === "all") return true;
+  const token = (fixture.status ?? "").trim().toLowerCase();
+  const startTime = fixture.startTimeUtc?.getTime() ?? null;
+  const isLive = liveStatusTokens.has(token);
+  const isPast = pastStatusTokens.has(token) ||
+    (startTime !== null && startTime < now.getTime() && !isLive);
+  const isUpcoming = !isLive && !isPast;
+
+  if (range === "live") return isLive;
+  if (range === "past") return isPast;
+  return isUpcoming;
+}
+
 export function buildPublicStatusResponse(): PublicStatusResponse {
   const output: PublicStatusResponse = {
     data: {
@@ -345,7 +430,7 @@ export function buildPublicStatusResponse(): PublicStatusResponse {
       mode: "public"
     }
   };
-  assertNoForbiddenSignalFields(output);
+  assertNoForbiddenPublicKeys(output);
   return output;
 }
 
@@ -374,7 +459,7 @@ export function buildPublicMatchSummary(
     },
     latest_data_timestamp: state.freshness.latest_data_timestamp
   };
-  assertNoForbiddenSignalFields(output);
+  assertNoForbiddenPublicKeys(output);
   return output;
 }
 
@@ -383,17 +468,18 @@ export function buildPublicMatchResponse(input: {
   staleAfterMinutes: number;
   now: Date;
   message?: string;
+  metaStatus?: PublicMetaStatus;
 }): PublicMatchResponse {
   const output: PublicMatchResponse = {
-    data: stripForbiddenFields(input.state),
+    data: sanitizeAndAssertPublicPayload(input.state),
     meta: {
-      status: toPublicMetaStatus(input.state, input.staleAfterMinutes, input.now),
+      status: input.metaStatus ?? toPublicMetaStatus(input.state, input.staleAfterMinutes, input.now),
       source: "database",
       mode: "public",
       ...(input.message === undefined ? {} : { message: input.message })
     }
   };
-  assertNoForbiddenSignalFields(output);
+  assertNoForbiddenPublicKeys(output);
   return output;
 }
 
@@ -413,7 +499,7 @@ export function buildPublicBundleResponse(input: {
   });
 
   const output: PublicBundleResponse = {
-    data: stripForbiddenFields({
+    data: sanitizeAndAssertPublicPayload({
       fixture_id: input.presenterOutput.data.fixture_id,
       readiness: buildDemoReadiness(input.presenterOutput, input.options),
       brief: input.options.includeBrief ? input.presenterOutput.data.brief : null,
@@ -428,7 +514,7 @@ export function buildPublicBundleResponse(input: {
       ...(input.message === undefined ? {} : { message: input.message })
     }
   };
-  assertNoForbiddenSignalFields(output);
+  assertNoForbiddenPublicKeys(output);
   return output;
 }
 
@@ -436,27 +522,36 @@ async function readPublicMatchState(
   fixtureId: string,
   options: ReturnType<typeof normalizePublicMatchQuery>,
   dependencies: PublicApiDependencies
-): Promise<CanonicalMatchState> {
+): Promise<{ state: CanonicalMatchState; degraded: boolean }> {
   if (!process.env.DATABASE_URL) {
-    return buildCanonicalMatchState({
-      fixtureId,
-      fixture: null,
-      scoreboard: null,
-      odds: [],
-      includeOdds: options.includeOdds
-    });
+    return {
+      state: buildCanonicalMatchState({
+        fixtureId,
+        fixture: null,
+        scoreboard: null,
+        odds: [],
+        includeOdds: options.includeOdds
+      }),
+      degraded: false
+    };
   }
 
   try {
-    return await dependencies.getDbBackedMatchState(fixtureId, options);
+    return {
+      state: await dependencies.getDbBackedMatchState(fixtureId, options),
+      degraded: false
+    };
   } catch {
-    return buildCanonicalMatchState({
-      fixtureId,
-      fixture: null,
-      scoreboard: null,
-      odds: [],
-      includeOdds: options.includeOdds
-    });
+    return {
+      state: buildCanonicalMatchState({
+        fixtureId,
+        fixture: null,
+        scoreboard: null,
+        odds: [],
+        includeOdds: options.includeOdds
+      }),
+      degraded: true
+    };
   }
 }
 
@@ -474,6 +569,88 @@ function badRequest(reply: FastifyReply): void {
 
 function unavailable(reply: FastifyReply): void {
   reply.code(503);
+}
+
+function buildDegradedPublicMatchResponse(state: CanonicalMatchState, now: Date): PublicMatchResponse {
+  return buildPublicMatchResponse({
+    state,
+    staleAfterMinutes: 0,
+    now,
+    metaStatus: "degraded",
+    message: "Public match data is temporarily unavailable."
+  });
+}
+
+async function buildPublicMatchSummaries(
+  fixtures: PublicFixtureRow[],
+  normalized: ReturnType<typeof normalizePublicMatchesQuery>,
+  deps: PublicApiDependencies,
+  now: Date
+): Promise<PublicMatchSummary[]> {
+  const db = deps.getDbClient();
+  const summaries = await Promise.all(fixtures.map(async (fixture) => {
+    if (!fixtureMatchesRequestedRange(fixture, normalized.range, now)) {
+      return null;
+    }
+
+    const [matchState, oddsCount] = await Promise.all([
+      db.matchState.findUnique({
+        where: { fixtureId: fixture.fixtureId },
+        select: {
+          homeScore: true,
+          awayScore: true,
+          phase: true,
+          lastDataReceivedAt: true
+        }
+      }),
+      db.oddsSnapshot.count({
+        where: { fixtureId: fixture.fixtureId }
+      })
+    ]);
+
+    const hasScoreboard = matchState !== null;
+    const hasOdds = oddsCount > 0;
+    const hasIdentity = fixture.competition !== null &&
+      fixture.homeTeam !== null &&
+      fixture.awayTeam !== null;
+    const issues: string[] = [];
+
+    if (!hasScoreboard) issues.push("scoreboard_missing");
+    if (!hasOdds) issues.push("odds_missing");
+    if (!hasIdentity) issues.push("identity_incomplete");
+    if (!hasScoreboard && !hasOdds) issues.push("no_persisted_data");
+
+    const qualityStatus = !hasScoreboard && !hasOdds
+      ? "empty" as const
+      : hasScoreboard && hasOdds
+        ? "complete" as const
+        : "partial" as const;
+
+    return sanitizeAndAssertPublicPayload({
+      fixture_id: fixture.fixtureId,
+      competition: fixture.competition,
+      home_team: fixture.homeTeam,
+      away_team: fixture.awayTeam,
+      start_time_utc: fixture.startTimeUtc?.toISOString() ?? null,
+      status: fixture.status,
+      scoreboard: {
+        available: hasScoreboard,
+        home_score: matchState?.homeScore ?? null,
+        away_score: matchState?.awayScore ?? null
+      },
+      odds: {
+        available: hasOdds,
+        count: oddsCount
+      },
+      quality: {
+        status: qualityStatus,
+        issues
+      },
+      latest_data_timestamp: matchState?.lastDataReceivedAt?.toISOString() ?? null
+    });
+  }));
+
+  return summaries.filter((summary): summary is PublicMatchSummary => summary !== null);
 }
 
 export function registerPublicApiRoutes(
@@ -494,9 +671,46 @@ export function registerPublicApiRoutes(
       limit?: unknown;
     };
 
-    let normalized: ReturnType<typeof normalizePublicMatchesQuery>;
     try {
-      normalized = normalizePublicMatchesQuery(query);
+      const normalized = normalizePublicMatchesQuery(query);
+
+      if (!process.env.DATABASE_URL) {
+        return {
+          data: [],
+          meta: {
+            status: "no_data" as const,
+            source: "database" as const,
+            mode: "public" as const
+          }
+        };
+      }
+
+      const now = deps.now();
+      const candidates = await deps.getDbClient().fixture.findMany({
+        where: normalized.competitionId === undefined
+          ? undefined
+          : { competition: normalized.competitionId },
+        orderBy: { startTimeUtc: normalized.range === "past" ? "desc" : "asc" },
+        take: Math.min(normalized.limit * 5, 100),
+        select: {
+          fixtureId: true,
+          competition: true,
+          homeTeam: true,
+          awayTeam: true,
+          startTimeUtc: true,
+          status: true
+        }
+      });
+
+      const data = await buildPublicMatchSummaries(candidates, normalized, deps, now);
+      return {
+        data: data.slice(0, normalized.limit),
+        meta: {
+          status: data.length > 0 ? "live" as const : "no_data" as const,
+          source: "database" as const,
+          mode: "public" as const
+        }
+      };
     } catch (error) {
       if (error instanceof PublicApiValidationError) {
         badRequest(reply);
@@ -510,62 +724,6 @@ export function registerPublicApiRoutes(
           }
         };
       }
-      throw error;
-    }
-
-    if (!process.env.DATABASE_URL) {
-      return {
-        data: [],
-        meta: {
-          status: "no_data" as const,
-          source: "database" as const,
-          mode: "public" as const
-        }
-      };
-    }
-
-    try {
-      const now = deps.now();
-      const candidates = await deps.getDbClient().fixture.findMany({
-        where: normalized.competitionId === undefined
-          ? undefined
-          : { competition: normalized.competitionId },
-        orderBy: { startTimeUtc: normalized.range === "past" ? "desc" : "asc" },
-        take: normalized.range === "live"
-          ? Math.min(normalized.limit * 5, 500)
-          : Math.min(normalized.limit * 3, 300),
-        select: {
-          fixtureId: true,
-          competition: true,
-          homeTeam: true,
-          awayTeam: true,
-          startTimeUtc: true,
-          status: true
-        }
-      });
-
-      const summaries: PublicMatchSummary[] = [];
-      for (const fixture of candidates) {
-        const state = await deps.getDbBackedMatchState(fixture.fixtureId, {
-          includeOdds: true,
-          oddsLimit: 50
-        });
-        if (!matchesRequestedRange(state, normalized.range, now)) continue;
-        summaries.push(buildPublicMatchSummary(state));
-        if (summaries.length >= normalized.limit) break;
-      }
-
-      const output: PublicMatchesResponse = {
-        data: stripForbiddenFields(summaries),
-        meta: {
-          status: summaries.length > 0 ? "live" : "no_data",
-          source: "database",
-          mode: "public"
-        }
-      };
-      assertNoForbiddenSignalFields(output);
-      return output;
-    } catch {
       unavailable(reply);
       return {
         data: [],
@@ -588,7 +746,12 @@ export function registerPublicApiRoutes(
     };
     const normalized = normalizePublicMatchQuery(query);
     const now = deps.now();
-    const state = await readPublicMatchState(fixtureId, normalized, deps);
+    const { state, degraded } = await readPublicMatchState(fixtureId, normalized, deps);
+
+    if (degraded) {
+      reply.code(503);
+      return buildDegradedPublicMatchResponse(state, now);
+    }
 
     if (isUnknownFixtureState(state)) {
       notFound(reply);
