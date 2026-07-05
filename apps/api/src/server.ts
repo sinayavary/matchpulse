@@ -32,7 +32,12 @@ import {
   buildTxlineReplayTimeline
 } from "./txline-replay.js";
 import { checkDbHealth } from "./db-health.js";
+import { getDbClient } from "./db.js";
 import { verifyDemoSeed } from "./db-seed-verification.js";
+import {
+  ingestTxlineFixtures,
+  summarizeFixtureIngestion
+} from "./txline-fixture-ingestion.js";
 import {
   buildReplayState,
   createReplaySession,
@@ -70,6 +75,53 @@ app.get("/api/internal/db/status", async () => {
 
 app.get("/api/internal/db/demo-seed/status", async () => verifyDemoSeed());
 
+app.get("/api/internal/db/fixtures/:fixtureId", async (request) => {
+  const { fixtureId } = request.params as { fixtureId: string };
+  if (!process.env.DATABASE_URL) {
+    return {
+      data: { found: false, fixture: null },
+      meta: { status: "no_data" as const, source: "database" as const }
+    };
+  }
+
+  try {
+    const fixture = await getDbClient().fixture.findUnique({
+      where: { fixtureId },
+      select: {
+        fixtureId: true,
+        competition: true,
+        homeTeam: true,
+        awayTeam: true,
+        startTimeUtc: true,
+        status: true
+      }
+    });
+
+    return {
+      data: {
+        found: fixture !== null,
+        fixture: fixture === null ? null : {
+          fixture_id: fixture.fixtureId,
+          competition: fixture.competition,
+          home_team: fixture.homeTeam,
+          away_team: fixture.awayTeam,
+          start_time_utc: fixture.startTimeUtc?.toISOString() ?? null,
+          status: fixture.status
+        }
+      },
+      meta: {
+        status: fixture === null ? "no_data" as const : "live" as const,
+        source: "database" as const
+      }
+    };
+  } catch {
+    return {
+      data: { found: false, fixture: null },
+      meta: { status: "degraded" as const, source: "database" as const }
+    };
+  }
+});
+
 app.get("/api/internal/txline/status", async () => {
   const txlineConfig = getTxlineConfigFromEnv();
   const statusData = toTxlineStatusData(txlineConfig);
@@ -82,6 +134,91 @@ app.get("/api/internal/txline/status", async () => {
       mode: txlineConfig.dataMode
     }
   };
+});
+
+app.post("/api/internal/txline/ingest/fixtures", async (request) => {
+  const config = getTxlineConfigFromEnv();
+  const body = request.body as {
+    competitionId?: unknown;
+    startEpochDay?: unknown;
+    includeRaw?: unknown;
+  } | undefined;
+  const competitionId = typeof body?.competitionId === "string"
+    ? body.competitionId.trim()
+    : typeof body?.competitionId === "number" && Number.isFinite(body.competitionId)
+      ? String(body.competitionId)
+      : "";
+  const startEpochDay = typeof body?.startEpochDay === "number"
+    ? body.startEpochDay
+    : Number.NaN;
+  const includeRaw = body?.includeRaw === true;
+  const requested = {
+    competition_id: competitionId,
+    start_epoch_day: startEpochDay
+  };
+  const emptyResult = {
+    fetched_count: 0,
+    normalized_count: 0,
+    upserted_count: 0,
+    skipped_count: 0,
+    failed_count: 0
+  };
+
+  if (!competitionId || !Number.isInteger(startEpochDay) || startEpochDay < 0) {
+    return {
+      data: { requested, result: emptyResult, fixtures: [] },
+      meta: {
+        status: "error" as const,
+        source: "database" as const,
+        mode: "internal" as const,
+        message: "competitionId and startEpochDay are required."
+      }
+    };
+  }
+
+  if (config.dataMode === "mock" || !process.env.DATABASE_URL) {
+    return {
+      data: { requested, result: emptyResult, fixtures: [] },
+      meta: {
+        status: "error" as const,
+        source: "database" as const,
+        mode: "internal" as const,
+        message: config.dataMode === "mock"
+          ? "Fixture ingestion requires live or auto TxLINE mode."
+          : "Database is not configured."
+      }
+    };
+  }
+
+  try {
+    const ingestion = await ingestTxlineFixtures({
+      competitionId,
+      startEpochDay,
+      includeRaw
+    });
+    return {
+      data: {
+        requested,
+        result: summarizeFixtureIngestion(ingestion),
+        fixtures: ingestion.fixtures
+      },
+      meta: {
+        status: ingestion.failedCount > 0 ? "degraded" as const : "live" as const,
+        source: "database" as const,
+        mode: "internal" as const
+      }
+    };
+  } catch (error) {
+    return {
+      data: { requested, result: emptyResult, fixtures: [] },
+      meta: {
+        status: "error" as const,
+        source: "database" as const,
+        mode: "internal" as const,
+        message: safeTxlineError(error).message
+      }
+    };
+  }
 });
 
 app.get("/api/internal/txline/demo/seeds", async () => {
