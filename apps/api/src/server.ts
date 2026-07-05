@@ -47,6 +47,10 @@ import {
   ingestTxlineOddsSnapshot
 } from "./txline-odds-ingestion.js";
 import {
+  discoverTxlineOddsAvailability,
+  TxlineOddsDiscoveryError
+} from "./txline-odds-discovery.js";
+import {
   buildReplayState,
   createReplaySession,
   getReplaySession,
@@ -457,6 +461,85 @@ app.post("/api/internal/txline/ingest/odds", async (request, reply) => {
         source: "database" as const,
         mode: "internal" as const,
         message: safeTxlineError(error).message
+      }
+    };
+  }
+});
+
+app.get("/api/internal/txline/odds/discover", async (request, reply) => {
+  const config = getTxlineConfigFromEnv();
+  const query = request.query as {
+    competitionId?: string;
+    startEpochDay?: string;
+    limit?: string;
+    includeSamples?: string;
+  };
+  const competitionId = Number(query.competitionId ?? 72);
+  const startEpochDay = Number(query.startEpochDay ?? 20624);
+  const limit = Number(query.limit ?? 20);
+  const includeSamples = query.includeSamples === "true";
+  const emptyData = {
+    found: false,
+    competition_id: competitionId,
+    start_epoch_day: startEpochDay,
+    checked_fixtures: 0,
+    checked_candidates: 0,
+    candidate: null
+  };
+
+  if (
+    !Number.isInteger(competitionId) || competitionId < 0 ||
+    !Number.isInteger(startEpochDay) || startEpochDay < 0 ||
+    !Number.isInteger(limit) || limit < 1
+  ) {
+    reply.code(400);
+    return {
+      data: emptyData,
+      meta: {
+        status: "degraded" as const,
+        source: "txline" as const,
+        mode: "internal" as const,
+        message: "competitionId, startEpochDay, and limit must be positive integers."
+      }
+    };
+  }
+
+  if (config.dataMode === "mock") {
+    return {
+      data: emptyData,
+      meta: {
+        status: "degraded" as const,
+        source: "txline" as const,
+        mode: "internal" as const,
+        message: "Odds discovery requires live or auto TxLINE mode."
+      }
+    };
+  }
+
+  try {
+    const data = await discoverTxlineOddsAvailability({
+      competitionId,
+      startEpochDay,
+      limit,
+      includeSamples
+    });
+    return {
+      data,
+      meta: {
+        status: data.found ? "live" as const : "no_data" as const,
+        source: "txline" as const,
+        mode: "internal" as const
+      }
+    };
+  } catch (error) {
+    const isDiscoveryError = error instanceof TxlineOddsDiscoveryError;
+    return {
+      data: isDiscoveryError ? error.result : emptyData,
+      meta: {
+        status: "degraded" as const,
+        source: "txline" as const,
+        mode: "internal" as const,
+        message: isDiscoveryError ? error.message : safeTxlineError(error).message
       }
     };
   }
