@@ -39,6 +39,10 @@ import {
   summarizeFixtureIngestion
 } from "./txline-fixture-ingestion.js";
 import {
+  ingestTxlineScoreSnapshot,
+  summarizeScoreIngestion
+} from "./txline-score-ingestion.js";
+import {
   buildReplayState,
   createReplaySession,
   getReplaySession,
@@ -117,6 +121,52 @@ app.get("/api/internal/db/fixtures/:fixtureId", async (request) => {
   } catch {
     return {
       data: { found: false, fixture: null },
+      meta: { status: "degraded" as const, source: "database" as const }
+    };
+  }
+});
+
+app.get("/api/internal/db/match-states/:fixtureId", async (request) => {
+  const { fixtureId } = request.params as { fixtureId: string };
+  if (!process.env.DATABASE_URL) {
+    return {
+      data: { found: false, match_state: null },
+      meta: { status: "no_data" as const, source: "database" as const }
+    };
+  }
+
+  try {
+    const matchState = await getDbClient().matchState.findUnique({
+      where: { fixtureId },
+      select: {
+        fixtureId: true,
+        homeScore: true,
+        awayScore: true,
+        phase: true,
+        marketMood: true,
+        lastDataReceivedAt: true
+      }
+    });
+    return {
+      data: {
+        found: matchState !== null,
+        match_state: matchState === null ? null : {
+          fixture_id: matchState.fixtureId,
+          home_score: matchState.homeScore,
+          away_score: matchState.awayScore,
+          phase: matchState.phase,
+          market_mood: matchState.marketMood,
+          last_data_received_at: matchState.lastDataReceivedAt?.toISOString() ?? null
+        }
+      },
+      meta: {
+        status: matchState === null ? "no_data" as const : "live" as const,
+        source: "database" as const
+      }
+    };
+  } catch {
+    return {
+      data: { found: false, match_state: null },
       meta: { status: "degraded" as const, source: "database" as const }
     };
   }
@@ -211,6 +261,86 @@ app.post("/api/internal/txline/ingest/fixtures", async (request) => {
   } catch (error) {
     return {
       data: { requested, result: emptyResult, fixtures: [] },
+      meta: {
+        status: "error" as const,
+        source: "database" as const,
+        mode: "internal" as const,
+        message: safeTxlineError(error).message
+      }
+    };
+  }
+});
+
+app.post("/api/internal/txline/ingest/score", async (request) => {
+  const config = getTxlineConfigFromEnv();
+  const body = request.body as {
+    fixtureId?: unknown;
+    asOf?: unknown;
+    includeRaw?: unknown;
+  } | undefined;
+  const fixtureId = typeof body?.fixtureId === "string" ? body.fixtureId.trim() : "";
+  const rawAsOf = body?.asOf ?? Date.now();
+  const normalizedAsOf = normalizeAsOfToEpochMs(String(rawAsOf));
+  const asOf = normalizedAsOf === null ? Number.NaN : Number(normalizedAsOf);
+  const requested = {
+    fixture_id: fixtureId,
+    as_of: Number.isFinite(asOf) ? asOf : null
+  };
+  const emptyResult = {
+    fetched_count: 0,
+    selected_seq: null,
+    selected_ts: null,
+    action: null,
+    score_available: false,
+    upserted: false
+  };
+
+  if (!fixtureId || !Number.isFinite(asOf)) {
+    return {
+      data: { requested, result: emptyResult, match_state: null },
+      meta: {
+        status: "error" as const,
+        source: "database" as const,
+        mode: "internal" as const,
+        message: "fixtureId is required and asOf must be epoch milliseconds or an ISO date string."
+      }
+    };
+  }
+  if (config.dataMode === "mock" || !process.env.DATABASE_URL) {
+    return {
+      data: { requested, result: emptyResult, match_state: null },
+      meta: {
+        status: "error" as const,
+        source: "database" as const,
+        mode: "internal" as const,
+        message: config.dataMode === "mock"
+          ? "Score ingestion requires live or auto TxLINE mode."
+          : "Database is not configured."
+      }
+    };
+  }
+
+  try {
+    const ingestion = await ingestTxlineScoreSnapshot({
+      fixtureId,
+      asOf,
+      includeRaw: body?.includeRaw === true
+    });
+    return {
+      data: {
+        requested,
+        result: summarizeScoreIngestion(ingestion),
+        match_state: ingestion.matchState
+      },
+      meta: {
+        status: ingestion.upserted ? "live" as const : "degraded" as const,
+        source: "database" as const,
+        mode: "internal" as const
+      }
+    };
+  } catch (error) {
+    return {
+      data: { requested, result: emptyResult, match_state: null },
       meta: {
         status: "error" as const,
         source: "database" as const,
