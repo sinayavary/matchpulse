@@ -10,6 +10,9 @@
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
     "lint": "echo 'api lint placeholder'",
     "test:normalizer": "tsx --test src/txline-normalizer.test.ts",
+    "prisma:generate": "prisma generate --schema ../../prisma/schema.prisma",
+    "prisma:migrate:dev": "prisma migrate dev --schema ../../prisma/schema.prisma",
+    "prisma:seed": "tsx ../../prisma/seed.ts",
     "txline:create-wallet": "tsx src/scripts/create-dev-wallet.ts",
     "txline:guest-jwt": "tsx src/scripts/fetch-guest-jwt.ts",
     "txline:activation-preflight": "tsx src/scripts/activation-preflight.ts",
@@ -30,6 +33,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "prisma": "^6.0.1",
     "tsx": "^4.19.2",
     "tweetnacl": "^1.0.3",
     "typescript": "^5.7.2"

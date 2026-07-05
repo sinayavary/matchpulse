@@ -31,6 +31,7 @@ import {
   buildTxlineReplaySummary,
   buildTxlineReplayTimeline
 } from "./txline-replay.js";
+import { checkDbHealth } from "./db-health.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -47,6 +48,18 @@ app.get("/api/health", async () =>
     service_level_id: Number(process.env.TXLINE_SERVICE_LEVEL_ID ?? 1)
   })
 );
+
+app.get("/api/internal/db/status", async () => {
+  const health = await checkDbHealth();
+
+  return {
+    data: health,
+    meta: {
+      status: health.connected ? "live" : health.configured ? "degraded" : "no_data",
+      source: "database"
+    }
+  };
+});
 
 app.get("/api/internal/txline/status", async () => {
   const txlineConfig = getTxlineConfigFromEnv();

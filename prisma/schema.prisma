@@ -8,144 +8,101 @@ datasource db {
 }
 
 model Fixture {
-  id            String   @id
-  homeTeam      String
-  awayTeam      String
-  competition   String
-  startTimeUtc  DateTime
-  status        String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String    @id @default(uuid()) @db.Uuid
+  fixtureId    String    @unique @map("fixture_id")
+  competition  String
+  stage        String?
+  sport        String    @default("soccer")
+  startTimeUtc DateTime? @map("start_time_utc") @db.Timestamptz(3)
+  homeTeam     String    @map("home_team")
+  awayTeam     String    @map("away_team")
+  status       String    @default("UNKNOWN")
+  raw          Json?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  states        MatchState[]
-  events        MatchEvent[]
-  oddsSnapshots OddsSnapshot[]
-  signals       Signal[]
-  scenarios     Scenario[]
+  matchState     MatchState?
+  matchEvents    MatchEvent[]
+  replaySessions ReplaySession[]
+
+  @@index([startTimeUtc])
+  @@index([status])
+  @@map("fixtures")
 }
 
 model MatchState {
-  id        String   @id @default(cuid())
-  fixtureId String
-  scoreHome Int
-  scoreAway Int
-  phase     String
-  minute    Int
-  raw       Json
-  createdAt DateTime @default(now())
+  id                 String    @id @default(uuid()) @db.Uuid
+  fixtureId          String    @unique @map("fixture_id")
+  minute             Int?
+  phase              String    @default("unknown")
+  homeScore          Int?      @map("home_score")
+  awayScore          Int?      @map("away_score")
+  inRunning          Boolean?  @map("in_running")
+  marketMood         String    @default("unknown") @map("market_mood")
+  momentumSide       String    @default("unknown") @map("momentum_side")
+  momentumScore      Decimal?  @map("momentum_score") @db.Decimal(5, 2)
+  rawScore           Json?     @map("raw_score")
+  rawOdds            Json?     @map("raw_odds")
+  lastDataReceivedAt DateTime? @map("last_data_received_at") @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  fixture Fixture @relation(fields: [fixtureId], references: [id])
+  fixture Fixture @relation(fields: [fixtureId], references: [fixtureId], onDelete: Cascade)
 
-  @@index([fixtureId, createdAt])
+  @@index([phase])
+  @@index([lastDataReceivedAt])
+  @@map("match_states")
 }
 
 model MatchEvent {
-  id        String   @id @default(cuid())
-  fixtureId String
-  seq       String
-  minute    Int?
-  type      String
-  team      String?
-  raw       Json
-  createdAt DateTime @default(now())
+  id              String    @id @default(uuid()) @db.Uuid
+  fixtureId       String    @map("fixture_id")
+  externalSeq     String?   @map("external_seq")
+  eventType       String    @map("event_type")
+  eventMinute     Int?      @map("event_minute")
+  teamSide        String    @default("unknown") @map("team_side")
+  title           String
+  description     String?
+  sourceTimestamp DateTime? @map("source_timestamp") @db.Timestamptz(3)
+  raw             Json?
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  fixture Fixture @relation(fields: [fixtureId], references: [id])
+  fixture Fixture @relation(fields: [fixtureId], references: [fixtureId], onDelete: Cascade)
 
-  @@unique([fixtureId, seq])
-  @@index([fixtureId, createdAt])
-}
-
-model OddsSnapshot {
-  id        String   @id @default(cuid())
-  fixtureId String
-  seq       String
-  market    String
-  data      Json
-  createdAt DateTime @default(now())
-
-  fixture Fixture @relation(fields: [fixtureId], references: [id])
-
-  @@unique([fixtureId, seq])
-  @@index([fixtureId, createdAt])
-}
-
-model Signal {
-  id          String   @id @default(cuid())
-  fixtureId   String
-  minute      Int?
-  type        String
-  title       String
-  explanation String
-  confidence  String
-  risk        String
-  data        Json
-  createdAt   DateTime @default(now())
-
-  fixture Fixture @relation(fields: [fixtureId], references: [id])
-
-  @@index([fixtureId, createdAt])
-}
-
-model Scenario {
-  id          String   @id @default(cuid())
-  fixtureId   String
-  label       String
-  probability Float
-  confidence  String
-  explanation String
-  data        Json
-  createdAt   DateTime @default(now())
-
-  fixture Fixture @relation(fields: [fixtureId], references: [id])
-
-  @@index([fixtureId, createdAt])
-}
-
-model AgentEvaluation {
-  id             String   @id @default(cuid())
-  fixtureId      String
-  totalSignals   Int
-  correctSignals Int
-  accuracy       Float
-  notes          Json
-  createdAt      DateTime @default(now())
-}
-
-model LearningEdge {
-  id          String   @id @default(cuid())
-  fromNode    String
-  toNode      String
-  relation    String
-  weight      Float
-  evidence    Json
-  updatedAt   DateTime @updatedAt
-  createdAt   DateTime @default(now())
+  @@unique([fixtureId, externalSeq])
+  @@index([fixtureId, sourceTimestamp])
+  @@index([eventType])
+  @@map("match_events")
 }
 
 model ReplaySession {
-  id        String   @id @default(cuid())
-  fixtureId String
-  status    String
-  speed     Float    @default(1)
-  state     Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
+  id            String    @id @default(uuid()) @db.Uuid
+  sessionId     String    @unique @map("session_id")
+  fixtureId     String    @map("fixture_id")
+  status        String    @default("running")
+  speed         Int       @default(1)
+  currentMinute Int?      @map("current_minute")
+  startedAt     DateTime? @map("started_at") @db.Timestamptz(3)
+  stoppedAt     DateTime? @map("stopped_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
-model WatchlistItem {
-  id        String   @id @default(cuid())
-  userKey   String
-  fixtureId String
-  createdAt DateTime @default(now())
+  fixture Fixture @relation(fields: [fixtureId], references: [fixtureId], onDelete: Cascade)
 
-  @@unique([userKey, fixtureId])
+  @@index([fixtureId])
+  @@map("replay_sessions")
 }
 
 model HealthStatus {
-  id        String   @id @default(cuid())
-  service   String   @unique
-  status    String
-  heartbeat DateTime
-  details   Json?
-  updatedAt DateTime @updatedAt
+  id                 String    @id @default(uuid()) @db.Uuid
+  serviceName        String    @unique @map("service_name")
+  status             String
+  lastHeartbeat      DateTime? @map("last_heartbeat") @db.Timestamptz(3)
+  lastDataReceivedAt DateTime? @map("last_data_received_at") @db.Timestamptz(3)
+  errorCount         Int       @default(0) @map("error_count")
+  lastError          String?   @map("last_error")
+  raw                Json?
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([status])
+  @@map("health_status")
 }
