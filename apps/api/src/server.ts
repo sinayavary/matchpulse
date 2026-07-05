@@ -65,6 +65,11 @@ import {
   getReplaySession,
   ReplaySessionValidationError
 } from "./replay-sessions.js";
+import {
+  IngestionRunnerValidationError,
+  runFixtureIngestionPipeline,
+  type IngestionRunnerInput
+} from "./ingestion-runner.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -95,6 +100,28 @@ app.get("/api/internal/db/status", async () => {
 });
 
 app.get("/api/internal/db/demo-seed/status", async () => verifyDemoSeed());
+
+app.post("/api/internal/worker/ingest-fixture", async (request, reply) => {
+  try {
+    return await runFixtureIngestionPipeline(
+      (request.body ?? {}) as IngestionRunnerInput
+    );
+  } catch (error) {
+    if (error instanceof IngestionRunnerValidationError) {
+      reply.code(400);
+      return {
+        data: null,
+        meta: {
+          status: "no_data" as const,
+          source: "database" as const,
+          mode: "internal" as const,
+          message: error.message
+        }
+      };
+    }
+    throw error;
+  }
+});
 
 app.get("/api/internal/state/matches/:fixtureId", async (request) => {
   const { fixtureId } = request.params as { fixtureId: string };
