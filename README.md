@@ -113,7 +113,7 @@ http://localhost:3000/demo
 
 ## Demo Routes
 
-These are the **only** routes the frontend calls. They are served by the Safe Public Demo Bridge — no internal routes, no secrets, no database credentials are exposed.
+These are the **only** routes the demo page calls. Final product pages use `/api/public/*`. These demo routes are served by the Safe Public Demo Bridge — no internal routes, no secrets, no database credentials are exposed.
 
 | Method | Route                                      | Description              |
 | ------ | ------------------------------------------ | ------------------------ |
@@ -124,6 +124,19 @@ These are the **only** routes the frontend calls. They are served by the Safe Pu
 All responses include `meta.source: "demo-bridge"` and `meta.mode: "public-demo"`.
 
 The existing `/api/matches` endpoint remains mock-backed and independent of the demo pipeline.
+
+## Public API for Final Frontend
+
+Final product pages should use the public-safe API layer documented in [`docs/public-api-contract.md`](docs/public-api-contract.md).
+
+Allowed final frontend routes:
+
+- `GET /api/public/status`
+- `GET /api/public/matches`
+- `GET /api/public/matches/:fixtureId`
+- `GET /api/public/matches/:fixtureId/bundle`
+
+`/api/public/*` is the final frontend-safe API layer. `/api/demo/*` is only for the demo page, `/api/matches` is legacy/mock and not final product data, and `/api/internal/*` must never be called by the frontend.
 
 ## Expected Demo Output
 
@@ -166,7 +179,7 @@ The system reports **what data exists and its quality** — nothing more. All ou
 
 Additional safety measures:
 - The public demo bridge uses a **hardcoded allowlist** of two fixtures — no arbitrary fixture IDs are served.
-- The frontend calls **only** public demo bridge routes (`/api/demo/*`). Internal routes (`/api/internal/*`) are never exposed to the client.
+- The demo page calls **only** public demo bridge routes (`/api/demo/*`). Final product pages use `/api/public/*`. Internal routes (`/api/internal/*`) are never exposed to the client.
 - Raw JSON output is available for **transparency**, not for automated consumption.
 - Signal fields are **sanitized** to `{ type, severity, title, message }` only.
 
@@ -195,6 +208,7 @@ Future development could include:
 | -------- | ------- |
 | `docs/demo-script.md` | Step-by-step demo walkthrough for judges/reviewers |
 | `docs/final-smoke-checklist.md` | Command-by-command verification checklist |
+| `docs/public-api-contract.md` | Public-safe API contract for final frontend pages |
 | `docs/project-status.md` | Current build status and what is/isn't built |
 | `docs/PROJECT_SCOPE.md` | Full project scope and decisions |
 | `docs/API_CONTRACT.md` | Backend API contract specification |
