@@ -76,6 +76,7 @@ import {
 } from "./signalcore-contract.js";
 import { getSignalCoreV0ForFixture } from "./signalcore-v0.js";
 import { getAgentPresenterBriefForFixture } from "./agent-presenter-v0.js";
+import { getDemoBundleForFixture } from "./demo-bundle.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -223,6 +224,37 @@ app.get("/api/internal/agent/matches/:fixtureId/brief", async (request) => {
     assertNoForbiddenSignalFields(output);
     return output;
   }
+});
+
+app.get("/api/internal/demo/matches/:fixtureId/bundle", async (request) => {
+  const { fixtureId } = request.params as { fixtureId: string };
+  const query = request.query as {
+    includeState?: unknown;
+    includeSignals?: unknown;
+    includeBrief?: unknown;
+    oddsLimit?: unknown;
+    staleAfterMinutes?: unknown;
+    format?: unknown;
+  };
+  const readBoolean = (value: unknown): boolean | undefined => {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      if (value.toLowerCase() === "true") return true;
+      if (value.toLowerCase() === "false") return false;
+    }
+    return undefined;
+  };
+  const readNumber = (value: unknown): number | undefined =>
+    typeof value === "number" ? value : typeof value === "string" ? Number(value) : undefined;
+
+  return getDemoBundleForFixture(fixtureId, {
+    includeState: readBoolean(query.includeState),
+    includeSignals: readBoolean(query.includeSignals),
+    includeBrief: readBoolean(query.includeBrief),
+    oddsLimit: readNumber(query.oddsLimit),
+    staleAfterMinutes: readNumber(query.staleAfterMinutes),
+    format: query.format === "compact" ? "compact" : "full"
+  });
 });
 
 app.get("/api/internal/db/status", async () => {
