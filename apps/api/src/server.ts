@@ -32,6 +32,7 @@ import {
   buildTxlineReplayTimeline
 } from "./txline-replay.js";
 import { checkDbHealth } from "./db-health.js";
+import { verifyDemoSeed } from "./db-seed-verification.js";
 import {
   buildReplayState,
   createReplaySession,
@@ -66,6 +67,8 @@ app.get("/api/internal/db/status", async () => {
     }
   };
 });
+
+app.get("/api/internal/db/demo-seed/status", async () => verifyDemoSeed());
 
 app.get("/api/internal/txline/status", async () => {
   const txlineConfig = getTxlineConfigFromEnv();

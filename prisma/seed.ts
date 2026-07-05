@@ -9,6 +9,7 @@ async function main() {
     where: { fixtureId },
     update: {
       competition: "Friendlies",
+      sport: "soccer",
       homeTeam: "Slovenia",
       awayTeam: "Cyprus",
       startTimeUtc: new Date("2026-06-04T16:00:00.000Z"),
@@ -17,6 +18,7 @@ async function main() {
     create: {
       fixtureId,
       competition: "Friendlies",
+      sport: "soccer",
       homeTeam: "Slovenia",
       awayTeam: "Cyprus",
       startTimeUtc: new Date("2026-06-04T16:00:00.000Z"),
@@ -30,14 +32,16 @@ async function main() {
       homeScore: 1,
       awayScore: 1,
       phase: "unknown",
-      marketMood: "unknown"
+      marketMood: "unknown",
+      momentumSide: "unknown"
     },
     create: {
       fixtureId,
       homeScore: 1,
       awayScore: 1,
       phase: "unknown",
-      marketMood: "unknown"
+      marketMood: "unknown",
+      momentumSide: "unknown"
     }
   });
 }
