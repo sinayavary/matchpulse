@@ -75,6 +75,7 @@ import {
   getSignalCoreContract
 } from "./signalcore-contract.js";
 import { getSignalCoreV0ForFixture } from "./signalcore-v0.js";
+import { getAgentPresenterBriefForFixture } from "./agent-presenter-v0.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -149,6 +150,78 @@ app.get("/api/internal/signalcore/matches/:fixtureId", async (request) => {
         mode: "internal" as const
       }
     };
+  }
+});
+
+app.get("/api/internal/agent/matches/:fixtureId/brief", async (request) => {
+  const { fixtureId } = request.params as { fixtureId: string };
+  const query = request.query as {
+    includeState?: unknown;
+    oddsLimit?: unknown;
+    staleAfterMinutes?: unknown;
+    format?: unknown;
+  };
+  const includeState = typeof query.includeState === "string"
+    ? query.includeState.toLowerCase() === "true"
+    : query.includeState === true;
+  const oddsLimit = typeof query.oddsLimit === "string"
+    ? Number(query.oddsLimit)
+    : typeof query.oddsLimit === "number" ? query.oddsLimit : undefined;
+  const staleAfterMinutes = typeof query.staleAfterMinutes === "string"
+    ? Number(query.staleAfterMinutes)
+    : typeof query.staleAfterMinutes === "number" ? query.staleAfterMinutes : undefined;
+  const format = query.format === "full" ? "full" : "compact";
+
+  try {
+    const output = await getAgentPresenterBriefForFixture(fixtureId, {
+      includeState,
+      oddsLimit,
+      staleAfterMinutes,
+      format
+    });
+    assertNoForbiddenSignalFields(output);
+    return output;
+  } catch {
+    const output = {
+      data: {
+        fixture_id: fixtureId,
+        agent_version: "presenter-v0" as const,
+        brief: {
+          status_label: "empty" as const,
+          headline: "No persisted match data is available.",
+          overview: "The system does not have enough persisted data to build a brief.",
+          available_data: [],
+          missing_data: [
+            "Fixture identity is missing.",
+            "Scoreboard data is missing.",
+            "Odds data is missing."
+          ],
+          freshness_note: "No latest data timestamp is available.",
+          quality_notes: ["No canonical match data is currently available."],
+          safe_scope_note:
+            "This brief only describes data availability, freshness, and quality. It does not provide predictions, probabilities, recommendations, or betting guidance."
+        },
+        signal_summary: {
+          status: "empty" as const,
+          signal_count: 0,
+          critical_count: 0,
+          warning_count: 0,
+          info_count: 0,
+          has_fixture: false,
+          has_scoreboard: false,
+          has_odds: false,
+          latest_data_timestamp: null
+        },
+        signals: []
+      },
+      meta: {
+        status: "no_data" as const,
+        source: "agent-presenter" as const,
+        mode: "internal" as const
+      }
+    };
+    assertNoForbiddenSignalFields(output);
+    return output;
   }
 });
 
