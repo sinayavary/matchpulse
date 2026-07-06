@@ -79,9 +79,9 @@ It may call TxLINE and may write refreshed data to the database.
 - Dry-run prints only safe request fields and no secret-like config values.
 - Worker output is checked against secret-like key patterns before it is printed.
 - Tests use injection and do not call TxLINE, do not run live ingestion, and do not write the database.
-- The schedule foundation is disabled by default and dry-run-only in this phase.
+- The schedule foundation is disabled by default and single-cycle only in this phase.
 - Schedule output is checked against the same secret-like key patterns before it is printed.
-- Scheduled execute, cron, loop, Redis, and queue modes are all rejected in this phase.
+- Scheduled execute requires explicit confirmation, and cron, loop, Redis, and queue modes are rejected in this phase.
 
 ## What Not To Run
 
@@ -104,7 +104,7 @@ That future phase should still preserve safe dry-run behavior and explicit execu
 ## Schedule Dry-Run Foundation
 
 This phase adds a disabled-by-default schedule orchestration layer on top of the controlled worker.
-It is a one-cycle, dry-run-only plan printer. It is **not** a real scheduler.
+It supports safe dry-run plus an explicit confirmed single-cycle execute mode. It is **not** a real scheduler.
 
 Run from `D:\money\matchpulse_repo`:
 
@@ -146,8 +146,7 @@ Each scheduled job contains only safe non-secret fields:
 
 ### Rejected Schedule Execute
 
-Scheduled execute is **not enabled** in this phase.
-Any attempt to run it must fail safely:
+Scheduled execute without confirmation must fail safely:
 
 ```powershell
 .\apps\worker\node_modules\.bin\tsx.CMD apps/worker/src/index.ts schedule --execute
@@ -155,24 +154,48 @@ Any attempt to run it must fail safely:
 
 Expected behavior:
 - returns a non-zero exit code
-- prints `Schedule error: scheduled execute mode is not enabled in this phase.`
+- prints `Schedule error: scheduled execute mode requires --confirm-db-write.`
 - does not call TxLINE
 - does not write the database
 - does not print any secrets
 
+### Confirmed Single-Cycle Schedule Execute
+
+Do not run this during verification.
+Only use it intentionally when you want to refresh persisted data from the static schedule plan:
+
+```powershell
+.\apps\worker\node_modules\.bin\tsx.CMD apps/worker/src/index.ts schedule --execute --confirm-db-write
+```
+
+Expected behavior:
+- runs exactly one schedule cycle
+- processes the static plan one time only
+- reuses the existing worker execution logic for each planned job
+- prints `mode: "schedule-execute"`
+- prints `cycle_count: 1`
+- prints `job_count`
+- prints only safe per-job summaries
+- may call TxLINE
+- may write refreshed data to the database
+- does not start any loop, interval, cron, watcher, daemon, Redis backend, or queue backend
+
 ### Warnings
 
-- **Scheduled execute is not enabled yet.** A future phase will add explicit,
-  confirmed, opt-in scheduled execution.
+- **Confirmed schedule execute is dangerous and intentional.** Do not run
+  `schedule --execute --confirm-db-write` unless you explicitly want to refresh
+  persisted data.
 - **No Redis, cron, or always-on loop exists yet.** Do not deploy this as a
   background daemon. No `--loop`, `--interval`, `--cron`, `--watch`, `--daemon`,
   `--redis`, `--queue`, `--bullmq`, or `--upstash` flag is supported.
+- **No always-on scheduler exists yet.** There is no cron, interval, daemon,
+  Redis, queue, or watch process in this phase. A future phase will cover
+  deployment and scheduling strategy.
 
 ### Future Phase Notes for Real Scheduler Deployment
 
 A future phase may introduce:
 - a real always-on orchestration loop (opt-in only, not default)
-- confirmed scheduled execution behind explicit `--confirm-db-write` controls
 - retry, backoff, and operational visibility for scheduled jobs
 
 That future phase must continue to preserve:

@@ -1,4 +1,4 @@
-export type ScheduleMode = "schedule-dry-run";
+export type ScheduleMode = "schedule-dry-run" | "schedule-execute";
 
 export type ScheduleConfig = {
   mode: ScheduleMode;
@@ -7,8 +7,10 @@ export type ScheduleConfig = {
   cronEnabled: false;
   redisEnabled: false;
   queueEnabled: false;
-  dbWriteEnabled: false;
-  txlineCallEnabled: false;
+  dbWriteEnabled: boolean;
+  txlineCallEnabled: boolean;
+  execute: boolean;
+  confirmDbWrite: boolean;
   cycleCount: 1;
   runId: string;
 };
@@ -87,19 +89,25 @@ export function parseScheduleConfig(args: string[]): ScheduleConfig {
     throw new ScheduleConfigError("schedule mode is not enabled by default.");
   }
 
-  const executeRequested = hasFlag(args, "execute")
-    || hasFlag(args, "confirm-db-write")
+  const execute = hasFlag(args, "execute");
+  const confirmDbWrite = hasFlag(args, "confirm-db-write")
     || hasFlag(args, "confirmDbWrite");
 
-  if (executeRequested) {
-    throw new ScheduleConfigError("scheduled execute mode is not enabled in this phase.");
+  if (confirmDbWrite && !execute) {
+    throw new ScheduleConfigError("scheduled confirmation requires --execute.");
+  }
+
+  if (execute && !confirmDbWrite) {
+    throw new ScheduleConfigError("scheduled execute mode requires --confirm-db-write.");
   }
 
   const loopRequested = hasFlag(args, "loop")
     || hasFlag(args, "interval")
     || hasFlag(args, "cron")
     || hasFlag(args, "watch")
-    || hasFlag(args, "daemon");
+    || hasFlag(args, "daemon")
+    || hasFlag(args, "batch")
+    || hasFlag(args, "unbounded");
 
   if (loopRequested) {
     throw new ScheduleConfigError("background loop, interval, cron, watch, and daemon modes are not enabled in this phase.");
@@ -115,14 +123,16 @@ export function parseScheduleConfig(args: string[]): ScheduleConfig {
   }
 
   return {
-    mode: "schedule-dry-run",
+    mode: execute ? "schedule-execute" : "schedule-dry-run",
     schedulerEnabled: false,
     loopEnabled: false,
     cronEnabled: false,
     redisEnabled: false,
     queueEnabled: false,
-    dbWriteEnabled: false,
-    txlineCallEnabled: false,
+    dbWriteEnabled: execute && confirmDbWrite,
+    txlineCallEnabled: execute && confirmDbWrite,
+    execute,
+    confirmDbWrite,
     cycleCount: 1,
     runId: parseRunId(args)
   };

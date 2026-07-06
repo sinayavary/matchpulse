@@ -30,30 +30,52 @@ test("schedule dry-run config is disabled-by-default safe", () => {
   assert.equal(config.queueEnabled, false);
   assert.equal(config.dbWriteEnabled, false);
   assert.equal(config.txlineCallEnabled, false);
+  assert.equal(config.execute, false);
+  assert.equal(config.confirmDbWrite, false);
   assert.equal(config.cycleCount, 1);
   assert.match(config.runId, /^schedule-run-\d+$/);
 });
 
-test("schedule execute is rejected in this phase", () => {
+test("schedule execute without confirmation is rejected", () => {
   assert.throws(
     () => parseScheduleConfig(["schedule", "--execute"]),
     (error: unknown) => {
       assert.ok(error instanceof ScheduleConfigError);
-      assert.match((error as Error).message, /scheduled execute mode is not enabled in this phase/i);
+      assert.match((error as Error).message, /scheduled execute mode requires --confirm-db-write/i);
       return true;
     }
   );
 });
 
-test("schedule execute with confirmation is rejected in this phase", () => {
+test("schedule execute with confirmation is accepted by parser", () => {
+  const config = parseScheduleConfig(["schedule", "--execute", "--confirm-db-write"]);
+
+  assert.equal(config.mode, "schedule-execute");
+  assert.equal(config.execute, true);
+  assert.equal(config.confirmDbWrite, true);
+  assert.equal(config.dbWriteEnabled, true);
+  assert.equal(config.txlineCallEnabled, true);
+  assert.equal(config.schedulerEnabled, false);
+  assert.equal(config.loopEnabled, false);
+  assert.equal(config.cronEnabled, false);
+  assert.equal(config.redisEnabled, false);
+  assert.equal(config.queueEnabled, false);
+  assert.equal(config.cycleCount, 1);
+});
+
+test("schedule confirmation without execute is rejected", () => {
   assert.throws(
     () => parseScheduleConfig(["schedule", "--confirm-db-write"]),
-    ScheduleConfigError
+    (error: unknown) => {
+      assert.ok(error instanceof ScheduleConfigError);
+      assert.match((error as Error).message, /scheduled confirmation requires --execute/i);
+      return true;
+    }
   );
 });
 
 test("schedule loop/interval is rejected in this phase", () => {
-  for (const flag of ["--loop", "--interval", "--watch", "--daemon"]) {
+  for (const flag of ["--loop", "--interval", "--watch", "--daemon", "--batch", "--unbounded"]) {
     assert.throws(
       () => parseScheduleConfig(["schedule", flag]),
       ScheduleConfigError

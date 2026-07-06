@@ -6,7 +6,11 @@ import {
   parseScheduleConfig,
   ScheduleConfigError
 } from "./schedule-config.js";
-import { runScheduleDryRun, ScheduleRunnerError } from "./schedule-runner.js";
+import {
+  runScheduleDryRun,
+  runScheduleExecute,
+  ScheduleRunnerError
+} from "./schedule-runner.js";
 
 async function executeIngestion(input: {
   fixtureId: string;
@@ -31,7 +35,9 @@ async function executeIngestion(input: {
 async function runSchedule(args: string[]) {
   try {
     const config = parseScheduleConfig(args);
-    const output = runScheduleDryRun(config);
+    const output = config.execute
+      ? await runScheduleExecute(config, { executeIngestion })
+      : runScheduleDryRun(config);
     console.log(JSON.stringify(output, null, 2));
   } catch (error) {
     if (error instanceof ScheduleConfigError || error instanceof ScheduleRunnerError) {
