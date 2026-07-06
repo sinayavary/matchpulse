@@ -9,12 +9,15 @@ import {
   type MatchStateBuilderOptions
 } from "./match-state-builder.js";
 import {
+  buildProductAgentV1InsightSummary,
   buildProductAgentV1Insight,
-  type ProductAgentV1Insight
+  type ProductAgentV1Insight,
+  type ProductAgentV1InsightSummary
 } from "./product-agent-v1.js";
 import {
   SIGNALCORE_FORBIDDEN_OUTPUT_FIELDS
 } from "./signalcore-contract.js";
+import type { SignalCoreV0Signal, SignalCoreV0Summary } from "./signalcore-v0.js";
 
 export type PublicApiMode = "public";
 export type PublicMetaStatus = "live" | "no_data" | "stale" | "degraded";
@@ -87,6 +90,7 @@ export type PublicMatchSummary = {
     issues: string[];
   };
   latest_data_timestamp: string | null;
+  insight_summary?: ProductAgentV1InsightSummary;
 };
 
 export type PublicStatusResponse = {
@@ -281,10 +285,12 @@ export function normalizePublicMatchesQuery(query: {
   range?: unknown;
   competitionId?: unknown;
   limit?: unknown;
+  includeInsight?: unknown;
 }): {
   range: PublicMatchesRange;
   competitionId?: string;
   limit: number;
+  includeInsight: boolean;
 } {
   const range = typeof query.range === "string" && query.range.trim() !== ""
     ? query.range.trim().toLowerCase()
@@ -303,7 +309,8 @@ export function normalizePublicMatchesQuery(query: {
   return {
     range: range as PublicMatchesRange,
     competitionId,
-    limit: normalizeLimit(query.limit, 20, 100)
+    limit: normalizeLimit(query.limit, 20, 100),
+    includeInsight: readBoolean(query.includeInsight, false)
   };
 }
 
@@ -345,6 +352,74 @@ function sanitizeAndAssertPublicPayload<T>(value: T): T {
   const sanitized = sanitizePublicPayload(value);
   assertNoForbiddenPublicKeys(sanitized);
   return sanitized;
+}
+
+function sanitizeInsightSummarySafe(
+  insightSummary: ProductAgentV1InsightSummary | undefined
+): ProductAgentV1InsightSummary | undefined {
+  if (insightSummary === undefined) return undefined;
+
+  try {
+    return sanitizeAndAssertPublicPayload(insightSummary);
+  } catch {
+    return undefined;
+  }
+}
+
+function createSyntheticSignal(
+  type: SignalCoreV0Signal["type"],
+  severity: SignalCoreV0Signal["severity"],
+  title: string,
+  message: string
+): SignalCoreV0Signal {
+  return {
+    type,
+    severity,
+    title,
+    message,
+    details: {}
+  };
+}
+
+function toIsoTimestamp(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+
+  if (typeof value === "string") {
+    try {
+      const parsed = Date.parse(value);
+      return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof value === "number") {
+    try {
+      return Number.isFinite(value) ? new Date(value).toISOString() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (value instanceof Date) {
+    try {
+      return Number.isFinite(value.getTime()) ? value.toISOString() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof value === "object" && "toISOString" in value && typeof value.toISOString === "function") {
+    try {
+      const isoValue = value.toISOString();
+      const parsed = Date.parse(isoValue);
+      return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
 }
 
 function parseTimestamp(value: string | null): number | null {
@@ -410,7 +485,7 @@ function fixtureMatchesRequestedRange(
 ): boolean {
   if (range === "all") return true;
   const token = (fixture.status ?? "").trim().toLowerCase();
-  const startTime = fixture.startTimeUtc?.getTime() ?? null;
+  const startTime = parseTimestamp(toIsoTimestamp(fixture.startTimeUtc));
   const isLive = liveStatusTokens.has(token);
   const isPast = pastStatusTokens.has(token) ||
     (startTime !== null && startTime < now.getTime() && !isLive);
@@ -593,6 +668,198 @@ function buildDegradedPublicMatchResponse(state: CanonicalMatchState, now: Date)
   });
 }
 
+function buildSyntheticSignalSummary(input: {
+  fixture: PublicFixtureRow;
+  hasScoreboard: boolean;
+  oddsCount: number;
+  latestDataTimestamp: string | null;
+}): SignalCoreV0Summary {
+  const hasFixture = true;
+  const hasOdds = input.oddsCount > 0;
+  const summaryStatus = !hasFixture && !input.hasScoreboard && !hasOdds
+    ? "empty" as const
+    : hasFixture && (input.hasScoreboard || hasOdds)
+      ? "ready" as const
+      : "partial" as const;
+
+  return {
+    status: summaryStatus,
+    signal_count: 0,
+    critical_count: 0,
+    warning_count: 0,
+    info_count: 0,
+    has_fixture: hasFixture,
+    has_scoreboard: input.hasScoreboard,
+    has_odds: hasOdds,
+    latest_data_timestamp: input.latestDataTimestamp
+  };
+}
+
+function buildCompactInsightSummary(input: {
+  fixture: PublicFixtureRow;
+  hasScoreboard: boolean;
+  oddsCount: number;
+  staleAfterMinutes: number;
+  now: Date;
+  latestDataTimestamp: string | null;
+}): ProductAgentV1InsightSummary {
+  const hasIdentity = input.fixture.competition !== null &&
+    input.fixture.homeTeam !== null &&
+    input.fixture.awayTeam !== null;
+  const summary = buildSyntheticSignalSummary(input);
+  const latestDataTimestamp = summary.latest_data_timestamp;
+  const isStale = latestDataTimestamp !== null &&
+    input.now.getTime() - Date.parse(latestDataTimestamp) > input.staleAfterMinutes * 60_000;
+  const signals: SignalCoreV0Signal[] = [];
+
+  if (!summary.has_fixture) {
+    signals.push(
+      createSyntheticSignal("FIXTURE_MISSING", summary.status === "empty" ? "critical" : "warning", "Fixture missing", "Fixture identity data is missing.")
+    );
+  }
+  if (!summary.has_scoreboard) {
+    signals.push(
+      createSyntheticSignal("SCOREBOARD_MISSING", "warning", "Scoreboard missing", "Scoreboard data is missing.")
+    );
+  }
+  if (!summary.has_odds) {
+    signals.push(
+      createSyntheticSignal("ODDS_MISSING", "warning", "Odds missing", "Odds data is missing.")
+    );
+  }
+  if (!hasIdentity) {
+    signals.push(
+      createSyntheticSignal("IDENTITY_INCOMPLETE", "warning", "Identity incomplete", "Fixture identity is missing one or more required fields.")
+    );
+  }
+  if (isStale) {
+    signals.push(
+      createSyntheticSignal("DATA_STALE", "warning", "Data stale", "The latest data timestamp is older than the freshness window.")
+    );
+  }
+  if (signals.length === 0 && summary.status !== "empty") {
+    signals.push(
+      createSyntheticSignal("DATA_READY", "info", "Data ready", "Fixture and at least one live data component are available.")
+    );
+  }
+
+  const criticalCount = signals.filter((signal) => signal.severity === "critical").length;
+  const warningCount = signals.filter((signal) => signal.severity === "warning").length;
+  const infoCount = signals.filter((signal) => signal.severity === "info").length;
+  const insight = buildProductAgentV1Insight({
+    fixture_id: input.fixture.fixtureId,
+    summary: {
+      ...summary,
+      signal_count: signals.length,
+      critical_count: criticalCount,
+      warning_count: warningCount,
+      info_count: infoCount
+    },
+    signals
+  });
+
+  return buildProductAgentV1InsightSummary(insight);
+}
+
+function buildFallbackCompactInsightSummary(input: {
+  fixture: PublicFixtureRow;
+  oddsCount: number;
+  qualityStatus: PublicMatchSummary["quality"]["status"];
+  issues: string[];
+  latestDataTimestamp: string | null;
+}): ProductAgentV1InsightSummary {
+  const issueSet = new Set(input.issues);
+
+  return {
+    agent_version: "product-agent-v1",
+    status: issueSet.has("data_stale")
+      ? "stale"
+      : input.qualityStatus === "complete"
+        ? "ready"
+        : input.qualityStatus,
+    quality: input.qualityStatus,
+    freshness: issueSet.has("data_stale")
+      ? "stale"
+      : input.latestDataTimestamp === null
+        ? "unknown"
+        : "fresh",
+    issue_count: issueSet.size,
+    issues: [...issueSet],
+    top_signal_types: [
+      ...(issueSet.has("data_stale") ? ["DATA_STALE" as const] : []),
+      ...(input.oddsCount === 0 ? ["ODDS_MISSING" as const] : []),
+      ...(issueSet.has("scoreboard_missing") ? ["SCOREBOARD_MISSING" as const] : []),
+      ...(
+        input.fixture.competition === null ||
+        input.fixture.homeTeam === null ||
+        input.fixture.awayTeam === null
+          ? ["IDENTITY_INCOMPLETE" as const]
+          : []
+      )
+    ].slice(0, 3),
+    display_ready: input.qualityStatus !== "empty" &&
+      input.fixture.competition !== null &&
+      input.fixture.homeTeam !== null &&
+      input.fixture.awayTeam !== null &&
+      (!issueSet.has("scoreboard_missing") || input.oddsCount > 0)
+  };
+}
+
+function buildCompactInsightSummarySafe(input: {
+  fixture: PublicFixtureRow;
+  hasScoreboard: boolean;
+  oddsCount: number;
+  staleAfterMinutes: number;
+  now: Date;
+  qualityStatus: PublicMatchSummary["quality"]["status"];
+  issues: string[];
+  latestDataTimestamp: string | null;
+}): ProductAgentV1InsightSummary | undefined {
+  try {
+    return buildCompactInsightSummary(input);
+  } catch {
+    try {
+      return buildFallbackCompactInsightSummary(input);
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+function buildPublicMatchSummaryBase(input: {
+  fixture: PublicFixtureRow;
+  hasScoreboard: boolean;
+  matchState: Awaited<ReturnType<PublicApiDbClient["matchState"]["findUnique"]>>;
+  hasOdds: boolean;
+  oddsCount: number;
+  qualityStatus: PublicMatchSummary["quality"]["status"];
+  issues: string[];
+  latestDataTimestamp: string | null;
+}): PublicMatchSummary {
+  return sanitizeAndAssertPublicPayload({
+    fixture_id: input.fixture.fixtureId,
+    competition: input.fixture.competition,
+    home_team: input.fixture.homeTeam,
+    away_team: input.fixture.awayTeam,
+    start_time_utc: toIsoTimestamp(input.fixture.startTimeUtc),
+    status: input.fixture.status,
+    scoreboard: {
+      available: input.hasScoreboard,
+      home_score: input.matchState?.homeScore ?? null,
+      away_score: input.matchState?.awayScore ?? null
+    },
+    odds: {
+      available: input.hasOdds,
+      count: input.oddsCount
+    },
+    quality: {
+      status: input.qualityStatus,
+      issues: input.issues
+    },
+    latest_data_timestamp: input.latestDataTimestamp
+  });
+}
+
 async function buildPublicMatchSummaries(
   fixtures: PublicFixtureRow[],
   normalized: ReturnType<typeof normalizePublicMatchesQuery>,
@@ -605,7 +872,7 @@ async function buildPublicMatchSummaries(
       return null;
     }
 
-    const [matchState, oddsCount] = await Promise.all([
+    const [matchStateResult, oddsCountResult] = await Promise.allSettled([
       db.matchState.findUnique({
         where: { fixtureId: fixture.fixtureId },
         select: {
@@ -620,6 +887,8 @@ async function buildPublicMatchSummaries(
       })
     ]);
 
+    const matchState = matchStateResult.status === "fulfilled" ? matchStateResult.value : null;
+    const oddsCount = oddsCountResult.status === "fulfilled" ? oddsCountResult.value : 0;
     const hasScoreboard = matchState !== null;
     const hasOdds = oddsCount > 0;
     const hasIdentity = fixture.competition !== null &&
@@ -637,29 +906,47 @@ async function buildPublicMatchSummaries(
       : hasScoreboard && hasOdds
         ? "complete" as const
         : "partial" as const;
-
-    return sanitizeAndAssertPublicPayload({
-      fixture_id: fixture.fixtureId,
-      competition: fixture.competition,
-      home_team: fixture.homeTeam,
-      away_team: fixture.awayTeam,
-      start_time_utc: fixture.startTimeUtc?.toISOString() ?? null,
-      status: fixture.status,
-      scoreboard: {
-        available: hasScoreboard,
-        home_score: matchState?.homeScore ?? null,
-        away_score: matchState?.awayScore ?? null
-      },
-      odds: {
-        available: hasOdds,
-        count: oddsCount
-      },
-      quality: {
-        status: qualityStatus,
-        issues
-      },
-      latest_data_timestamp: matchState?.lastDataReceivedAt?.toISOString() ?? null
+    const insightIssues = [...issues];
+    const latestDataTimestamp = toIsoTimestamp(matchState?.lastDataReceivedAt);
+    const isStale = latestDataTimestamp !== null &&
+      now.getTime() - Date.parse(latestDataTimestamp) > 60 * 60_000;
+    if (isStale) insightIssues.push("data_stale");
+    const baseSummary = buildPublicMatchSummaryBase({
+      fixture,
+      hasScoreboard,
+      matchState,
+      hasOdds,
+      oddsCount,
+      qualityStatus,
+      issues,
+      latestDataTimestamp
     });
+
+    if (!normalized.includeInsight) {
+      return baseSummary;
+    }
+
+    const insightSummary = sanitizeInsightSummarySafe(
+      buildCompactInsightSummarySafe({
+        fixture,
+        hasScoreboard,
+        oddsCount,
+        staleAfterMinutes: 60,
+        now,
+        qualityStatus,
+        issues: insightIssues,
+        latestDataTimestamp
+      })
+    );
+
+    if (insightSummary === undefined) {
+      return baseSummary;
+    }
+
+    return {
+      ...baseSummary,
+      insight_summary: insightSummary
+    };
   }));
 
   return summaries.filter((summary): summary is PublicMatchSummary => summary !== null);
@@ -681,6 +968,7 @@ export function registerPublicApiRoutes(
       range?: unknown;
       competitionId?: unknown;
       limit?: unknown;
+      includeInsight?: unknown;
     };
 
     try {

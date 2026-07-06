@@ -77,17 +77,20 @@ Frontend **must not** call these routes for final product data:
 ```
 
 **Safe usage notes:**
-- Always returns HTTP 200 — never errors.
+- Always returns HTTP 200 - never errors.
 - Use to verify the public API is live and to confirm version compatibility.
 - `demo_available` indicates whether the demo bridge is also serving.
 
-**Error/no_data behavior:** None — this endpoint always succeeds.
+**Error/no_data behavior:** None - this endpoint always succeeds.
+
+
+
 
 ---
 
 ### 4.2 GET /api/public/matches
 
-**Purpose:** List match summaries with optional range and competition filtering.
+**Purpose:** List match summaries with optional range and competition filtering. When requested, each item can also include a compact Product Agent v1 `insight_summary`.
 
 **Query params:**
 
@@ -96,6 +99,7 @@ Frontend **must not** call these routes for final product data:
 | `range` | `string` | `"all"` | — | — | Filter by match phase: `all`, `past`, `upcoming`, `live` |
 | `competitionId` | `string` | _(none)_ | — | — | Optional filter by competition ID |
 | `limit` | `number` | `20` | `1` | `100` | Maximum number of results |
+| `includeInsight` | `boolean` | `false` | - | - | Include compact `insight_summary` on each list item |
 
 **Response shape:**
 
@@ -122,7 +126,17 @@ Frontend **must not** call these routes for final product data:
         "status": "partial",
         "issues": ["ODDS_MISSING"]
       },
-      "latest_data_timestamp": "2024-11-19T20:50:00Z"
+      "latest_data_timestamp": "2024-11-19T20:50:00Z",
+      "insight_summary": {
+        "agent_version": "product-agent-v1",
+        "status": "stale",
+        "quality": "partial",
+        "freshness": "stale",
+        "issue_count": 2,
+        "issues": ["odds_missing", "data_stale"],
+        "top_signal_types": ["DATA_STALE", "ODDS_MISSING"],
+        "display_ready": true
+      }
     }
   ],
   "meta": {
@@ -136,6 +150,9 @@ Frontend **must not** call these routes for final product data:
 **Safe usage notes:**
 - Returns a **summary** — no full odds objects, no full scoreboard detail, no freshness sub-object.
 - For full match data, follow up with `/api/public/matches/:fixtureId` or `/bundle`.
+- `includeInsight=true` adds compact product metadata only - not the full `insight`, not raw `state`, and not the full `signals` array.
+- `insight_summary` is safe display metadata only. It does not provide predictions, probabilities, recommendations, or betting guidance.
+- The bundle endpoint remains the source of truth for the full Product Agent v1 `insight` object.
 - Over-fetches internally (up to 5x limit) then filters in-memory for range classification.
 
 **Error/no_data behavior:**
@@ -423,6 +440,24 @@ type PublicMatchSummary = {
     issues: string[];
   };
   latest_data_timestamp: string | null;
+  insight_summary?: PublicInsightSummary;
+};
+```
+
+### PublicInsightSummary
+
+Compact Product Agent v1 metadata for list views.
+
+```typescript
+type PublicInsightSummary = {
+  agent_version: "product-agent-v1";
+  status: "ready" | "partial" | "empty" | "stale";
+  quality: "complete" | "partial" | "empty";
+  freshness: "fresh" | "stale" | "unknown";
+  issue_count: number;
+  issues: string[];
+  top_signal_types: string[];
+  display_ready: boolean;
 };
 ```
 
@@ -613,6 +648,7 @@ type PublicMeta = {
 | Param | Type | Default | Min | Max | Description |
 |-------|------|---------|-----|-----|-------------|
 | `range` | `string` | `"all"` | — | — | `all` \| `past` \| `upcoming` \| `live` |
+| `includeInsight` | `boolean` | `false` | - | - | Include compact `insight_summary` per match |
 | `competitionId` | `string` | _(none)_ | — | — | Optional filter by competition ID |
 | `limit` | `number` | `20` | `1` | `100` | Maximum number of results |
 
@@ -766,6 +802,9 @@ curl.exe http://localhost:4000/api/public/status
 # Match list — should return database-backed matches
 curl.exe "http://localhost:4000/api/public/matches?range=all&limit=20"
 
+# Match list with compact Product Agent v1 insight summaries
+curl.exe "http://localhost:4000/api/public/matches?range=all&limit=20&includeInsight=true"
+
 # Single match — Slovenia vs Cyprus (scoreboard 1-1, odds missing)
 curl.exe "http://localhost:4000/api/public/matches/17952170?includeOdds=true&oddsLimit=20"
 
@@ -787,6 +826,7 @@ curl.exe http://localhost:4000/api/demo/matches
 |---------|-------------------|
 | `GET /api/public/status` | `public_api_version: "public-v0"`, `ok: true` |
 | `GET /api/public/matches` | `meta.source: "database"`, `meta.mode: "public"`, `data[]` array of match summaries |
+| `GET /api/public/matches?includeInsight=true` | `data[].insight_summary.agent_version: "product-agent-v1"`, no full `insight`, `state`, or `signals` in list items |
 | `GET /api/public/matches/17952170` | `scoreboard.home_score: 1`, `scoreboard.away_score: 1`, `scoreboard.available: true` |
 | `GET /api/public/matches/17952170/bundle` | `readiness.display_ready: true`, `brief` present, `signal_summary` present, `state` present, signals include `DATA_READY` and `ODDS_MISSING` |
 | `GET /api/matches` | Returns **mock** data (not database-backed) |

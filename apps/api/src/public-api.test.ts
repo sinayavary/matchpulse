@@ -180,6 +180,136 @@ function makeDbClient(rows: PublicFixtureRow[]) {
   };
 }
 
+class OneTimeIsoDate extends Date {
+  private remainingSuccessfulCalls: number;
+
+  constructor(value: string, successfulCalls = 1) {
+    super(value);
+    this.remainingSuccessfulCalls = successfulCalls;
+  }
+
+  override toISOString(): string {
+    if (this.remainingSuccessfulCalls <= 0) {
+      throw new Error("Synthetic insight timestamp failure");
+    }
+    this.remainingSuccessfulCalls -= 1;
+    return super.toISOString();
+  }
+}
+
+class ThrowingIsoDate extends Date {
+  override toISOString(): string {
+    throw new Error("Synthetic runtime timestamp failure");
+  }
+}
+
+function makeRuntimeLikeFixtureRows(count: number): PublicFixtureRow[] {
+  return Array.from({ length: count }, (_, index) => {
+    if (index === 0) {
+      return {
+        fixtureId: "17952170",
+        competition: "Friendlies",
+        homeTeam: "Slovenia",
+        awayTeam: "Cyprus",
+        startTimeUtc: new Date("2026-06-04T16:00:00.000Z"),
+        status: "FT"
+      };
+    }
+
+    if ((index + 1) % 6 === 0) {
+      return {
+        fixtureId: `fixture-${index + 1}`,
+        competition: null,
+        homeTeam: `Home ${index + 1}`,
+        awayTeam: null,
+        startTimeUtc: new Date("2026-06-04T16:00:00.000Z"),
+        status: "FT"
+      };
+    }
+
+    return {
+      fixtureId: `fixture-${index + 1}`,
+      competition: "Friendlies",
+      homeTeam: `Home ${index + 1}`,
+      awayTeam: `Away ${index + 1}`,
+      startTimeUtc: new Date("2026-06-04T16:00:00.000Z"),
+      status: "FT"
+    };
+  });
+}
+
+function makeRuntimeLikeDbClient(rows: PublicFixtureRow[]) {
+  return {
+    fixture: {
+      findMany: async () => rows
+    },
+    matchState: {
+      findUnique: async ({ where }: { where: { fixtureId: string } }) => {
+        if (where.fixtureId === "17952170") {
+          return {
+            homeScore: 1,
+            awayScore: 1,
+            phase: "fulltime",
+            lastDataReceivedAt: new Date("2026-06-04T18:04:23.367Z")
+          };
+        }
+
+        if (where.fixtureId === "fixture-5") {
+          return {
+            homeScore: 2,
+            awayScore: 2,
+            phase: "fulltime",
+            lastDataReceivedAt: new ThrowingIsoDate("2026-06-04T18:04:23.367Z") as unknown as Date
+          };
+        }
+
+        const fixtureNumber = Number(where.fixtureId.replace("fixture-", ""));
+        if (!Number.isFinite(fixtureNumber)) {
+          return null;
+        }
+
+        if (fixtureNumber % 6 === 0) {
+          return null;
+        }
+
+        if (fixtureNumber % 4 === 0) {
+          return {
+            homeScore: null,
+            awayScore: null,
+            phase: null,
+            lastDataReceivedAt: null
+          };
+        }
+
+        return {
+          homeScore: 1,
+          awayScore: 0,
+          phase: "fulltime",
+          lastDataReceivedAt: new Date("2026-06-04T18:04:23.367Z")
+        };
+      }
+    },
+    oddsSnapshot: {
+      count: async ({ where }: { where: { fixtureId: string } }) => {
+        if (where.fixtureId === "17952170") {
+          return 0;
+        }
+
+        if (where.fixtureId === "fixture-5") {
+          return 1;
+        }
+
+        const fixtureNumber = Number(where.fixtureId.replace("fixture-", ""));
+        if (!Number.isFinite(fixtureNumber)) {
+          return 0;
+        }
+
+        return fixtureNumber % 3 === 0 ? 0 : 1;
+      }
+    }
+  };
+}
+
 async function withDatabaseUrl<T>(callback: () => Promise<T>): Promise<T> {
   const previous = process.env.DATABASE_URL;
   process.env.DATABASE_URL = "postgresql://public-api-test";
@@ -255,6 +385,10 @@ test("public matches query normalizes limit default 20", () => {
 
 test("public matches query caps limit at 100", () => {
   assert.equal(normalizePublicMatchesQuery({ limit: 9999 }).limit, 100);
+});
+
+test("public matches query defaults includeInsight to false", () => {
+  assert.equal(normalizePublicMatchesQuery({}).includeInsight, false);
 });
 
 test("invalid public matches range is handled safely", async () => {
@@ -612,6 +746,168 @@ test("public matches list remains lightweight and returns the requested limit", 
   });
 });
 
+test("public matches list stays backward compatible without includeInsight", async () => {
+  await withDatabaseUrl(async () => {
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => makeDbClient(makeFixtureRows(1)),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState())
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches?range=all&limit=20"
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal("insight_summary" in response.json().data[0], false);
+    await app.close();
+  });
+});
+
+test("public matches list can include compact insight summaries when includeInsight=true", async () => {
+  await withDatabaseUrl(async () => {
+    const app = Fastify();
+    const rows: PublicFixtureRow[] = [{
+      fixtureId: "17952170",
+      competition: "Friendlies",
+      homeTeam: "Slovenia",
+      awayTeam: "Cyprus",
+      startTimeUtc: new Date("2026-06-04T16:00:00.000Z"),
+      status: "FT"
+    }];
+
+    registerPublicApiRoutes(app, {
+      getDbClient: () => ({
+        fixture: {
+          findMany: async () => rows
+        },
+        matchState: {
+          findUnique: async () => ({
+            homeScore: 1,
+            awayScore: 1,
+            phase: "fulltime",
+            lastDataReceivedAt: new Date("2026-06-04T18:04:23.367Z")
+          })
+        },
+        oddsSnapshot: {
+          count: async () => 0
+        }
+      }),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState())
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches?range=all&limit=20&includeInsight=true"
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json().data, [{
+      fixture_id: "17952170",
+      competition: "Friendlies",
+      home_team: "Slovenia",
+      away_team: "Cyprus",
+      start_time_utc: "2026-06-04T16:00:00.000Z",
+      status: "FT",
+      scoreboard: {
+        available: true,
+        home_score: 1,
+        away_score: 1
+      },
+      odds: {
+        available: false,
+        count: 0
+      },
+      quality: {
+        status: "partial",
+        issues: ["odds_missing"]
+      },
+      latest_data_timestamp: "2026-06-04T18:04:23.367Z",
+      insight_summary: {
+        agent_version: "product-agent-v1",
+        status: "stale",
+        quality: "partial",
+        freshness: "stale",
+        issue_count: 2,
+        issues: ["odds_missing", "data_stale"],
+        top_signal_types: ["DATA_STALE", "ODDS_MISSING"],
+        display_ready: true
+      }
+    }]);
+
+    await app.close();
+  });
+});
+
+test("public matches insight summaries stay compact and exclude full insight state and signals", async () => {
+  await withDatabaseUrl(async () => {
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => makeDbClient(makeFixtureRows(1)),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState())
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches?range=all&limit=20&includeInsight=true"
+    });
+
+    assert.equal(response.statusCode, 200);
+    const item = response.json().data[0];
+    assert.equal(item.insight_summary.agent_version, "product-agent-v1");
+    assert.equal("insight" in item, false);
+    assert.equal("state" in item, false);
+    assert.equal("signals" in item, false);
+    assert.equal("signal_summary" in item, false);
+    assert.equal("headline" in item.insight_summary, false);
+    assert.equal("summary" in item.insight_summary, false);
+    assert.equal("readiness" in item.insight_summary, false);
+    await app.close();
+  });
+});
+
+test("public matches insight summaries exclude forbidden product and betting fields", async () => {
+  await withDatabaseUrl(async () => {
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => makeDbClient(makeFixtureRows(1)),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState())
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches?range=all&limit=20&includeInsight=true"
+    });
+
+    const serialized = JSON.stringify(response.json().data[0]).toLowerCase();
+    for (const field of [
+      "prediction",
+      "probability",
+      "confidence",
+      "recommendation",
+      "recommended_bet",
+      "bet",
+      "wager",
+      "stake",
+      "expected_value",
+      "edge",
+      "winner",
+      "deposit",
+      "payout",
+      "wallet"
+    ]) {
+      assert.equal(serialized.includes(`\"${field}\"`), false);
+    }
+
+    await app.close();
+  });
+});
+
 test("public matches list caps the returned limit at 100", async () => {
   await withDatabaseUrl(async () => {
     const app = Fastify();
@@ -628,6 +924,196 @@ test("public matches list caps the returned limit at 100", async () => {
 
     assert.equal(response.statusCode, 200);
     assert.equal(response.json().data.length, 100);
+    assert.equal("insight_summary" in response.json().data[0], false);
+    await app.close();
+  });
+});
+
+test("public matches includeInsight=true supports the documented max limit of 100", async () => {
+  await withDatabaseUrl(async () => {
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => makeDbClient(makeFixtureRows(150)),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState())
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches?range=all&limit=100&includeInsight=true"
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().data.length, 100);
+    assert.equal(response.json().data.every((item: { insight_summary?: unknown }) => item.insight_summary !== undefined), true);
+    await app.close();
+  });
+});
+
+test("public matches includeInsight=true safely handles incomplete persisted match summaries", async () => {
+  await withDatabaseUrl(async () => {
+    const app = Fastify();
+    const rows: PublicFixtureRow[] = [{
+      fixtureId: "17952170",
+      competition: null,
+      homeTeam: "Slovenia",
+      awayTeam: null,
+      startTimeUtc: new Date("2026-06-04T16:00:00.000Z"),
+      status: "FT"
+    }];
+
+    registerPublicApiRoutes(app, {
+      getDbClient: () => ({
+        fixture: {
+          findMany: async () => rows
+        },
+        matchState: {
+          findUnique: async () => null
+        },
+        oddsSnapshot: {
+          count: async () => 0
+        }
+      }),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState())
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches?range=all&limit=100&includeInsight=true"
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().data.length, 1);
+    assert.equal(response.json().data[0].insight_summary.agent_version, "product-agent-v1");
+    assert.deepEqual(response.json().data[0].insight_summary.issues.sort(), [
+      "identity_incomplete",
+      "odds_missing",
+      "scoreboard_missing"
+    ]);
+    await app.close();
+  });
+});
+
+test("public matches includeInsight=true returns 200 for a runtime-like mixed 20-item list", async () => {
+  await withDatabaseUrl(async () => {
+    const app = Fastify();
+    const rows = makeRuntimeLikeFixtureRows(20);
+
+    registerPublicApiRoutes(app, {
+      getDbClient: () => makeRuntimeLikeDbClient(rows),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState())
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches?range=all&limit=20&includeInsight=true"
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().meta.status, "live");
+    assert.equal(response.json().data.length, 20);
+
+    const referenceItem = response.json().data.find((item: { fixture_id: string }) => item.fixture_id === "17952170");
+    assert.deepEqual(referenceItem.insight_summary, {
+      agent_version: "product-agent-v1",
+      status: "stale",
+      quality: "partial",
+      freshness: "stale",
+      issue_count: 2,
+      issues: ["odds_missing", "data_stale"],
+      top_signal_types: ["DATA_STALE", "ODDS_MISSING"],
+      display_ready: true
+    });
+
+    const malformedItem = response.json().data.find((item: { fixture_id: string }) => item.fixture_id === "fixture-5");
+    assert.equal(Boolean(malformedItem?.insight_summary), true);
+    assert.equal(malformedItem.insight_summary.freshness, "unknown");
+    assert.equal("insight" in malformedItem, false);
+    assert.equal("state" in malformedItem, false);
+    assert.equal("signals" in malformedItem, false);
+
+    await app.close();
+  });
+});
+
+test("public matches includeInsight=true returns 200 for a runtime-like mixed 100-item list", async () => {
+  await withDatabaseUrl(async () => {
+    const app = Fastify();
+    const rows = makeRuntimeLikeFixtureRows(100);
+
+    registerPublicApiRoutes(app, {
+      getDbClient: () => makeRuntimeLikeDbClient(rows),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState())
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches?range=all&limit=100&includeInsight=true"
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().meta.status, "live");
+    assert.equal(response.json().data.length, 100);
+    assert.equal(
+      response.json().data.every((item: { insight_summary?: unknown }) => item.insight_summary !== undefined),
+      true
+    );
+
+    const emptyishItems = response.json().data.filter((item: { quality: { status: string } }) => item.quality.status === "empty");
+    assert.equal(emptyishItems.length > 0, true);
+
+    const malformedItem = response.json().data.find((item: { fixture_id: string }) => item.fixture_id === "fixture-5");
+    assert.equal(Boolean(malformedItem?.insight_summary), true);
+    assert.equal(malformedItem.insight_summary.agent_version, "product-agent-v1");
+
+    await app.close();
+  });
+});
+
+test("one problematic includeInsight item does not make the whole public matches list fail", async () => {
+  await withDatabaseUrl(async () => {
+    const app = Fastify();
+    const rows = makeFixtureRows(100);
+
+    registerPublicApiRoutes(app, {
+      getDbClient: () => ({
+        fixture: {
+          findMany: async () => rows
+        },
+        matchState: {
+          findUnique: async ({ where }: { where: { fixtureId: string } }) => ({
+            homeScore: 1,
+            awayScore: 1,
+            phase: "fulltime",
+            lastDataReceivedAt: where.fixtureId === "fixture-100"
+              ? new OneTimeIsoDate("2026-06-04T18:04:23.367Z")
+              : new Date("2026-06-04T18:04:23.367Z")
+          })
+        },
+        oddsSnapshot: {
+          count: async () => 1
+        }
+      }),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState())
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches?range=all&limit=100&includeInsight=true"
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().meta.status, "live");
+    assert.equal(response.json().data.length, 100);
+    const problematicItem = response.json().data.find((item: { fixture_id: string }) => item.fixture_id === "fixture-100");
+    assert.equal(Boolean(problematicItem), true);
+    assert.equal(problematicItem.insight_summary.agent_version, "product-agent-v1");
+    assert.equal(problematicItem.insight_summary.status, "stale");
+    assert.equal(problematicItem.insight_summary.top_signal_types.includes("DATA_STALE"), true);
     await app.close();
   });
 });

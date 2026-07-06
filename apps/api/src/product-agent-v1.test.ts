@@ -4,7 +4,8 @@ import type { CanonicalMatchState } from "./match-state-builder.js";
 import { assertNoForbiddenSignalFields } from "./signalcore-contract.js";
 import {
   buildProductAgentV1,
-  buildProductAgentV1Insight
+  buildProductAgentV1Insight,
+  buildProductAgentV1InsightSummary
 } from "./product-agent-v1.js";
 import type { SignalCoreV0Response, SignalCoreV0Signal } from "./signalcore-v0.js";
 
@@ -309,6 +310,48 @@ test("signal brief includes counts and top signals", () => {
     "title",
     "type"
   ]);
+});
+
+test("insight summary stays compact while preserving status quality and top signal types", () => {
+  const insight = buildProductAgentV1Insight({
+    fixture_id: "17952170",
+    summary: {
+      status: "ready",
+      signal_count: 3,
+      critical_count: 0,
+      warning_count: 3,
+      info_count: 0,
+      has_fixture: true,
+      has_scoreboard: true,
+      has_odds: false,
+      latest_data_timestamp: "2026-07-05T08:00:00.000Z"
+    },
+    signals: [
+      createSignal("ODDS_MISSING", "warning", "Odds missing", "Odds data is missing."),
+      createSignal("DATA_STALE", "warning", "Data stale", "The latest data timestamp is older than the freshness window."),
+      createSignal("IDENTITY_INCOMPLETE", "warning", "Identity incomplete", "Fixture identity is missing one or more required fields.")
+    ],
+    state: buildState({
+      status: "complete",
+      has_fixture: true,
+      has_scoreboard: true,
+      has_odds: false,
+      issues: ["odds_missing"]
+    })
+  });
+
+  const summary = buildProductAgentV1InsightSummary(insight);
+
+  assert.deepEqual(summary, {
+    agent_version: "product-agent-v1",
+    status: "stale",
+    quality: "partial",
+    freshness: "stale",
+    issue_count: 3,
+    issues: ["odds_missing", "identity_incomplete", "data_stale"],
+    top_signal_types: ["DATA_STALE", "IDENTITY_INCOMPLETE", "ODDS_MISSING"],
+    display_ready: true
+  });
 });
 
 test("safe scope note explicitly excludes predictions probabilities recommendations and betting guidance", () => {

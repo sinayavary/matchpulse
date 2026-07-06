@@ -58,6 +58,17 @@ export type ProductAgentV1Response = {
   };
 };
 
+export type ProductAgentV1InsightSummary = {
+  agent_version: ProductAgentV1Insight["agent_version"];
+  status: ProductAgentV1Insight["status"];
+  quality: ProductAgentV1Insight["data_quality"]["level"];
+  freshness: ProductAgentV1Insight["freshness"]["freshness_label"];
+  issue_count: number;
+  issues: string[];
+  top_signal_types: Array<ProductAgentV1Signal["type"]>;
+  display_ready: boolean;
+};
+
 type ProductAgentV1BuildInput = {
   fixture_id: string;
   summary: SignalCoreV0Response["data"]["summary"];
@@ -264,6 +275,24 @@ export function buildProductAgentV1Insight(
 
   assertNoForbiddenSignalFields(insight);
   return insight;
+}
+
+export function buildProductAgentV1InsightSummary(
+  insight: ProductAgentV1Insight
+): ProductAgentV1InsightSummary {
+  const summary: ProductAgentV1InsightSummary = {
+    agent_version: insight.agent_version,
+    status: insight.status,
+    quality: insight.data_quality.level,
+    freshness: insight.freshness.freshness_label,
+    issue_count: insight.data_quality.issues.length,
+    issues: [...insight.data_quality.issues],
+    top_signal_types: insight.signal_brief.top_signals.map((signal) => signal.type),
+    display_ready: insight.readiness.display_ready
+  };
+
+  assertNoForbiddenSignalFields(summary);
+  return summary;
 }
 
 export function buildProductAgentV1(
