@@ -206,8 +206,10 @@ Future development could include:
 
 | Document | Purpose |
 | -------- | ------- |
+| `docs/final-demo-readiness.md` | Final readiness status, demo flow, and judge-facing narrative |
+| `docs/final-smoke-checklist.md` | Command-by-command smoke checklist for public API, demo bridge, and worker safety |
+| `docs/submission-checklist.md` | Final submission and pitch preparation checklist |
 | `docs/demo-script.md` | Step-by-step demo walkthrough for judges/reviewers |
-| `docs/final-smoke-checklist.md` | Command-by-command verification checklist |
 | `docs/public-api-contract.md` | Public-safe API contract for final frontend pages |
 | `docs/worker-runbook.md` | Safe worker and schedule command reference |
 | `docs/deployment-scheduling-strategy.md` | Controlled deployment and scheduling strategy |
@@ -217,10 +219,13 @@ Future development could include:
 | `docs/DATA_MODEL.md` | Database schema and data model |
 | `docs/COMPLIANCE_GUIDELINES.md` | Compliance and safety guidelines |
 
-## Operations Docs
+## Final Demo / Readiness Docs
 
-For the current frontend-safe data path and controlled worker operations, start with:
+For the final demo and submission review, start with:
 
+- [`docs/final-demo-readiness.md`](docs/final-demo-readiness.md)
+- [`docs/final-smoke-checklist.md`](docs/final-smoke-checklist.md)
+- [`docs/submission-checklist.md`](docs/submission-checklist.md)
 - [`docs/public-api-contract.md`](docs/public-api-contract.md)
 - [`docs/worker-runbook.md`](docs/worker-runbook.md)
 - [`docs/deployment-scheduling-strategy.md`](docs/deployment-scheduling-strategy.md)

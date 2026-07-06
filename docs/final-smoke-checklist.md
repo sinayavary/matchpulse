@@ -1,207 +1,209 @@
-# MatchPulse — Final Smoke Checklist
+# MatchPulse Final Smoke Checklist
 
-A command-by-command verification checklist to confirm the demo pipeline is working correctly.
-
-Run all commands from the repository root: `D:\money\matchpulse_repo`
-
----
-
-## Backend Startup
-
-### 1. Start the API server
+Run all commands from the repository root:
 
 ```powershell
 cd D:\money\matchpulse_repo
-pnpm.cmd --filter @matchpulse/api dev
 ```
 
-**Expected:** Server starts and logs `Server listening at http://0.0.0.0:4000`.
+This checklist covers public API smoke checks, demo bridge checks, worker safety checks, and repository hygiene checks.
 
----
+## API Checks
 
-## Backend Smoke Tests
-
-Run each command in a separate terminal while the API is running.
-
-### 2. Health check
+### 1. API status
 
 ```powershell
-curl.exe http://localhost:4000/api/health
+curl.exe http://localhost:4000/api/public/status
 ```
 
-**Expected:** JSON response confirming the API is healthy.
+Expected:
 
-### 3. Public demo bridge — list matches
+- `data.service` is `matchpulse-api`
+- `data.ok` is `true`
+- `data.public_api_version` is `public-v0`
+- `meta.source` is `database`
+- `meta.mode` is `public`
+
+### 2. Public matches list
 
 ```powershell
-curl.exe http://localhost:4000/api/demo/matches
+curl.exe "http://localhost:4000/api/public/matches?range=all&limit=20"
 ```
 
-**Expected checks:**
-- [ ] Response contains `data` array with exactly 2 items
-- [ ] First item has `fixture_id: "17952170"` (Slovenia vs Cyprus)
-- [ ] Second item has `fixture_id: "17588223"` (Mexico vs South Korea)
-- [ ] `meta.source` is `"demo-bridge"`
-- [ ] `meta.mode` is `"public-demo"`
-- [ ] `meta.status` is `"live"`
+Expected:
 
-### 4. Slovenia vs Cyprus bundle
+- response contains `data` array
+- `meta.source` is `database`
+- `meta.mode` is `public`
+- output is the public-safe database-backed match summary list
+
+### 3. Public match detail for 17952170
 
 ```powershell
-curl.exe http://localhost:4000/api/demo/matches/17952170/bundle
+curl.exe "http://localhost:4000/api/public/matches/17952170?includeOdds=true&oddsLimit=20"
 ```
 
-**Expected checks:**
-- [ ] `data` is not null
-- [ ] `data.fixture_id` is `"17952170"`
-- [ ] `data.readiness.display_ready` is `true`
-- [ ] `data.readiness.has_scoreboard` is `true`
-- [ ] `data.state.scoreboard` shows `home_score: 1` and `away_score: 1`
-- [ ] `data.readiness.has_odds` is `false`
-- [ ] Signals include `DATA_READY` type
-- [ ] Signals include `ODDS_MISSING` type
-- [ ] `meta.source` is `"demo-bridge"`
-- [ ] `meta.mode` is `"public-demo"`
+Expected:
 
-### 5. Mexico vs South Korea bundle (full options)
+- `data.fixture_id` is `17952170`
+- `data.scoreboard.available` is `true`
+- `data.scoreboard.home_score` is `1`
+- `data.scoreboard.away_score` is `1`
+- `meta.source` is `database`
+- `meta.mode` is `public`
+
+### 4. Public bundle for 17952170
 
 ```powershell
-curl.exe "http://localhost:4000/api/demo/matches/17588223/bundle?includeState=true&includeSignals=true&includeBrief=true&oddsLimit=20"
+curl.exe "http://localhost:4000/api/public/matches/17952170/bundle?includeState=true&includeSignals=true&includeBrief=true&oddsLimit=20"
 ```
 
-**Expected checks:**
-- [ ] `data` is not null
-- [ ] `data.fixture_id` is `"17588223"`
-- [ ] `data.readiness.display_ready` is `true`
-- [ ] `data.readiness.has_odds` is `true`
-- [ ] `data.readiness.has_scoreboard` is `false`
-- [ ] Signals include `ODDS_AVAILABLE` type
-- [ ] Signals include `SCOREBOARD_MISSING` type
-- [ ] `data.brief` is not null
-- [ ] `data.signal_summary` is not null
-- [ ] `meta.source` is `"demo-bridge"`
-- [ ] `meta.mode` is `"public-demo"`
+Expected:
 
-### 6. Non-existent fixture (safe fallback)
+- `data.fixture_id` is `17952170`
+- `data.readiness.display_ready` is `true`
+- `data.state` is present
+- `data.brief` is present
+- `data.signal_summary` is present
+- signals include `DATA_READY`
+- signals include `ODDS_MISSING`
+- `meta.source` is `database`
+- `meta.mode` is `public`
 
-```powershell
-curl.exe http://localhost:4000/api/demo/matches/not-real/bundle
-```
-
-**Expected checks:**
-- [ ] `data` is `null`
-- [ ] `meta.status` is `"no_data"`
-- [ ] `meta.source` is `"demo-bridge"`
-- [ ] `meta.mode` is `"public-demo"`
-- [ ] `meta.message` contains a safe message (e.g., "Demo fixture not found.")
-- [ ] No error codes, stack traces, or internal details leaked
-
-### 7. Mock matches endpoint (separate from demo)
+### 5. Legacy `/api/matches` remains mock
 
 ```powershell
 curl.exe http://localhost:4000/api/matches
 ```
 
-**Expected checks:**
-- [ ] Response contains mock data
-- [ ] `source` is `"mock"` (not `"demo-bridge"`)
-- [ ] `mode` is `"mock"` (not `"public-demo"`)
-- [ ] Completely independent of the demo pipeline
+Expected:
 
----
+- response is mock-backed
+- it is intentionally preserved
+- it is not the final frontend-safe API path
 
-## Frontend Startup
-
-### 8. Start the frontend (in a separate terminal)
+### 6. Demo bridge remains demo
 
 ```powershell
-cd D:\money\matchpulse_repo
-pnpm.cmd --filter @matchpulse/web dev
+curl.exe http://localhost:4000/api/demo/matches
 ```
 
-**Expected:** Next.js starts and logs `Local: http://localhost:3000`.
+Expected:
 
----
+- `meta.source` is `demo-bridge`
+- `meta.mode` is `public-demo`
+- response contains the two allowlisted demo fixtures
 
-## Frontend Smoke Tests
+## Worker Checks
 
-### 9. Open the demo page
+### 7. Worker schedule dry-run local command
 
-Navigate to: **http://localhost:3000/demo**
+```powershell
+.\apps\worker\node_modules\.bin\tsx.CMD apps/worker/src/index.ts schedule --dry-run
+```
 
-**Expected checks:**
-- [ ] Page loads without errors
-- [ ] Page title shows "MatchPulse Demo"
-- [ ] Subtitle reads "Safe sports data intelligence demo"
-- [ ] Match selector shows exactly 2 fixtures
+Expected:
 
-### 10. Select Slovenia vs Cyprus
+- safe schedule plan output
+- `mode: "schedule-dry-run"`
+- `cycle_count: 1`
+- no TxLINE call
+- no database write
+- no loop, cron, queue, or Redis usage
 
-**Expected checks:**
-- [ ] Match Intelligence Card loads
-- [ ] Agent Brief panel loads with natural-language summary
-- [ ] Signal Feed shows signals (info/warning severity)
-- [ ] Data Quality Panel shows `has_scoreboard: true`
-- [ ] Data Quality Panel shows `has_odds: false`
-- [ ] Scoreboard displays `1 – 1`
+### 8. Worker rejected execute command
 
-### 11. Select Mexico vs South Korea
+```powershell
+.\apps\worker\node_modules\.bin\tsx.CMD apps/worker/src/index.ts --fixtureId 17952170 --competitionId 430 --startEpochDay 20608 --execute
+```
 
-**Expected checks:**
-- [ ] Match Intelligence Card loads
-- [ ] Agent Brief panel loads
-- [ ] Signal Feed shows signals
-- [ ] Data Quality Panel shows `has_odds: true`
-- [ ] Data Quality Panel shows `has_scoreboard: false`
+Expected:
 
-### 12. Test Raw JSON Toggle
+- fails safely
+- requires `--confirm-db-write`
+- does not call ingestion
+- does not write the database
 
-For either fixture:
+### 9. Worker tests
 
-**Expected checks:**
-- [ ] Toggle button is visible
-- [ ] Clicking it reveals/hides raw JSON panel
-- [ ] JSON includes `meta.source: "demo-bridge"`
-- [ ] JSON includes `meta.mode: "public-demo"`
-- [ ] JSON is valid and complete
+```powershell
+pnpm.cmd --filter @matchpulse/worker test
+```
 
----
+Expected:
 
-## Safety Verification
+- worker tests pass
 
-### 13. Confirm no internal routes are exposed
+### 10. Worker typecheck
 
-These routes should **not** be called by the frontend and are not documented for end users:
+```powershell
+pnpm.cmd --filter @matchpulse/worker typecheck
+```
 
-- [ ] `/api/internal/*` routes are not referenced in `apps/web/lib/demo-api.ts`
-- [ ] Frontend only calls `/api/demo/matches` and `/api/demo/matches/:fixtureId/bundle`
+Expected:
 
-### 14. Confirm no forbidden content in output
+- worker typecheck passes
 
-Inspect the raw JSON for either fixture:
+### 11. Web typecheck
 
-- [ ] No fields containing probability, confidence, edge, or expected-value
-- [ ] No prediction or recommendation content
-- [ ] No betting advice or wagering mechanics
-- [ ] Signals contain only `{ type, severity, title, message }`
+```powershell
+pnpm.cmd --filter @matchpulse/web typecheck
+```
 
----
+Expected:
 
-## Quick-Pass Summary
+- web typecheck passes
 
-| # | Check | Command / Action | Pass? |
-|---|-------|------------------|-------|
-| 1 | API starts | `pnpm.cmd --filter @matchpulse/api dev` | ☐ |
-| 2 | Health check | `curl.exe http://localhost:4000/api/health` | ☐ |
-| 3 | Demo matches | `curl.exe http://localhost:4000/api/demo/matches` | ☐ |
-| 4 | Slovenia bundle | `curl.exe http://localhost:4000/api/demo/matches/17952170/bundle` | ☐ |
-| 5 | Mexico bundle | `curl.exe "http://localhost:4000/api/demo/matches/17588223/bundle?includeState=true&includeSignals=true&includeBrief=true&oddsLimit=20"` | ☐ |
-| 6 | Not-found safe | `curl.exe http://localhost:4000/api/demo/matches/not-real/bundle` | ☐ |
-| 7 | Mock separate | `curl.exe http://localhost:4000/api/matches` | ☐ |
-| 8 | Frontend starts | `pnpm.cmd --filter @matchpulse/web dev` | ☐ |
-| 9 | Demo page loads | Open `http://localhost:3000/demo` | ☐ |
-| 10 | Slovenia UI | Select Slovenia vs Cyprus | ☐ |
-| 11 | Mexico UI | Select Mexico vs South Korea | ☐ |
-| 12 | Raw JSON | Toggle raw JSON panel | ☐ |
-| 13 | No internal routes | Check `demo-api.ts` only calls `/api/demo/*` | ☐ |
-| 14 | No forbidden content | Inspect signal fields | ☐ |
+### 12. Web build
+
+```powershell
+pnpm.cmd --filter @matchpulse/web build
+```
+
+Expected:
+
+- web build succeeds
+
+## Repository Hygiene
+
+### 13. Git status
+
+```powershell
+git status --short
+```
+
+Expected:
+
+- only intended docs changes appear before commit
+
+### 14. Git log
+
+```powershell
+git log --oneline -5
+```
+
+Expected:
+
+- recent history is visible for review
+
+## Intentionally Not Run
+
+- Confirmed execute command
+- Any live execute command
+- Any command that writes the database
+- Any TxLINE activation command
+- Any automatic DB-writing scheduler command
+
+## Safety Notes
+
+- Public frontend uses `/api/public/*`.
+- `/api/matches` is mock and intentionally preserved.
+- `/api/demo/*` is demo bridge only.
+- `/api/internal/*` must not be used by the frontend.
+- Worker dry-run is safe.
+- Scheduled dry-run is safe.
+- Confirmed execute exists but must not be run casually.
+- No automatic DB-writing scheduler is enabled.
+- No Redis or queue is currently used.
+- Neon free-plan usage should stay low-frequency and controlled.
+- No secrets should be printed or committed.
