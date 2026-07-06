@@ -90,4 +90,4 @@ jobs:
       # It must not require secrets.
       # It must not write DB.
       - name: Schedule dry-run
-        run: pnpm --filter @matchpulse/worker dev -- schedule --dry-run
+        run: ./apps/worker/node_modules/.bin/tsx apps/worker/src/index.ts schedule --dry-run
