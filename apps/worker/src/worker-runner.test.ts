@@ -21,16 +21,40 @@ test("dry-run does not call ingestion runner", async () => {
 
   assert.equal(calls, 0);
   assert.equal(result.executed, false);
-  assert.equal(result.result, null);
+  assert.equal(result.output.mode, "dry-run");
+  assert.equal(result.output.safety.db_write_enabled, false);
+  assert.equal(result.output.safety.txline_call_enabled, false);
+  assert.equal(result.output.safety.scheduler_enabled, false);
 });
 
-test("execute mode calls injected runner exactly once", async () => {
+test("execute mode without confirmation never calls injected runner because parse fails first", async () => {
+  await assert.rejects(
+    async () => runWorker(
+      parseWorkerConfig([
+        "--fixtureId", "17952170",
+        "--competitionId", "430",
+        "--startEpochDay", "20608",
+        "--execute"
+      ]),
+      {
+        executeIngestion: async () => {
+          throw new Error("should not run");
+        }
+      }
+    ),
+    /execute mode requires --confirm-db-write/i
+  );
+});
+
+test("execute mode calls injected runner exactly once only when confirmed", async () => {
   let calls = 0;
   const config = parseWorkerConfig([
     "--fixtureId", "17952170",
     "--competitionId", "430",
     "--startEpochDay", "20608",
-    "--execute"
+    "--execute",
+    "--confirm-db-write",
+    "--runId", "manual-run"
   ]);
 
   const result = await runWorker(config, {
@@ -48,9 +72,13 @@ test("execute mode calls injected runner exactly once", async () => {
 
   assert.equal(calls, 1);
   assert.equal(result.executed, true);
-  assert.deepEqual(result.result, {
+  assert.equal(result.output.mode, "execute");
+  assert.equal(result.output.run_id, "manual-run");
+  assert.equal(result.output.safety.db_write_enabled, true);
+  assert.equal(result.output.safety.txline_call_enabled, true);
+  assert.equal(result.output.safety.scheduler_enabled, false);
+  assert.deepEqual(result.output.result, {
     fixtureId: "17952170",
-    mode: "execute",
     metaStatus: "live",
     runId: "run-1"
   });

@@ -12,6 +12,8 @@ export type WorkerConfig = {
   mode: WorkerMode;
   dryRun: boolean;
   execute: boolean;
+  confirmDbWrite: boolean;
+  runId: string;
   schedulerEnabled: false;
   loopEnabled: false;
 };
@@ -30,15 +32,7 @@ export type WorkerPlan = {
 
 export class WorkerConfigError extends TypeError {}
 
-const SECRET_LIKE_KEYS = [
-  "database_url",
-  "direct_url",
-  "jwt",
-  "token",
-  "wallet",
-  "private_key",
-  "secret"
-] as const;
+const MAX_RUN_ID_LENGTH = 80;
 
 function readFlagValue(args: string[], name: string): string | undefined {
   const directPrefix = `--${name}=`;
@@ -54,7 +48,18 @@ function hasFlag(args: string[], name: string): boolean {
   return args.includes(`--${name}`);
 }
 
+function countFlagOccurrences(args: string[], name: string): number {
+  const exactFlag = `--${name}`;
+  const directPrefix = `${exactFlag}=`;
+  return args.reduce((count, arg) => (
+    arg === exactFlag || arg.startsWith(directPrefix) ? count + 1 : count
+  ), 0);
+}
+
 function parseRequiredString(args: string[], name: string): string {
+  if (countFlagOccurrences(args, name) > 1) {
+    throw new WorkerConfigError(`${name} does not support multiple values.`);
+  }
   const value = readFlagValue(args, name)?.trim();
   if (!value) {
     throw new WorkerConfigError(`${name} is required.`);
@@ -108,10 +113,44 @@ function parseOddsLimit(args: string[]): number {
   return Math.min(50, normalized);
 }
 
+function sanitizeRunId(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9.-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^[-._]+|[-._]+$/g, "")
+    .slice(0, MAX_RUN_ID_LENGTH);
+}
+
+function buildDefaultRunId(): string {
+  return `worker-run-${Date.now()}`;
+}
+
+function parseRunId(args: string[]): string {
+  const rawValue = readFlagValue(args, "runId");
+  if (rawValue === undefined) return buildDefaultRunId();
+
+  if (countFlagOccurrences(args, "runId") > 1) {
+    throw new WorkerConfigError("runId does not support multiple values.");
+  }
+
+  const sanitized = sanitizeRunId(rawValue);
+  if (!sanitized) {
+    throw new WorkerConfigError("runId must contain at least one safe alphanumeric character.");
+  }
+  return sanitized;
+}
+
 export function parseWorkerConfig(args: string[]): WorkerConfig {
   const execute = hasFlag(args, "execute");
   const dryRunFlag = hasFlag(args, "dry-run");
+  const confirmDbWrite = hasFlag(args, "confirm-db-write");
   const mode: WorkerMode = execute ? "execute" : "dry-run";
+
+  if (execute && !confirmDbWrite) {
+    throw new WorkerConfigError("execute mode requires --confirm-db-write.");
+  }
 
   return {
     fixtureId: parseRequiredString(args, "fixtureId"),
@@ -125,6 +164,8 @@ export function parseWorkerConfig(args: string[]): WorkerConfig {
     mode,
     dryRun: !execute || dryRunFlag,
     execute,
+    confirmDbWrite,
+    runId: parseRunId(args),
     schedulerEnabled: false,
     loopEnabled: false
   };
@@ -146,19 +187,4 @@ export function toWorkerPlan(config: WorkerConfig): WorkerPlan {
 
 export function formatWorkerPlan(config: WorkerConfig): string {
   return JSON.stringify(toWorkerPlan(config), null, 2);
-}
-
-export function hasForbiddenPlanKeys(value: unknown): boolean {
-  if (Array.isArray(value)) return value.some((item) => hasForbiddenPlanKeys(item));
-  if (typeof value !== "object" || value === null) return false;
-
-  for (const [key, child] of Object.entries(value)) {
-    const normalizedKey = key.toLowerCase();
-    if (SECRET_LIKE_KEYS.some((secretKey) => normalizedKey.includes(secretKey))) {
-      return true;
-    }
-    if (hasForbiddenPlanKeys(child)) return true;
-  }
-
-  return false;
 }

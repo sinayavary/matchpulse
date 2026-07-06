@@ -1,26 +1,6 @@
-import { existsSync } from "node:fs";
-import path from "node:path";
-import dotenv from "dotenv";
 import { parseWorkerConfig, WorkerConfigError } from "./worker-config.js";
 import { runWorker } from "./worker-runner.js";
-
-function findRepoRoot(): string {
-  let current = process.cwd();
-  for (let index = 0; index < 8; index += 1) {
-    if (existsSync(path.join(current, "pnpm-workspace.yaml"))) return current;
-    const next = path.dirname(current);
-    if (next === current) break;
-    current = next;
-  }
-  return path.resolve(process.cwd(), "..", "..");
-}
-
-function loadWorkerEnv(): void {
-  const envPath = path.join(findRepoRoot(), ".env");
-  if (existsSync(envPath)) {
-    dotenv.config({ path: envPath, override: true });
-  }
-}
+import { createWorkerOutputEnvelope } from "./worker-safety.js";
 
 async function executeIngestion(input: {
   fixtureId: string;
@@ -44,17 +24,22 @@ async function executeIngestion(input: {
 
 async function main() {
   try {
-    loadWorkerEnv();
     const config = parseWorkerConfig(process.argv.slice(2));
-    const outcome = await runWorker(config, { executeIngestion });
-
-    console.log(outcome.planText);
-    if (!outcome.executed) {
-      console.log("Dry-run only. No ingestion was executed.");
-      return;
+    try {
+      const outcome = await runWorker(config, { executeIngestion });
+      console.log(JSON.stringify(outcome.output, null, 2));
+    } catch {
+      console.error(JSON.stringify(
+        createWorkerOutputEnvelope(config, {
+          error: {
+            message: "Worker execution failed."
+          }
+        }),
+        null,
+        2
+      ));
+      process.exitCode = 1;
     }
-
-    console.log(JSON.stringify(outcome.result, null, 2));
   } catch (error) {
     if (error instanceof WorkerConfigError) {
       console.error(`Worker configuration error: ${error.message}`);

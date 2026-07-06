@@ -2,10 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   WorkerConfigError,
-  formatWorkerPlan,
-  hasForbiddenPlanKeys,
   parseWorkerConfig
 } from "./worker-config.js";
+import { createWorkerOutputEnvelope } from "./worker-safety.js";
 
 const validArgs = [
   "--fixtureId", "17952170",
@@ -23,6 +22,8 @@ test("CLI/config parser accepts valid dry-run input", () => {
   assert.equal(config.mode, "dry-run");
   assert.equal(config.dryRun, true);
   assert.equal(config.execute, false);
+  assert.equal(config.confirmDbWrite, false);
+  assert.match(config.runId, /^worker-run-\d+$/);
 });
 
 test("CLI/config parser rejects missing fixtureId", () => {
@@ -56,22 +57,86 @@ test("oddsLimit caps at 50", () => {
   assert.equal(config.oddsLimit, 50);
 });
 
-test("safe plan output does not include forbidden secret-like keys", () => {
-  const config = parseWorkerConfig([...validArgs, "--asOf", "2026-07-06T10:00:00.000Z"]);
-  const plan = JSON.parse(formatWorkerPlan(config)) as Record<string, unknown>;
-
-  assert.equal(hasForbiddenPlanKeys(plan), false);
-  assert.deepEqual(Object.keys(plan).sort(), [
-    "asOf",
-    "competitionId",
-    "fixtureId",
-    "includeFixture",
-    "includeOdds",
-    "includeScore",
-    "mode",
-    "oddsLimit",
-    "startEpochDay"
+test("dry-run remains default when no mode flag is provided", () => {
+  const config = parseWorkerConfig([
+    "--fixtureId", "17952170",
+    "--competitionId", "430",
+    "--startEpochDay", "20608"
   ]);
+
+  assert.equal(config.mode, "dry-run");
+  assert.equal(config.dryRun, true);
+  assert.equal(config.execute, false);
+});
+
+test("execute without confirmation is rejected", () => {
+  assert.throws(
+    () => parseWorkerConfig([
+      "--fixtureId", "17952170",
+      "--competitionId", "430",
+      "--startEpochDay", "20608",
+      "--execute"
+    ]),
+    /execute mode requires --confirm-db-write/i
+  );
+});
+
+test("execute with confirmation is accepted", () => {
+  const config = parseWorkerConfig([
+    "--fixtureId", "17952170",
+    "--competitionId", "430",
+    "--startEpochDay", "20608",
+    "--execute",
+    "--confirm-db-write"
+  ]);
+
+  assert.equal(config.mode, "execute");
+  assert.equal(config.execute, true);
+  assert.equal(config.confirmDbWrite, true);
+});
+
+test("run id is sanitized to a safe value", () => {
+  const config = parseWorkerConfig([
+    ...validArgs,
+    "--runId", "  PROD DATABASE_URL / Wallet Secret  "
+  ]);
+
+  assert.equal(config.runId, "prod-database-url-wallet-secret");
+});
+
+test("run id rejects fully unsafe values", () => {
+  assert.throws(
+    () => parseWorkerConfig([
+      ...validArgs,
+      "--runId", " !!! "
+    ]),
+    /runId must contain at least one safe alphanumeric character/i
+  );
+});
+
+test("multiple fixture ids are rejected", () => {
+  assert.throws(
+    () => parseWorkerConfig([
+      "--fixtureId", "17952170",
+      "--fixtureId", "17952171",
+      "--competitionId", "430",
+      "--startEpochDay", "20608"
+    ]),
+    /fixtureId does not support multiple values/i
+  );
+});
+
+test("safe worker output envelope includes required dry-run fields", () => {
+  const config = parseWorkerConfig([...validArgs, "--asOf", "2026-07-06T10:00:00.000Z"]);
+  const envelope = createWorkerOutputEnvelope(config);
+
+  assert.equal(envelope.worker_version, "worker-v0");
+  assert.equal(envelope.mode, "dry-run");
+  assert.equal(envelope.plan.fixtureId, "17952170");
+  assert.equal(envelope.plan.asOf, "2026-07-06T10:00:00.000Z");
+  assert.equal(envelope.safety.db_write_enabled, false);
+  assert.equal(envelope.safety.txline_call_enabled, false);
+  assert.equal(envelope.safety.scheduler_enabled, false);
 });
 
 test("worker config does not enable scheduler or loop by default", () => {

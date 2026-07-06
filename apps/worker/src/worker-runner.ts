@@ -1,4 +1,5 @@
-import { formatWorkerPlan, type WorkerConfig } from "./worker-config.js";
+import { type WorkerConfig } from "./worker-config.js";
+import { createWorkerOutputEnvelope, type WorkerOutputEnvelope } from "./worker-safety.js";
 
 export type WorkerRunnerDependencies = {
   executeIngestion: (input: {
@@ -17,26 +18,18 @@ export type WorkerRunnerDependencies = {
 };
 
 export type WorkerRunResult = {
-  planText: string;
+  output: WorkerOutputEnvelope;
   executed: boolean;
-  result: null | {
-    fixtureId: string;
-    mode: "execute";
-    metaStatus: string | null;
-    runId: string | null;
-  };
 };
 
 export async function runWorker(
   config: WorkerConfig,
   dependencies: WorkerRunnerDependencies
 ): Promise<WorkerRunResult> {
-  const planText = formatWorkerPlan(config);
   if (!config.execute) {
     return {
-      planText,
+      output: createWorkerOutputEnvelope(config),
       executed: false,
-      result: null
     };
   }
 
@@ -52,13 +45,13 @@ export async function runWorker(
   });
 
   return {
-    planText,
+    output: createWorkerOutputEnvelope(config, {
+      result: {
+        fixtureId: config.fixtureId,
+        metaStatus: response.meta?.status ?? null,
+        runId: response.data?.run_id ?? null
+      }
+    }),
     executed: true,
-    result: {
-      fixtureId: config.fixtureId,
-      mode: "execute",
-      metaStatus: response.meta?.status ?? null,
-      runId: response.data?.run_id ?? null
-    }
   };
 }
