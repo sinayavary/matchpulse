@@ -8,6 +8,8 @@ It is the safe bridge between TxLINE-backed ingestion logic, persisted Neon data
 This phase adds guarded execute controls around the controlled CLI worker foundation.
 It is not a scheduler, cron service, queue worker, or always-on background process.
 
+For deployment posture and scheduling guidance, see [`docs/deployment-scheduling-strategy.md`](docs/deployment-scheduling-strategy.md).
+
 ## Dry-Run Command
 
 Run from `D:\money\matchpulse_repo`:

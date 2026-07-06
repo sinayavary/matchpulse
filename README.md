@@ -209,11 +209,21 @@ Future development could include:
 | `docs/demo-script.md` | Step-by-step demo walkthrough for judges/reviewers |
 | `docs/final-smoke-checklist.md` | Command-by-command verification checklist |
 | `docs/public-api-contract.md` | Public-safe API contract for final frontend pages |
+| `docs/worker-runbook.md` | Safe worker and schedule command reference |
+| `docs/deployment-scheduling-strategy.md` | Controlled deployment and scheduling strategy |
 | `docs/project-status.md` | Current build status and what is/isn't built |
 | `docs/PROJECT_SCOPE.md` | Full project scope and decisions |
 | `docs/API_CONTRACT.md` | Backend API contract specification |
 | `docs/DATA_MODEL.md` | Database schema and data model |
 | `docs/COMPLIANCE_GUIDELINES.md` | Compliance and safety guidelines |
+
+## Operations Docs
+
+For the current frontend-safe data path and controlled worker operations, start with:
+
+- [`docs/public-api-contract.md`](docs/public-api-contract.md)
+- [`docs/worker-runbook.md`](docs/worker-runbook.md)
+- [`docs/deployment-scheduling-strategy.md`](docs/deployment-scheduling-strategy.md)
 
 ## License
 
