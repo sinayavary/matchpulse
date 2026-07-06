@@ -1,0 +1,174 @@
+name: Worker Schedule Confirmed Execute
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_db_write:
+        description: Must be true to continue.
+        required: true
+        type: boolean
+        default: false
+      confirmation_phrase:
+        description: Must exactly equal CONFIRM_MATCHPULSE_DB_WRITE.
+        required: true
+        type: string
+      reason:
+        description: Human-readable reason for this DB refresh.
+        required: true
+        type: string
+      dry_run_first:
+        description: Must stay true so the workflow runs schedule dry-run before execute.
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  worker-schedule-confirmed-execute:
+    runs-on: ubuntu-latest
+    environment: controlled-ingestion
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Verify workflow stays manual-only and approval-gated
+        env:
+          WORKFLOW_PATH: .github/workflows/worker-schedule-confirmed-execute.yml
+          DRY_RUN_WORKFLOW_PATH: .github/workflows/worker-schedule-dry-run.yml
+          PROTECTED_ENVIRONMENT: controlled-ingestion
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+          import sys
+
+          workflow_path = Path(os.environ["WORKFLOW_PATH"])
+          dry_run_workflow_path = Path(os.environ["DRY_RUN_WORKFLOW_PATH"])
+          protected_environment = os.environ["PROTECTED_ENVIRONMENT"]
+
+          workflow_text = workflow_path.read_text(encoding="utf-8")
+          dry_run_text = dry_run_workflow_path.read_text(encoding="utf-8")
+
+          forbidden_triggers = [
+            r"(?m)^\s*schedule\s*:",
+            r"(?m)^\s*push\s*:",
+            r"(?m)^\s*pull_request\s*:"
+          ]
+
+          for pattern in forbidden_triggers:
+            if re.search(pattern, workflow_text):
+              print(f"Forbidden trigger found matching pattern: {pattern}")
+              sys.exit(1)
+
+          if "workflow_dispatch:" not in workflow_text:
+            print("workflow_dispatch trigger is required.")
+            sys.exit(1)
+
+          if f"environment: {protected_environment}" not in workflow_text:
+            print("Protected GitHub Environment is required.")
+            sys.exit(1)
+
+          lines = workflow_text.splitlines()
+          run_blocks = []
+          capturing = False
+          base_indent = None
+          current = []
+
+          for line in lines:
+            stripped = line.lstrip(" ")
+            indent = len(line) - len(stripped)
+
+            if stripped.startswith("run: "):
+              run_blocks.append(stripped[len("run: "):])
+              capturing = False
+              base_indent = None
+              current = []
+              continue
+
+            if stripped == "run: |":
+              if current:
+                run_blocks.append("\n".join(current))
+                current = []
+              capturing = True
+              base_indent = indent
+              continue
+
+            if capturing:
+              if line.strip() and indent <= base_indent:
+                run_blocks.append("\n".join(current))
+                current = []
+                capturing = False
+                base_indent = None
+              else:
+                current.append(line)
+
+          if current:
+            run_blocks.append("\n".join(current))
+
+          runnable_text = "\n".join(run_blocks)
+          execute_token = "schedule --" + "execute --confirm-db-write"
+          if runnable_text.count(execute_token) != 1:
+            print("Confirmed execute command must appear exactly once in runnable steps.")
+            sys.exit(1)
+
+          if dry_run_text.count(execute_token) != 0:
+            print("Dry-run workflow must remain separate from confirmed execute.")
+            sys.exit(1)
+          PY
+
+      - name: Validate manual confirmation inputs
+        env:
+          INPUT_CONFIRM_DB_WRITE: ${{ inputs.confirm_db_write }}
+          INPUT_CONFIRMATION_PHRASE: ${{ inputs.confirmation_phrase }}
+          INPUT_REASON: ${{ inputs.reason }}
+          INPUT_DRY_RUN_FIRST: ${{ inputs.dry_run_first }}
+        run: |
+          if [ "$INPUT_CONFIRM_DB_WRITE" != "true" ]; then
+            echo "confirm_db_write must be true."
+            exit 1
+          fi
+
+          if [ "$INPUT_CONFIRMATION_PHRASE" != "CONFIRM_MATCHPULSE_DB_WRITE" ]; then
+            echo "confirmation_phrase must exactly match CONFIRM_MATCHPULSE_DB_WRITE."
+            exit 1
+          fi
+
+          if [ -z "$INPUT_REASON" ]; then
+            echo "reason is required."
+            exit 1
+          fi
+
+          if [ "$INPUT_DRY_RUN_FIRST" != "true" ]; then
+            echo "dry_run_first must be true."
+            exit 1
+          fi
+
+      - name: Worker tests
+        run: pnpm --filter @matchpulse/worker test
+
+      - name: Worker typecheck
+        run: pnpm --filter @matchpulse/worker typecheck
+
+      # Manual only.
+      # Environment approval required.
+      # Writes DB only after explicit input confirmation.
+      # No cron.
+      # No push/pull_request trigger.
+      # Do not run casually.
+      # Dry-run workflow should be used first.
+      - name: Schedule dry-run
+        run: ./apps/worker/node_modules/.bin/tsx apps/worker/src/index.ts schedule --dry-run
+
+      - name: Confirmed single-cycle schedule execute
+        run: ./apps/worker/node_modules/.bin/tsx apps/worker/src/index.ts schedule --execute --confirm-db-write

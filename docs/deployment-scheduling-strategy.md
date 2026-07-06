@@ -255,3 +255,39 @@ Safety posture:
 
 This phase implements only the manual preview workflow.
 Any future execute workflow must remain separate and explicitly gated.
+
+## 9. Phase 29G Manual Confirmed Execute Workflow
+
+Phase 29G adds `.github/workflows/worker-schedule-confirmed-execute.yml`.
+
+Behavior:
+
+- trigger is `workflow_dispatch` only
+- no cron schedule is configured
+- no push trigger is configured
+- no `pull_request` trigger is configured
+- the job uses GitHub Environment `controlled-ingestion`
+- the workflow requires `confirm_db_write: true`
+- the workflow requires `confirmation_phrase: CONFIRM_MATCHPULSE_DB_WRITE`
+- the workflow requires a non-empty human reason
+- the workflow keeps `dry_run_first: true`
+- worker tests and worker typecheck run before any execute step
+- the workflow runs schedule dry-run before confirmed execute
+- the confirmed command is `./apps/worker/node_modules/.bin/tsx apps/worker/src/index.ts schedule --execute --confirm-db-write`
+
+Safety posture:
+
+- this workflow is manual only and is not a scheduler
+- this workflow is not cron and does not create any automatic schedule
+- this workflow should only be used for intentional DB refresh operations
+- this workflow should not be used until the repository owner configures GitHub Environment `controlled-ingestion` with required reviewers
+- the separate dry-run workflow at `.github/workflows/worker-schedule-dry-run.yml` should be used first
+- no secrets are added by this phase
+- any future runtime secrets should be configured as GitHub Actions environment secrets by name only, never documented by value
+- workflow logs must remain sanitized and must not print DB URLs, JWTs, API keys, wallet keys, or raw secret payloads
+
+Operational note:
+
+- environment approval is the core safety gate for this phase
+- the workflow exists as a controlled operator tool, not as deployment automation
+- do not run it casually, and do not treat it as a replacement for a real future scheduler

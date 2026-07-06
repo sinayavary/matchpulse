@@ -226,3 +226,40 @@ Local PowerShell usage stays the same:
 ```powershell
 .\apps\worker\node_modules\.bin\tsx.CMD apps/worker/src/index.ts schedule --dry-run
 ```
+
+## Manual CI Confirmed Execute Workflow
+
+Phase 29G adds a manual GitHub Actions workflow at `.github/workflows/worker-schedule-confirmed-execute.yml`.
+
+Use it only for intentional single-cycle schedule refresh after a dry-run has already been reviewed.
+Do not run confirmed execute casually.
+Do not use it until GitHub Environment `controlled-ingestion` has required reviewers configured.
+
+GitHub UI path:
+
+`GitHub -> Actions -> Worker Schedule Confirmed Execute -> Run workflow`
+
+Required workflow inputs:
+
+- `confirm_db_write` must be `true`
+- `confirmation_phrase` must exactly equal `CONFIRM_MATCHPULSE_DB_WRITE`
+- `reason` must be non-empty
+- `dry_run_first` must stay `true`
+
+Workflow behavior:
+
+- trigger: `workflow_dispatch` only
+- no cron trigger
+- no push trigger
+- no `pull_request` trigger
+- requires protected environment approval
+- runs worker tests
+- runs worker typecheck
+- runs `./apps/worker/node_modules/.bin/tsx apps/worker/src/index.ts schedule --dry-run`
+- runs `./apps/worker/node_modules/.bin/tsx apps/worker/src/index.ts schedule --execute --confirm-db-write` only after the guard checks pass
+
+Local PowerShell usage stays the same and should remain the default way to inspect behavior safely:
+
+```powershell
+.\apps\worker\node_modules\.bin\tsx.CMD apps/worker/src/index.ts schedule --dry-run
+```
