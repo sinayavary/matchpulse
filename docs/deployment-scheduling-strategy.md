@@ -119,7 +119,7 @@ Required guard:
 - Keep dry-run and confirmed execute as separate explicit workflow steps
 
 Recommended now:
-- Not implemented now, but recommended as the next production-oriented path
+- Yes for dry-run only in Phase 29F
 
 ### Option C: Server Cron Disabled by Default
 
@@ -182,7 +182,10 @@ Recommended operating strategy for the current phase:
 
 - For hackathon and demo use, run manual dry-run commands and verify the public API with smoke checks.
 - For controlled database refreshes, use manual confirmed single-cycle execution only when data intentionally needs to be refreshed.
-- For production readiness, prepare a later manual `workflow_dispatch` path with environment approval before any confirmed execute.
+- Use the manual GitHub Actions workflow at `.github/workflows/worker-schedule-dry-run.yml` for operator-triggered schedule preview only.
+- Keep GitHub Actions limited to `workflow_dispatch` for this phase.
+- Keep the CI workflow secret-free because schedule dry-run does not require database access or TxLINE credentials.
+- Reserve any later confirmed execute workflow for a separate phase with environment approval.
 - Do not enable automatic scheduled database writes yet.
 
 This keeps the current system operator-controlled, auditable, and aligned with the existing safety guards already built into the worker CLI.
@@ -228,5 +231,27 @@ Planned follow-on phases:
 - `29H`: low-frequency scheduled dry-run only
 - Later: production scheduler or queue only if operational need is proven
 
-These phases are not implemented here.
-This phase is strategy and runbook alignment only.
+## 8. Phase 29F Manual Dry-Run Workflow
+
+Phase 29F adds `.github/workflows/worker-schedule-dry-run.yml`.
+
+Behavior:
+
+- trigger is `workflow_dispatch` only
+- no cron schedule is configured
+- no push trigger is configured
+- no secrets are required
+- worker tests and worker typecheck run before the dry-run command
+- the workflow runs `pnpm --filter @matchpulse/worker dev -- schedule --dry-run`
+
+Safety posture:
+
+- this workflow is dry-run only
+- it does not use `schedule --execute`
+- it does not use `--confirm-db-write`
+- it does not write the database
+- it does not call TxLINE
+- it is not a production scheduler
+
+This phase implements only the manual preview workflow.
+Any future execute workflow must remain separate and explicitly gated.

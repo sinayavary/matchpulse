@@ -1,0 +1,93 @@
+name: Worker Schedule Dry Run
+
+on:
+  workflow_dispatch:
+
+jobs:
+  worker-schedule-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Verify workflow stays dry-run only
+        env:
+          WORKFLOW_PATH: .github/workflows/worker-schedule-dry-run.yml
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+
+          workflow_path = Path(__import__("os").environ["WORKFLOW_PATH"])
+          lines = workflow_path.read_text(encoding="utf-8").splitlines()
+          run_blocks = []
+          capturing = False
+          base_indent = None
+          current = []
+
+          for line in lines:
+            stripped = line.lstrip(" ")
+            indent = len(line) - len(stripped)
+
+            if stripped.startswith("run: "):
+              run_blocks.append(stripped[len("run: "):])
+              capturing = False
+              base_indent = None
+              current = []
+              continue
+
+            if stripped == "run: |":
+              if current:
+                run_blocks.append("\n".join(current))
+                current = []
+              capturing = True
+              base_indent = indent
+              continue
+
+            if capturing:
+              if line.strip() and indent <= base_indent:
+                run_blocks.append("\n".join(current))
+                current = []
+                capturing = False
+                base_indent = None
+              else:
+                current.append(line)
+
+          if current:
+            run_blocks.append("\n".join(current))
+
+          runnable_text = "\n".join(run_blocks)
+          forbidden = [
+            "--confirm" + "-db-write",
+            "schedule --" + "execute",
+          ]
+          violations = [token for token in forbidden if token in runnable_text]
+          if violations:
+            print(f"Forbidden workflow command token(s) found: {', '.join(violations)}")
+            sys.exit(1)
+          PY
+
+      - name: Worker tests
+        run: pnpm --filter @matchpulse/worker test
+
+      - name: Worker typecheck
+        run: pnpm --filter @matchpulse/worker typecheck
+
+      # This workflow is dry-run only.
+      # It must not use --execute.
+      # It must not use --confirm-db-write.
+      # It must not require secrets.
+      # It must not write DB.
+      - name: Schedule dry-run
+        run: pnpm --filter @matchpulse/worker dev -- schedule --dry-run

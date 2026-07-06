@@ -205,3 +205,24 @@ That future phase must continue to preserve:
 - secret redaction on all schedule output
 - no automatic DB writes without explicit confirmation
 - no automatic TxLINE activation
+
+## Manual CI Dry-Run Workflow
+
+Phase 29F adds a manual GitHub Actions workflow at `.github/workflows/worker-schedule-dry-run.yml`.
+
+Use it only for schedule dry-run preview:
+
+- trigger: `workflow_dispatch` only
+- runs worker tests
+- runs worker typecheck
+- runs `pnpm --filter @matchpulse/worker dev -- schedule --dry-run`
+- requires no secrets
+- does not write the database
+- does not call TxLINE
+- does not run `schedule --execute`
+
+Local PowerShell usage stays the same:
+
+```powershell
+.\apps\worker\node_modules\.bin\tsx.CMD apps/worker/src/index.ts schedule --dry-run
+```
