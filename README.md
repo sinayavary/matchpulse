@@ -228,3 +228,9 @@ For the current frontend-safe data path and controlled worker operations, start 
 ## License
 
 Private project — not for public distribution without authorization.
+
+## Phase 29G Safety Note
+
+The repository is currently private, and GitHub Environment required reviewers or deployment protection may depend on plan and repository settings.
+
+Until the `controlled-ingestion` environment protection is confirmed and verified, use the dry-run workflow only and do not treat environment presence alone as enough approval protection for confirmed execute.

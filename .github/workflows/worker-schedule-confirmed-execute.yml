@@ -25,6 +25,9 @@ on:
 jobs:
   worker-schedule-confirmed-execute:
     runs-on: ubuntu-latest
+    # This environment should be protected with required reviewers before real use.
+    # In private repositories, reviewer protection may depend on GitHub plan and settings.
+    # Do not run confirmed execute until protection is verified.
     environment: controlled-ingestion
     steps:
       - uses: actions/checkout@v4

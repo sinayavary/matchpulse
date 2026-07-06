@@ -8,6 +8,10 @@ It does not introduce a production scheduler, automatic database writes, cron, R
 
 ## 1. Current State
 
+The repository is currently private.
+GitHub Environment required reviewers and deployment protection rules may not be available or may not behave as expected depending on the GitHub plan, repository visibility, and org settings.
+Until that protection is confirmed and configured, environment presence alone must not be treated as sufficient approval protection.
+
 The current worker system supports controlled one-shot execution only:
 
 - Manual one-shot worker dry-run exists.
@@ -187,6 +191,9 @@ Recommended operating strategy for the current phase:
 - Keep the CI workflow secret-free because schedule dry-run does not require database access or TxLINE credentials.
 - Reserve any later confirmed execute workflow for a separate phase with environment approval.
 - Do not enable automatic scheduled database writes yet.
+- For the current private repo, prefer restricting deployment branches to `main` if the GitHub configuration allows it.
+- Keep the confirmed execute workflow manual-only, keep the confirmation inputs, keep the dry-run-first behavior, and avoid adding secrets until real execution is intentionally needed.
+- Use the dry-run workflow as the safe current mode until required reviewers are confirmed available and working.
 
 This keeps the current system operator-controlled, auditable, and aligned with the existing safety guards already built into the worker CLI.
 
@@ -280,11 +287,12 @@ Safety posture:
 - this workflow is manual only and is not a scheduler
 - this workflow is not cron and does not create any automatic schedule
 - this workflow should only be used for intentional DB refresh operations
-- this workflow should not be used until the repository owner configures GitHub Environment `controlled-ingestion` with required reviewers
+- this workflow should not be used until the repository owner confirms GitHub Environment `controlled-ingestion` has required reviewers or equivalent protection available and configured
 - the separate dry-run workflow at `.github/workflows/worker-schedule-dry-run.yml` should be used first
 - no secrets are added by this phase
 - any future runtime secrets should be configured as GitHub Actions environment secrets by name only, never documented by value
 - workflow logs must remain sanitized and must not print DB URLs, JWTs, API keys, wallet keys, or raw secret payloads
+- in the current private-repo setup, environment presence alone must not be treated as sufficient approval protection
 
 Operational note:
 
