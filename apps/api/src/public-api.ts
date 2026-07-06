@@ -9,6 +9,10 @@ import {
   type MatchStateBuilderOptions
 } from "./match-state-builder.js";
 import {
+  buildProductAgentV1Insight,
+  type ProductAgentV1Insight
+} from "./product-agent-v1.js";
+import {
   SIGNALCORE_FORBIDDEN_OUTPUT_FIELDS
 } from "./signalcore-contract.js";
 
@@ -121,6 +125,7 @@ export type PublicMatchResponse = {
 export type PublicBundleResponse = {
   data: {
     fixture_id: string;
+    insight: ProductAgentV1Insight | null;
     readiness: ReturnType<typeof buildDemoReadiness>;
     brief: AgentPresenterResponse["data"]["brief"] | null;
     signal_summary: AgentPresenterResponse["data"]["signal_summary"] | null;
@@ -497,10 +502,17 @@ export function buildPublicBundleResponse(input: {
     odds: [],
     includeOdds: true
   });
+  const insight = buildProductAgentV1Insight({
+    fixture_id: input.presenterOutput.data.fixture_id,
+    summary: input.presenterOutput.data.signal_summary,
+    signals: input.presenterOutput.data.signals,
+    state
+  });
 
   const output: PublicBundleResponse = {
     data: sanitizeAndAssertPublicPayload({
       fixture_id: input.presenterOutput.data.fixture_id,
+      insight,
       readiness: buildDemoReadiness(input.presenterOutput, input.options),
       brief: input.options.includeBrief ? input.presenterOutput.data.brief : null,
       signal_summary: input.options.includeSignals ? input.presenterOutput.data.signal_summary : null,
@@ -812,6 +824,7 @@ export function registerPublicApiRoutes(
       return {
         data: {
           fixture_id: fixtureId,
+          insight: null,
           readiness: {
             status: "empty" as const,
             display_ready: false,

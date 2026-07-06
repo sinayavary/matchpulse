@@ -55,7 +55,7 @@ export type AgentPresenterResponse = {
 };
 
 const SAFE_SCOPE_NOTE =
-  "This brief only describes data availability, freshness, and quality. It does not provide predictions, probabilities, recommendations, or betting guidance.";
+  "This brief only describes data availability, freshness, and quality for safe display.";
 
 export function normalizeAgentPresenterOptions(
   options: AgentPresenterOptions = {}

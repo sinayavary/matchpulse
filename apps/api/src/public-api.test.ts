@@ -101,7 +101,7 @@ function makePresenterOutput(state: CanonicalMatchState): AgentPresenterResponse
         freshness_note: "Latest persisted data is within the freshness window.",
         quality_notes: ["Data is available for safe display."],
         safe_scope_note:
-          "This brief only describes data availability, freshness, and quality."
+          "This brief only describes data availability, freshness, and quality for safe display."
       },
       signal_summary: {
         status: state.quality.status === "complete"
@@ -479,6 +479,67 @@ test("public bundle output contains no forbidden keys", () => {
     assert.equal(keys.includes(field.toLowerCase()), false);
   }
   assertNoForbiddenPublicKeys(output);
+  assert.equal(output.data.insight?.agent_version, "product-agent-v1");
+});
+
+test("public bundle includes Product Agent v1 insight and preserves existing sections", () => {
+  const output = buildPublicBundleResponse({
+    presenterOutput: makePresenterOutput(makeState({
+      odds: {
+        available: false,
+        count: 0,
+        markets: []
+      },
+      quality: {
+        status: "partial",
+        has_fixture: true,
+        has_scoreboard: true,
+        has_odds: false,
+        issues: ["odds_missing"]
+      }
+    })),
+    options: {
+      includeState: true,
+      includeSignals: true,
+      includeBrief: true,
+      oddsLimit: 20,
+      staleAfterMinutes: 60
+    },
+    staleAfterMinutes: 60,
+    now: new Date("2026-06-04T19:00:00.000Z")
+  });
+
+  assert.equal(output.data.insight?.agent_version, "product-agent-v1");
+  assert.equal(output.data.insight?.status, "partial");
+  assert.equal(output.data.readiness.status, "partial");
+  assert.equal(output.data.brief?.status_label, "partial");
+  assert.equal(output.data.signal_summary?.has_odds, false);
+  assert.equal(output.data.signals.length, 1);
+  assert.equal(output.data.state?.quality.has_odds, false);
+});
+
+test("public bundle insight does not leak internal-only fields", () => {
+  const output = buildPublicBundleResponse({
+    presenterOutput: makePresenterOutput(makeState()),
+    options: {
+      includeState: true,
+      includeSignals: true,
+      includeBrief: true,
+      oddsLimit: 20,
+      staleAfterMinutes: 60
+    },
+    staleAfterMinutes: 60,
+    now: new Date("2026-06-04T19:00:00.000Z")
+  });
+
+  assert.equal("meta" in (output.data.insight ?? {}), false);
+  assert.equal("mode" in (output.data.insight ?? {}), false);
+  assert.deepEqual(Object.keys(output.data.insight?.signal_brief.top_signals[0] ?? {}).sort(), [
+    "message",
+    "severity",
+    "title",
+    "type"
+  ]);
 });
 
 test("public sanitizer is case-insensitive", () => {
