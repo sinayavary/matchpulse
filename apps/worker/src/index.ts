@@ -1,6 +1,12 @@
 import { parseWorkerConfig, WorkerConfigError } from "./worker-config.js";
 import { runWorker } from "./worker-runner.js";
 import { createWorkerOutputEnvelope } from "./worker-safety.js";
+import {
+  isScheduleInvocation,
+  parseScheduleConfig,
+  ScheduleConfigError
+} from "./schedule-config.js";
+import { runScheduleDryRun, ScheduleRunnerError } from "./schedule-runner.js";
 
 async function executeIngestion(input: {
   fixtureId: string;
@@ -22,9 +28,33 @@ async function executeIngestion(input: {
   return apiModule.runFixtureIngestionPipeline(input);
 }
 
-async function main() {
+async function runSchedule(args: string[]) {
   try {
-    const config = parseWorkerConfig(process.argv.slice(2));
+    const config = parseScheduleConfig(args);
+    const output = runScheduleDryRun(config);
+    console.log(JSON.stringify(output, null, 2));
+  } catch (error) {
+    if (error instanceof ScheduleConfigError || error instanceof ScheduleRunnerError) {
+      console.error(`Schedule error: ${error.message}`);
+      process.exitCode = 1;
+      return;
+    }
+
+    console.error("Schedule execution failed.");
+    process.exitCode = 1;
+  }
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+
+  if (isScheduleInvocation(args)) {
+    await runSchedule(args);
+    return;
+  }
+
+  try {
+    const config = parseWorkerConfig(args);
     try {
       const outcome = await runWorker(config, { executeIngestion });
       console.log(JSON.stringify(outcome.output, null, 2));

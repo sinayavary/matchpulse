@@ -9,7 +9,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo 'worker lint placeholder'",
-    "test": "tsx --test src/worker-config.test.ts src/worker-runner.test.ts src/worker-safety.test.ts"
+    "test": "tsx --test src/worker-config.test.ts src/worker-runner.test.ts src/worker-safety.test.ts src/schedule-config.test.ts src/schedule-plan.test.ts src/schedule-runner.test.ts"
   },
   "dependencies": {
     "@matchpulse/shared": "workspace:*",

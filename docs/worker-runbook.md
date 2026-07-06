@@ -79,6 +79,9 @@ It may call TxLINE and may write refreshed data to the database.
 - Dry-run prints only safe request fields and no secret-like config values.
 - Worker output is checked against secret-like key patterns before it is printed.
 - Tests use injection and do not call TxLINE, do not run live ingestion, and do not write the database.
+- The schedule foundation is disabled by default and dry-run-only in this phase.
+- Schedule output is checked against the same secret-like key patterns before it is printed.
+- Scheduled execute, cron, loop, Redis, and queue modes are all rejected in this phase.
 
 ## What Not To Run
 
@@ -97,3 +100,83 @@ Its role is to refresh persisted backend data that the existing public-safe API 
 
 The next scheduler-oriented phase can build on this worker foundation by adding an explicit orchestration layer for controlled schedules, retries, and operational visibility.
 That future phase should still preserve safe dry-run behavior and explicit execution controls.
+
+## Schedule Dry-Run Foundation
+
+This phase adds a disabled-by-default schedule orchestration layer on top of the controlled worker.
+It is a one-cycle, dry-run-only plan printer. It is **not** a real scheduler.
+
+Run from `D:\money\matchpulse_repo`:
+
+```powershell
+.\apps\worker\node_modules\.bin\tsx.CMD apps/worker/src/index.ts schedule --dry-run
+```
+
+Expected behavior:
+- prints a safe schedule plan envelope
+- shows `mode: "schedule-dry-run"`
+- shows `cycle_count: 1`
+- lists the known demo jobs (`17952170` primary, optionally `17588223`)
+- shows `db_write_enabled: false`
+- shows `txline_call_enabled: false`
+- shows `scheduler_enabled: false`
+- shows `redis_enabled: false`
+- shows `queue_enabled: false`
+- does not call TxLINE
+- does not call the ingestion runner
+- does not write the database
+- does not start any loop, interval, or cron
+
+Optional flags:
+- `--runId <value>` overrides the sanitized run id
+
+### Static Schedule Plan
+
+The schedule plan is static and built only from known-safe demo fixtures.
+No live data is fetched and no database is read while building the plan.
+Each scheduled job contains only safe non-secret fields:
+
+- `fixtureId`
+- `competitionId`
+- `startEpochDay`
+- `includeFixture`
+- `includeScore`
+- `includeOdds`
+- `oddsLimit`
+
+### Rejected Schedule Execute
+
+Scheduled execute is **not enabled** in this phase.
+Any attempt to run it must fail safely:
+
+```powershell
+.\apps\worker\node_modules\.bin\tsx.CMD apps/worker/src/index.ts schedule --execute
+```
+
+Expected behavior:
+- returns a non-zero exit code
+- prints `Schedule error: scheduled execute mode is not enabled in this phase.`
+- does not call TxLINE
+- does not write the database
+- does not print any secrets
+
+### Warnings
+
+- **Scheduled execute is not enabled yet.** A future phase will add explicit,
+  confirmed, opt-in scheduled execution.
+- **No Redis, cron, or always-on loop exists yet.** Do not deploy this as a
+  background daemon. No `--loop`, `--interval`, `--cron`, `--watch`, `--daemon`,
+  `--redis`, `--queue`, `--bullmq`, or `--upstash` flag is supported.
+
+### Future Phase Notes for Real Scheduler Deployment
+
+A future phase may introduce:
+- a real always-on orchestration loop (opt-in only, not default)
+- confirmed scheduled execution behind explicit `--confirm-db-write` controls
+- retry, backoff, and operational visibility for scheduled jobs
+
+That future phase must continue to preserve:
+- dry-run-first behavior
+- secret redaction on all schedule output
+- no automatic DB writes without explicit confirmation
+- no automatic TxLINE activation
