@@ -2,6 +2,8 @@ name: Worker Schedule Dry Run
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
 
 jobs:
   worker-schedule-dry-run:
@@ -85,6 +87,7 @@ jobs:
         run: pnpm --filter @matchpulse/worker typecheck
 
       # This workflow is dry-run only.
+      # It may run on a low-frequency schedule, but it must not execute ingestion.
       # It must not use --execute.
       # It must not use --confirm-db-write.
       # It must not require secrets.

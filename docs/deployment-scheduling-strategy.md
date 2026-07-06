@@ -299,3 +299,35 @@ Operational note:
 - environment approval is the core safety gate for this phase
 - the workflow exists as a controlled operator tool, not as deployment automation
 - do not run it casually, and do not treat it as a replacement for a real future scheduler
+
+## 10. Phase 29H Low-Frequency Scheduled Dry-Run Only
+
+Phase 29H adds a low-frequency scheduled trigger to `.github/workflows/worker-schedule-dry-run.yml`.
+
+Behavior:
+
+- trigger remains `workflow_dispatch`
+- a low-frequency cron schedule is added for safe automatic preview
+- the workflow still runs `./apps/worker/node_modules/.bin/tsx apps/worker/src/index.ts schedule --dry-run`
+- the workflow does not run `schedule --execute`
+- the workflow does not use `--confirm-db-write`
+- the workflow does not require secrets
+- the workflow does not write the database
+- the workflow does not call TxLINE
+
+Safety posture:
+
+- this is not a production scheduler
+- this is a CI safety and drift-detection job
+- the scheduled run only validates the dry-run path on a low-frequency cadence
+- the dry-run workflow remains separate from any confirmed execute path
+- confirmed execute remains manual-only
+- confirmed execute should not be run in the private repo until GitHub Environment protection is verified and intentionally configured
+- no automatic DB-writing workflow is introduced by this phase
+- no runtime worker behavior changes are introduced by this phase
+
+Operational note:
+
+- use the scheduled dry-run to spot workflow drift and keep the safe path exercised
+- keep confirmed execute reserved for intentional operator use only
+- do not treat the schedule as a live ingestion scheduler

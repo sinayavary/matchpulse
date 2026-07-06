@@ -227,6 +227,28 @@ Local PowerShell usage stays the same:
 .\apps\worker\node_modules\.bin\tsx.CMD apps/worker/src/index.ts schedule --dry-run
 ```
 
+## Scheduled CI Dry-Run Workflow
+
+Phase 29H adds a low-frequency scheduled trigger to the same dry-run workflow at `.github/workflows/worker-schedule-dry-run.yml`.
+
+Use it as a safe automatic preview only:
+
+- trigger: `workflow_dispatch` plus a low-frequency cron schedule
+- still runs `schedule --dry-run`
+- still requires no secrets
+- still does not write the database
+- still does not call TxLINE
+- still does not run `schedule --execute`
+
+This scheduled dry-run is automatic, but it remains safe because it does not execute ingestion.
+Use it to catch workflow drift and keep the dry-run path exercised on CI.
+
+Local PowerShell usage stays unchanged:
+
+```powershell
+.\apps\worker\node_modules\.bin\tsx.CMD apps/worker/src/index.ts schedule --dry-run
+```
+
 ## Manual CI Confirmed Execute Workflow
 
 Phase 29G adds a manual GitHub Actions workflow at `.github/workflows/worker-schedule-confirmed-execute.yml`.
