@@ -16,6 +16,16 @@ import {
 } from "./public-api.js";
 import { SIGNALCORE_FORBIDDEN_OUTPUT_FIELDS } from "./signalcore-contract.js";
 
+const PUBLIC_EVENT_IMPACT_KEYS = [
+  "event_count_label",
+  "label",
+  "level",
+  "pressure_label",
+  "safe_scope_note",
+  "source",
+  "status"
+];
+
 type PublicFixtureRow = {
   fixtureId: string;
   competition: string | null;
@@ -743,6 +753,7 @@ test("public intelligence card builder returns only the allowed top-level fields
   assert.deepEqual(Object.keys(output.data ?? {}).sort(), [
     "agent_version",
     "brief",
+    "event_impact",
     "fixture_id",
     "odds_reliability_hint",
     "pressure_hint",
@@ -750,6 +761,44 @@ test("public intelligence card builder returns only the allowed top-level fields
   ]);
   assert.equal(output.meta.mode, "public");
   assert.equal(output.meta.public_api_version, "public-v0");
+});
+
+test("public intelligence card builder maps event impact to the approved public-safe shape", () => {
+  const output = buildPublicMatchIntelligenceCardResponse({
+    presenterOutput: makePresenterOutput(makeState()),
+    eventImpactHint: {
+      status: "available",
+      level: "high",
+      label: "Internal label must not be exposed",
+      key_event_count: 2,
+      pressure_level: "medium",
+      source: "stored_events"
+    },
+    staleAfterMinutes: 180,
+    now: new Date("2026-06-04T19:00:00.000Z")
+  });
+
+  assert.deepEqual(Object.keys(output.data?.event_impact ?? {}).sort(), PUBLIC_EVENT_IMPACT_KEYS);
+  assert.deepEqual(output.data?.event_impact, {
+    status: "available",
+    level: "high",
+    label: "High match-event impact",
+    event_count_label: "2 key events",
+    pressure_label: "Moderate event pressure",
+    source: "stored_events",
+    safe_scope_note: "This summary describes stored match events only. It is not a prediction, probability, betting recommendation, or wagering instruction."
+  });
+});
+
+test("public intelligence card builder uses unavailable event impact when the internal hint is absent", () => {
+  const output = buildPublicMatchIntelligenceCardResponse({
+    presenterOutput: makePresenterOutput(makeState()),
+    staleAfterMinutes: 180,
+    now: new Date("2026-06-04T19:00:00.000Z")
+  });
+
+  assert.equal(output.data?.event_impact.status, "unavailable");
+  assert.deepEqual(Object.keys(output.data?.event_impact ?? {}).sort(), PUBLIC_EVENT_IMPACT_KEYS);
 });
 
 test("public intelligence card builder includes compact brief", () => {
@@ -1128,7 +1177,39 @@ test("public intelligence card route forwards pressure and odds reliability opti
       oddsLimit: 50,
       staleAfterMinutes: 10080,
       format: "compact"
+    }, {
+      includeEventImpact: true,
+      format: "compact"
     }]);
+    await app.close();
+  });
+});
+
+test("public intelligence card route returns public-safe event impact and falls back when its provider throws", async () => {
+  await withDatabaseUrl(async () => {
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => makeDbClient([]),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState()),
+      getAgentPresenterEventImpactHintForFixture: async () => {
+        throw new Error("internal event impact provider failed");
+      }
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches/17952170/intelligence-card?includeEventImpact=true&includeInternalContext=true&includeState=true&includeSignals=true"
+    });
+
+    assert.equal(response.statusCode, 200);
+    const body = response.json();
+    assert.equal(body.data.event_impact.status, "unavailable");
+    assert.deepEqual(Object.keys(body.data.event_impact).sort(), PUBLIC_EVENT_IMPACT_KEYS);
+    const serialized = JSON.stringify(body).toLowerCase();
+    for (const field of ["event_impact_hint", "event_impact_assessed", "signals", "state", "context", "internal_context", "insight", "raw", "raw_payload", "debug", "debug_lineage", "formula", "probability", "prediction", "confidence", "winner", "recommended_bet", "bet", "expected_value", "ev", "edge", "wager", "stake", "profit", "payout", "wallet", "deposit"]) {
+      assert.equal(serialized.includes(`\"${field}\"`), false, field);
+    }
     await app.close();
   });
 });

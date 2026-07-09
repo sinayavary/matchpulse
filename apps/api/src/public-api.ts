@@ -1,5 +1,9 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { getAgentPresenterBriefForFixture, type AgentPresenterResponse } from "./agent-presenter-v0.js";
+import {
+  getAgentPresenterBriefForFixture,
+  type AgentPresenterEventImpactHint,
+  type AgentPresenterResponse
+} from "./agent-presenter-v0.js";
 import { buildDemoReadiness } from "./demo-bundle.js";
 import { getDbClient } from "./db.js";
 import {
@@ -18,6 +22,10 @@ import {
   SIGNALCORE_FORBIDDEN_OUTPUT_FIELDS
 } from "./signalcore-contract.js";
 import type { SignalCoreV0Signal, SignalCoreV0Summary } from "./signalcore-v0.js";
+import {
+  mapAgentPresenterEventImpactToPublicSummary,
+  type PublicEventImpactSummary
+} from "./public-event-impact-contract.js";
 
 export type PublicApiMode = "public";
 export type PublicMetaStatus = "live" | "no_data" | "stale" | "degraded";
@@ -184,6 +192,7 @@ export type PublicMatchIntelligenceCardResponse = {
       limitation_count: number;
       safe_scope_note: string;
     };
+    event_impact: PublicEventImpactSummary;
   } | null;
   meta: {
     status: PublicMetaStatus;
@@ -206,11 +215,15 @@ export type PublicApiDependencies = {
       includeState?: boolean;
       includePressure?: boolean;
       includeOddsReliability?: boolean;
+      includeEventImpact?: boolean;
       oddsLimit?: number;
       staleAfterMinutes?: number;
       format?: "compact" | "full";
     }
   ) => Promise<AgentPresenterResponse>;
+  getAgentPresenterEventImpactHintForFixture?: (
+    fixtureId: string
+  ) => Promise<AgentPresenterEventImpactHint | undefined>;
   now: () => Date;
 };
 
@@ -764,6 +777,7 @@ function toPublicCardMetaStatus(input: {
 
 export function buildPublicMatchIntelligenceCardResponse(input: {
   presenterOutput: AgentPresenterResponse;
+  eventImpactHint?: AgentPresenterEventImpactHint;
   staleAfterMinutes: number;
   now: Date;
   message?: string;
@@ -790,6 +804,7 @@ export function buildPublicMatchIntelligenceCardResponse(input: {
       has_odds: presenterData.signal_summary.has_odds,
       latest_data_timestamp: presenterData.signal_summary.latest_data_timestamp
     },
+    event_impact: mapAgentPresenterEventImpactToPublicSummary(input.eventImpactHint),
     ...(presenterData.pressure_hint === undefined
       ? {}
       : {
@@ -1388,6 +1403,17 @@ export function registerPublicApiRoutes(
         staleAfterMinutes: normalized.staleAfterMinutes,
         format: "compact"
       });
+      let eventImpactHint: AgentPresenterEventImpactHint | undefined;
+      try {
+        eventImpactHint = deps.getAgentPresenterEventImpactHintForFixture === undefined
+          ? (await deps.getAgentPresenterBriefForFixture(fixtureId, {
+              includeEventImpact: true,
+              format: "compact"
+            })).data.event_impact_hint
+          : await deps.getAgentPresenterEventImpactHintForFixture(fixtureId);
+      } catch {
+        eventImpactHint = undefined;
+      }
       const isNoData = presenterOutput.meta.status === "no_data" ||
         presenterOutput.data.signal_summary.status === "empty";
       if (isNoData) {
@@ -1395,6 +1421,7 @@ export function registerPublicApiRoutes(
       }
       return buildPublicMatchIntelligenceCardResponse({
         presenterOutput,
+        eventImpactHint,
         staleAfterMinutes: normalized.staleAfterMinutes,
         now,
         ...(isNoData
