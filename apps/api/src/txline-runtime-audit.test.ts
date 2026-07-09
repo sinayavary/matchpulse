@@ -485,6 +485,309 @@ test("latency helper returns null when provider timestamp is missing", () => {
   assert.equal(extractBestProviderTimestamp({ foo: "bar" }), null);
 });
 
+test("scoreFixtureIds limits score requests and oddsFixtureIds limits odds requests", async () => {
+  const scoreCalls: Array<{ fixtureId: string; asOf: number }> = [];
+  const oddsCalls: Array<{ fixtureId: string; asOf: number }> = [];
+
+  const result = await runTxlineRuntimeAudit(
+    {
+      fixtureIds: ["17952170", "17588223"],
+      scoreFixtureIds: ["17952170"],
+      oddsFixtureIds: ["17588223"],
+      competitionId: 430,
+      startEpochDay: 20608,
+      includeFixtures: true,
+      includeScores: true,
+      includeOdds: true,
+      scoreAsOfByFixtureId: {
+        "17952170": 1780596263367
+      },
+      oddsAsOfByFixtureId: {
+        "17588223": 1781226000000
+      },
+      notes: "test"
+    },
+    {
+      now: () => new Date("2026-07-09T10:00:00.000Z"),
+      store: createInMemoryAuditStore(),
+      fetch: {
+        fetchFixtures: async () => [
+          {
+            FixtureId: "17952170",
+            CompetitionId: 430,
+            Participant1: "Alpha",
+            Participant2: "Beta",
+            StartTime: 1781226000000,
+            Ts: 1781226000000
+          },
+          {
+            FixtureId: "17588223",
+            CompetitionId: 430,
+            Participant1: "Gamma",
+            Participant2: "Delta",
+            StartTime: 1781229600000,
+            Ts: 1781229600000
+          }
+        ],
+        fetchScores: async (params) => {
+          scoreCalls.push(params);
+          return [
+            {
+              Seq: 1,
+              Ts: 1780596263367,
+              FixtureId: 17952170,
+              PossessionType: "attacking"
+            }
+          ];
+        },
+        fetchOdds: async (params) => {
+          oddsCalls.push(params);
+          return [
+            {
+              BookmakerId: 10021,
+              Bookmaker: "TXLineStablePriceDemargined",
+              Pct: [50, 50],
+              Ts: 1781226000000
+            }
+          ];
+        }
+      }
+    }
+  );
+
+  assert.deepEqual(scoreCalls, [{ fixtureId: "17952170", asOf: 1780596263367 }]);
+  assert.deepEqual(oddsCalls, [{ fixtureId: "17588223", asOf: 1781226000000 }]);
+  assert.deepEqual(result.summary.targets.scoreFixtureIds, ["17952170"]);
+  assert.deepEqual(result.summary.targets.oddsFixtureIds, ["17588223"]);
+});
+
+test("score and odds default to fixtureIds when targeted lists are omitted", async () => {
+  const scoreCalls: Array<{ fixtureId: string; asOf: number }> = [];
+  const oddsCalls: Array<{ fixtureId: string; asOf: number }> = [];
+
+  const result = await runTxlineRuntimeAudit(
+    {
+      fixtureIds: ["17952170", "17588223"],
+      competitionId: 430,
+      startEpochDay: 20608,
+      includeFixtures: true,
+      includeScores: true,
+      includeOdds: true,
+      asOf: 1781226000000,
+      notes: "test"
+    },
+    {
+      now: () => new Date("2026-07-09T10:00:00.000Z"),
+      store: createInMemoryAuditStore(),
+      fetch: {
+        fetchFixtures: async () => [
+          {
+            FixtureId: "17952170",
+            CompetitionId: 430,
+            Participant1: "Alpha",
+            Participant2: "Beta",
+            StartTime: 1781226000000,
+            Ts: 1781226000000
+          },
+          {
+            FixtureId: "17588223",
+            CompetitionId: 430,
+            Participant1: "Gamma",
+            Participant2: "Delta",
+            StartTime: 1781229600000,
+            Ts: 1781229600000
+          }
+        ],
+        fetchScores: async (params) => {
+          scoreCalls.push(params);
+          return [
+            {
+              Seq: 1,
+              Ts: 1781226000000,
+              FixtureId: params.fixtureId,
+              PossessionType: "attacking"
+            }
+          ];
+        },
+        fetchOdds: async (params) => {
+          oddsCalls.push(params);
+          return [
+            {
+              BookmakerId: 10021,
+              Bookmaker: "TXLineStablePriceDemargined",
+              Pct: [50, 50],
+              Ts: 1781226000000
+            }
+          ];
+        }
+      }
+    }
+  );
+
+  assert.deepEqual(scoreCalls, [
+    { fixtureId: "17952170", asOf: 1781226000000 },
+    { fixtureId: "17588223", asOf: 1781226000000 }
+  ]);
+  assert.deepEqual(oddsCalls, [
+    { fixtureId: "17952170", asOf: 1781226000000 },
+    { fixtureId: "17588223", asOf: 1781226000000 }
+  ]);
+  assert.deepEqual(result.summary.targets.scoreFixtureIds, ["17952170", "17588223"]);
+  assert.deepEqual(result.summary.targets.oddsFixtureIds, ["17952170", "17588223"]);
+});
+
+test("missing asOf only applies to selected score targets", async () => {
+  const result = await runTxlineRuntimeAudit(
+    {
+      fixtureIds: ["17952170", "17588223"],
+      scoreFixtureIds: ["17952170"],
+      competitionId: 430,
+      startEpochDay: 20608,
+      includeFixtures: false,
+      includeScores: true,
+      includeOdds: false,
+      notes: "test"
+    },
+    {
+      now: () => new Date("2026-07-09T10:00:00.000Z"),
+      store: createInMemoryAuditStore()
+    }
+  );
+
+  assert.deepEqual(result.summary.asOf.missingScoreAsOfFixtureIds, ["17952170"]);
+  assert.ok(!result.summary.asOf.missingScoreAsOfFixtureIds.includes("17588223"));
+});
+
+test("targeted audit request count only includes fixtures plus selected score and odds targets", async () => {
+  const result = await runTxlineRuntimeAudit(
+    {
+      fixtureIds: ["17952170", "17588223"],
+      scoreFixtureIds: ["17952170"],
+      oddsFixtureIds: ["17588223"],
+      competitionId: 430,
+      startEpochDay: 20608,
+      includeFixtures: true,
+      includeScores: true,
+      includeOdds: true,
+      scoreAsOfByFixtureId: {
+        "17952170": 1780596263367
+      },
+      oddsAsOfByFixtureId: {
+        "17588223": 1781226000000
+      },
+      notes: "test"
+    },
+    {
+      now: () => new Date("2026-07-09T10:00:00.000Z"),
+      store: createInMemoryAuditStore(),
+      fetch: {
+        fetchFixtures: async () => [
+          {
+            FixtureId: "17952170",
+            CompetitionId: 430,
+            Participant1: "Alpha",
+            Participant2: "Beta",
+            StartTime: 1781226000000,
+            Ts: 1781226000000
+          },
+          {
+            FixtureId: "17588223",
+            CompetitionId: 430,
+            Participant1: "Gamma",
+            Participant2: "Delta",
+            StartTime: 1781229600000,
+            Ts: 1781229600000
+          }
+        ],
+        fetchScores: async () => [
+          {
+            Seq: 1,
+            Ts: 1780596263367,
+            FixtureId: 17952170,
+            PossessionType: "attacking"
+          }
+        ],
+        fetchOdds: async () => [
+          {
+            BookmakerId: 10021,
+            Bookmaker: "TXLineStablePriceDemargined",
+            Pct: [50, 50],
+            Ts: 1781226000000
+          }
+        ]
+      }
+    }
+  );
+
+  assert.equal(result.summary.requests.attempted, 3);
+});
+
+test("summary includes target fixture metadata", async () => {
+  const result = await runTxlineRuntimeAudit(
+    {
+      fixtureIds: ["17952170", "17588223"],
+      scoreFixtureIds: ["17952170"],
+      oddsFixtureIds: ["17588223"],
+      competitionId: 430,
+      startEpochDay: 20608,
+      includeFixtures: true,
+      includeScores: true,
+      includeOdds: true,
+      scoreAsOfByFixtureId: {
+        "17952170": 1780596263367
+      },
+      oddsAsOfByFixtureId: {
+        "17588223": 1781226000000
+      },
+      notes: "test"
+    },
+    {
+      now: () => new Date("2026-07-09T10:00:00.000Z"),
+      store: createInMemoryAuditStore(),
+      fetch: {
+        fetchFixtures: async () => [
+          {
+            FixtureId: "17952170",
+            CompetitionId: 430,
+            Participant1: "Alpha",
+            Participant2: "Beta",
+            StartTime: 1781226000000,
+            Ts: 1781226000000
+          },
+          {
+            FixtureId: "17588223",
+            CompetitionId: 430,
+            Participant1: "Gamma",
+            Participant2: "Delta",
+            StartTime: 1781229600000,
+            Ts: 1781229600000
+          }
+        ],
+        fetchScores: async () => [
+          {
+            Seq: 1,
+            Ts: 1780596263367,
+            FixtureId: 17952170,
+            PossessionType: "attacking"
+          }
+        ],
+        fetchOdds: async () => [
+          {
+            BookmakerId: 10021,
+            Bookmaker: "TXLineStablePriceDemargined",
+            Pct: [50, 50],
+            Ts: 1781226000000
+          }
+        ]
+      }
+    }
+  );
+
+  assert.deepEqual(result.summary.targets.fixtureIds, ["17952170", "17588223"]);
+  assert.deepEqual(result.summary.targets.scoreFixtureIds, ["17952170"]);
+  assert.deepEqual(result.summary.targets.oddsFixtureIds, ["17588223"]);
+});
+
 test("runtime audit skips score and odds when asOf is missing", async () => {
   const fixturesPayload = [
     {

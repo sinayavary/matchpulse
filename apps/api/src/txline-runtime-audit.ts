@@ -51,6 +51,11 @@ type TxlineLatencyMode = "historical_snapshot_age" | "live_receipt_latency" | "m
 export type TxlineRuntimeAuditSummary = {
   auditRunId: string;
   status: "completed" | "completed_with_warnings" | "failed";
+  targets: {
+    fixtureIds: string[];
+    scoreFixtureIds: string[];
+    oddsFixtureIds: string[];
+  };
   requests: {
     attempted: number;
     succeeded: number;
@@ -125,6 +130,8 @@ export type TxlineRuntimeAuditSummary = {
 
 export type TxlineRuntimeAuditInput = {
   fixtureIds: string[];
+  scoreFixtureIds?: string[];
+  oddsFixtureIds?: string[];
   competitionId: string | number;
   startEpochDay: number;
   includeFixtures: boolean;
@@ -1072,6 +1079,7 @@ function createTxlineRequestFailureFinding(
 export function buildTxlineRuntimeAuditSummary(input: {
   auditRunId: string;
   status: TxlineRuntimeAuditSummary["status"];
+  targets: TxlineRuntimeAuditSummary["targets"];
   requests: TxlineRuntimeAuditSummary["requests"];
   asOf: TxlineRuntimeAuditSummary["asOf"];
   fixtures: TxlineFixturesAudit;
@@ -1090,6 +1098,7 @@ export function buildTxlineRuntimeAuditSummary(input: {
   return {
     auditRunId: input.auditRunId,
     status: input.status,
+    targets: input.targets,
     requests: input.requests,
     asOf: input.asOf,
     fixtures: {
@@ -1531,6 +1540,14 @@ export async function runTxlineRuntimeAudit(
   const fixtureIds = input.fixtureIds
     .map((fixtureId) => parseFixtureId(fixtureId))
     .filter((fixtureId): fixtureId is string => fixtureId !== null);
+  const scoreFixtureIdsProvided = Array.isArray(input.scoreFixtureIds);
+  const scoreFixtureIds = Array.isArray(input.scoreFixtureIds)
+    ? input.scoreFixtureIds.map(parseFixtureId).filter((fixtureId): fixtureId is string => fixtureId !== null)
+    : fixtureIds;
+  const oddsFixtureIdsProvided = Array.isArray(input.oddsFixtureIds);
+  const oddsFixtureIds = Array.isArray(input.oddsFixtureIds)
+    ? input.oddsFixtureIds.map(parseFixtureId).filter((fixtureId): fixtureId is string => fixtureId !== null)
+    : fixtureIds;
   const run = await createAuditRun(buildTxlineAuditRunCreateData({
     fixtureIds,
     competitionIds: [String(input.competitionId)],
@@ -1585,7 +1602,10 @@ export async function runTxlineRuntimeAudit(
       recordRequestSkip(requestTracker, "fixtures_snapshot");
     }
 
-    for (const fixtureId of fixtureIds) {
+    if (scoreFixtureIdsProvided && scoreFixtureIds.length === 0) {
+      recordRequestSkip(requestTracker, "scores_snapshot");
+    }
+    for (const fixtureId of scoreFixtureIds) {
       const scoreAsOf = scoreAsOfByFixtureId[fixtureId] ?? globalAsOf;
       if (!input.includeScores) {
         recordRequestSkip(requestTracker, "scores_snapshot");
@@ -1611,7 +1631,12 @@ export async function runTxlineRuntimeAudit(
           if (stored !== null) findings.push(stored);
         }
       }
+    }
 
+    if (oddsFixtureIdsProvided && oddsFixtureIds.length === 0) {
+      recordRequestSkip(requestTracker, "odds_snapshot");
+    }
+    for (const fixtureId of oddsFixtureIds) {
       const oddsAsOf = oddsAsOfByFixtureId[fixtureId] ?? globalAsOf;
       if (!input.includeOdds) {
         recordRequestSkip(requestTracker, "odds_snapshot");
@@ -1763,6 +1788,11 @@ export async function runTxlineRuntimeAudit(
       scores: mergedScores,
       odds: mergedOdds,
       fixtureIds,
+      targets: {
+        fixtureIds,
+        scoreFixtureIds,
+        oddsFixtureIds
+      },
       latencySamples,
       extraWarnings: summaryWarnings
     });
@@ -1796,6 +1826,11 @@ export async function runTxlineRuntimeAudit(
         auditRunId: run.id,
         status: "failed",
         requests: createRequestTracker(),
+        targets: {
+          fixtureIds,
+          scoreFixtureIds,
+          oddsFixtureIds
+        },
         asOf: {
           global: globalAsOf,
           scoreByFixtureId: scoreAsOfByFixtureId,

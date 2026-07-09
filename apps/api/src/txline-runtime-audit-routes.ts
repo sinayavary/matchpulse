@@ -53,6 +53,8 @@ export function registerTxlineRuntimeAuditRoutes(app: FastifyInstance): void {
     const config = getTxlineConfigFromEnv();
     const body = request.body as Record<string, unknown> | undefined;
     const fixtureIds = readStringArray(body?.fixtureIds);
+    const scoreFixtureIds = readStringArray(body?.scoreFixtureIds);
+    const oddsFixtureIds = readStringArray(body?.oddsFixtureIds);
     const competitionId = normalizeCompetitionId(body?.competitionId);
     const startEpochDay = typeof body?.startEpochDay === "number" && Number.isInteger(body.startEpochDay)
       ? body.startEpochDay
@@ -105,6 +107,8 @@ export function registerTxlineRuntimeAuditRoutes(app: FastifyInstance): void {
 
     const result = await runTxlineRuntimeAudit({
       fixtureIds,
+      scoreFixtureIds,
+      oddsFixtureIds,
       competitionId,
       startEpochDay,
       includeFixtures,

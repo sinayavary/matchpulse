@@ -33,12 +33,13 @@ curl -X POST http://localhost:4000/api/internal/txline/audit/runtime \
   -H "Content-Type: application/json" \
   -d '{
     "fixtureIds": ["17952170", "17588223"],
+    "scoreFixtureIds": ["17952170"],
+    "oddsFixtureIds": ["17588223"],
     "competitionId": 430,
     "startEpochDay": 20608,
     "includeFixtures": true,
     "includeScores": true,
     "includeOdds": true,
-    "asOf": 1781226000000,
     "scoreAsOfByFixtureId": {
       "17952170": 1780596263367
     },
@@ -64,6 +65,7 @@ curl http://localhost:4000/api/internal/txline/audit/runtime/<auditRunId>
 - `odds.bookmakerIds` and `odds.bookmakerCount` summarize bookmaker distribution
 - `odds.classification` identifies `single_stable_price_demargined`, `single_source`, `multi_bookmaker`, or `unknown`
 - `odds.pct` reports raw `Pct` numeric and `NA` behavior without de-vigging
+- `targets.fixtureIds`, `targets.scoreFixtureIds`, and `targets.oddsFixtureIds` show the fixture lists used by each part of the audit
 - `requests` summarizes attempted, succeeded, failed, and skipped fetches
 - `asOf` records the global and per-fixture timestamps used by score and odds requests
 - `latency` reports provider-to-receipt latency when a timestamp can be extracted
