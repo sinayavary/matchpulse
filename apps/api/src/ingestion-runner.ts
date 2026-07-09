@@ -14,6 +14,11 @@ import {
   getDbBackedMatchState,
   type CanonicalMatchState
 } from "./match-state-builder.js";
+import {
+  FALLBACK_RUNTIME_INGESTION_TARGETS,
+  getRuntimeIngestionTargetsFromEnv,
+  type RuntimeIngestionTargets
+} from "./runtime-target-registry.js";
 
 export type IngestionRunnerInput = {
   fixtureId: string;
@@ -24,6 +29,7 @@ export type IngestionRunnerInput = {
   includeScore?: boolean;
   includeOdds?: boolean;
   oddsLimit?: number;
+  runtimeTargets?: RuntimeIngestionTargets;
 };
 
 export type NormalizedIngestionRunnerInput = {
@@ -69,6 +75,7 @@ export type IngestionRunnerDependencies = {
     options: { includeOdds: boolean; oddsLimit: number }
   ) => Promise<CanonicalMatchState>;
   createRunId: () => string;
+  getRuntimeTargets: (env?: NodeJS.ProcessEnv) => RuntimeIngestionTargets;
 };
 
 export type TargetIngestionCycleInput = {
@@ -77,6 +84,7 @@ export type TargetIngestionCycleInput = {
   odds?: boolean;
   pressureReady?: boolean;
   dryRun?: boolean;
+  runtimeTargets?: RuntimeIngestionTargets;
 };
 
 export type TargetIngestionCycleStatus = "ok" | "partial" | "failed";
@@ -216,7 +224,8 @@ const defaultDependencies: IngestionRunnerDependencies = {
   ingestScore: ingestTxlineScoreSnapshot,
   ingestOdds: ingestTxlineOddsSnapshot,
   buildState: getDbBackedMatchState,
-  createRunId: randomUUID
+  createRunId: randomUUID,
+  getRuntimeTargets: getRuntimeIngestionTargetsFromEnv
 };
 
 function buildTargetCycleSummary(
@@ -281,6 +290,10 @@ export async function runTargetIngestionCycle(
 ): Promise<TargetIngestionCycleSummary> {
   const deps = { ...defaultDependencies, ...dependencies };
   const selected = getSelectedTargetFlags(input);
+  const runtimeTargets = input.runtimeTargets ?? deps.getRuntimeTargets(process.env);
+  const fixtureTarget = runtimeTargets.fixtures[0] ?? FALLBACK_RUNTIME_INGESTION_TARGETS.fixtures[0];
+  const scoreTarget = runtimeTargets.scores[0] ?? FALLBACK_RUNTIME_INGESTION_TARGETS.scores[0];
+  const oddsTarget = runtimeTargets.odds[0] ?? FALLBACK_RUNTIME_INGESTION_TARGETS.odds[0];
   const startedAt = new Date().toISOString();
 
   if (input.dryRun === true) {
@@ -315,8 +328,8 @@ export async function runTargetIngestionCycle(
   if (selected.fixtures) {
     try {
       fixtures = toTargetCycleStatus(await deps.ingestFixtures({
-        competitionId: String(TARGET_FIXTURE_INGESTION_SCOPE.competitionId),
-        startEpochDay: TARGET_FIXTURE_INGESTION_SCOPE.startEpochDay,
+        competitionId: String(fixtureTarget.competitionId),
+        startEpochDay: fixtureTarget.startEpochDay,
         includeRaw: false
       }));
     } catch {
@@ -327,8 +340,8 @@ export async function runTargetIngestionCycle(
   if (selected.scores) {
     try {
       scores = toTargetCycleStatus(await deps.ingestScore({
-        fixtureId: TARGET_SCORE_INGESTION_SCOPE.fixtureId,
-        asOf: TARGET_SCORE_INGESTION_SCOPE.asOf,
+        fixtureId: scoreTarget.fixtureId,
+        asOf: scoreTarget.asOf,
         includeRaw: false
       }));
     } catch {
@@ -339,8 +352,8 @@ export async function runTargetIngestionCycle(
   if (selected.odds) {
     try {
       odds = toTargetCycleStatus(await deps.ingestOdds({
-        fixtureId: TARGET_ODDS_INGESTION_SCOPE.fixtureId,
-        asOf: TARGET_ODDS_INGESTION_SCOPE.asOf,
+        fixtureId: oddsTarget.fixtureId,
+        asOf: oddsTarget.asOf,
         includeRaw: false
       }));
     } catch {

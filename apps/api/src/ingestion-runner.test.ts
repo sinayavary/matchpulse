@@ -7,9 +7,9 @@ import {
   runFixtureIngestionPipeline,
   summarizeCanonicalState,
   TARGET_INGESTION_SAFE_SCOPE_NOTE,
-  TARGET_SCORE_INGESTION_SCOPE,
   type IngestionRunnerDependencies
 } from "./ingestion-runner.js";
+import { FALLBACK_RUNTIME_INGESTION_TARGETS } from "./runtime-target-registry.js";
 import type { CanonicalMatchState } from "./match-state-builder.js";
 import { readFile } from "node:fs/promises";
 
@@ -308,9 +308,67 @@ test("target cycle returns ok when mocked ingestion steps succeed", async () => 
   assert.equal(result.safe_scope_note, TARGET_INGESTION_SAFE_SCOPE_NOTE);
   assert.equal(scoreInputs.length, 1);
   const scoreInput = scoreInputs[0];
-  assert.equal(scoreInput?.fixtureId, TARGET_SCORE_INGESTION_SCOPE.fixtureId);
-  assert.equal(scoreInput?.asOf, TARGET_SCORE_INGESTION_SCOPE.asOf);
+  assert.equal(scoreInput?.fixtureId, FALLBACK_RUNTIME_INGESTION_TARGETS.scores[0].fixtureId);
+  assert.equal(scoreInput?.asOf, FALLBACK_RUNTIME_INGESTION_TARGETS.scores[0].asOf);
   assert.equal(scoreInput?.includeRaw, false);
+});
+
+test("target cycle can use injected runtime targets for score override", async () => {
+  const scoreInputs: Parameters<IngestionRunnerDependencies["ingestScore"]>[0][] = [];
+
+  const result = await runTargetIngestionCycle({
+    runtimeTargets: {
+      fixtures: [{ competitionId: 430, startEpochDay: 20608 }],
+      scores: [{ fixtureId: "override-score", asOf: 1_700_000_000_000 }],
+      odds: [{ fixtureId: "override-odds", asOf: 1_700_000_000_001 }],
+      source: "env"
+    }
+  }, {
+    ingestFixtures: async () => ({
+      fetchedCount: 1,
+      normalizedCount: 1,
+      upsertedCount: 1,
+      skippedCount: 0,
+      failedCount: 0,
+      fixtures: [{
+        fixture_id: "override-fixture",
+        competition: "430",
+        home_team: "Slovenia",
+        away_team: "Cyprus",
+        start_time_utc: null,
+        status: "unknown"
+      }]
+    }),
+    ingestScore: async (input) => {
+      scoreInputs.push(input);
+      return {
+        fixtureId: input.fixtureId,
+        fetchedCount: 1,
+        selectedSeq: 960,
+        selectedTs: input.asOf,
+        action: "game_finalised",
+        scoreAvailable: true,
+        upserted: true,
+        matchState: null
+      };
+    },
+    ingestOdds: async () => ({
+      requested: { fixture_id: "override-odds", as_of: "1700000000001" },
+      result: {
+        fetched_count: 1,
+        mapped_count: 1,
+        upserted_count: 1,
+        skipped_count: 0,
+        failed_count: 0
+      },
+      odds_snapshots: []
+    })
+  });
+
+  assert.equal(result.status, "ok");
+  assert.equal(scoreInputs.length, 1);
+  assert.equal(scoreInputs[0]?.fixtureId, "override-score");
+  assert.equal(scoreInputs[0]?.asOf, 1_700_000_000_000);
 });
 
 test("target cycle returns partial when one mocked step fails", async () => {
