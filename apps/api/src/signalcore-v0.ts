@@ -3,6 +3,10 @@ import {
   getDbBackedMatchState,
   type CanonicalMatchState
 } from "./match-state-builder.js";
+import {
+  getPressureEngineV1FromStoredScores,
+  type PressureEngineV1AdapterOutput
+} from "./pressure-engine-v1-adapter.js";
 import type {
   SignalCoreAllowedSignalSeverity,
   SignalCoreAllowedSignalType
@@ -18,14 +22,22 @@ export type SignalCoreV0Signal = {
 
 export type SignalCoreV0Options = {
   includeState?: boolean;
+  includePressure?: boolean;
   oddsLimit?: number;
   staleAfterMinutes?: number;
+  pressureWindowSize?: number;
+  pressureMaxEvidence?: number;
+  pressureMaxPayloadAgeMinutes?: number;
 };
 
 export type NormalizedSignalCoreV0Options = {
   includeState: boolean;
+  includePressure: boolean;
   oddsLimit: number;
   staleAfterMinutes: number;
+  pressureWindowSize: number;
+  pressureMaxEvidence: number;
+  pressureMaxPayloadAgeMinutes: number | null;
 };
 
 export type SignalCoreV0Summary = {
@@ -66,11 +78,29 @@ export function normalizeSignalCoreOptions(
     typeof options.staleAfterMinutes === "number" && Number.isFinite(options.staleAfterMinutes)
       ? Math.trunc(options.staleAfterMinutes)
       : 180;
+  const requestedPressureWindowSize =
+    typeof options.pressureWindowSize === "number" && Number.isFinite(options.pressureWindowSize)
+      ? Math.trunc(options.pressureWindowSize)
+      : 10;
+  const requestedPressureMaxEvidence =
+    typeof options.pressureMaxEvidence === "number" && Number.isFinite(options.pressureMaxEvidence)
+      ? Math.trunc(options.pressureMaxEvidence)
+      : 8;
+  const requestedPressureMaxPayloadAgeMinutes =
+    typeof options.pressureMaxPayloadAgeMinutes === "number" && Number.isFinite(options.pressureMaxPayloadAgeMinutes)
+      ? Math.trunc(options.pressureMaxPayloadAgeMinutes)
+      : null;
 
   return {
     includeState: options.includeState === true,
+    includePressure: options.includePressure === true,
     oddsLimit: Math.min(50, Math.max(1, requestedOddsLimit)),
-    staleAfterMinutes: Math.min(10080, Math.max(1, requestedStaleAfterMinutes))
+    staleAfterMinutes: Math.min(10080, Math.max(1, requestedStaleAfterMinutes)),
+    pressureWindowSize: Math.min(50, Math.max(1, requestedPressureWindowSize)),
+    pressureMaxEvidence: Math.min(20, Math.max(1, requestedPressureMaxEvidence)),
+    pressureMaxPayloadAgeMinutes: requestedPressureMaxPayloadAgeMinutes === null
+      ? null
+      : Math.min(10080, Math.max(1, requestedPressureMaxPayloadAgeMinutes))
   };
 }
 
@@ -82,6 +112,70 @@ export function createSignal(
   details: Record<string, unknown>
 ): SignalCoreV0Signal {
   return { type, severity, title, message, details };
+}
+
+const PRESSURE_AVAILABLE_MESSAGE =
+  "Rule-based pressure hint is available from stored score data.";
+const PRESSURE_LIMITED_MESSAGE =
+  "Rule-based pressure hint is limited by stored score data availability.";
+
+function hasPressureLimitation(
+  limitations: string[],
+  patterns: readonly string[]
+): boolean {
+  const normalizedLimitations = limitations.map((limitation) => limitation.toLowerCase());
+  return patterns.some((pattern) =>
+    normalizedLimitations.some((limitation) => limitation.includes(pattern))
+  );
+}
+
+export function createPressureSignalFromAdapterOutput(
+  fixtureId: string,
+  pressureOutput: PressureEngineV1AdapterOutput
+): SignalCoreV0Signal | null {
+  const evidenceCount = pressureOutput.pressure.evidence.length;
+  if (
+    evidenceCount === 0 ||
+    pressureOutput.pressure.evaluated_records === 0 ||
+    (pressureOutput.status === "unavailable" && pressureOutput.pressure.status === "unavailable")
+  ) {
+    return null;
+  }
+
+  const limitations = pressureOutput.limitations;
+  const hasLimitation = hasPressureLimitation(limitations, [
+    "older than the requested freshness window",
+    "no stored scores_snapshot payload was found",
+    "did not contain score-like records",
+    "failed to read stored score snapshot payload",
+    "adapter unavailable"
+  ]);
+  const severity =
+    pressureOutput.status === "error" || hasLimitation ? "warning" : "info";
+  const message = severity === "info"
+    ? PRESSURE_AVAILABLE_MESSAGE
+    : PRESSURE_LIMITED_MESSAGE;
+
+  return createSignal(
+    "PRESSURE_HINT_AVAILABLE",
+    severity,
+    "Pressure hint available",
+    message,
+    {
+      fixture_id: fixtureId,
+      pressure_kind: "rule_based_pressure_hint",
+      pressure_level: pressureOutput.pressure.pressure_level,
+      pressure_score: pressureOutput.pressure.pressure_score,
+      source: "stored_scores_snapshot",
+      adapter_status: pressureOutput.status,
+      evidence_count: evidenceCount,
+      evaluated_records: pressureOutput.pressure.evaluated_records,
+      usable_records: pressureOutput.pressure.usable_records,
+      latest_seq: pressureOutput.pressure.latest_seq,
+      latest_ts: pressureOutput.pressure.latest_ts,
+      limitations
+    }
+  );
 }
 
 function toSummaryStatus(state: CanonicalMatchState): SignalCoreV0Summary["status"] {
@@ -137,6 +231,7 @@ export function summarizeSignals(
 export function generateSignalCoreV0(input: {
   state: CanonicalMatchState;
   options?: SignalCoreV0Options;
+  pressureOutput?: PressureEngineV1AdapterOutput | null;
 }): SignalCoreV0Data {
   const normalized = normalizeSignalCoreOptions(input.options);
   const { state } = input;
@@ -262,6 +357,13 @@ export function generateSignalCoreV0(input: {
     );
   }
 
+  if (normalized.includePressure && input.pressureOutput !== undefined && input.pressureOutput !== null) {
+    const pressureSignal = createPressureSignalFromAdapterOutput(state.fixture_id, input.pressureOutput);
+    if (pressureSignal !== null) {
+      signals.push(pressureSignal);
+    }
+  }
+
   signals.push(
     isFresh(state.freshness.latest_data_timestamp, normalized.staleAfterMinutes)
       ? createSignal(
@@ -336,7 +438,27 @@ export async function getSignalCoreV0ForFixture(
     }
   }
 
-  const data = generateSignalCoreV0({ state, options: normalized });
+  let pressureOutput: PressureEngineV1AdapterOutput | null = null;
+  if (normalized.includePressure) {
+    try {
+      pressureOutput = await getPressureEngineV1FromStoredScores(fixtureId, {
+        windowSize: normalized.pressureWindowSize,
+        maxEvidence: normalized.pressureMaxEvidence,
+        maxPayloadAgeMinutes: normalized.pressureMaxPayloadAgeMinutes ?? undefined
+      });
+    } catch {
+      pressureOutput = null;
+    }
+  }
+
+  const data = generateSignalCoreV0({
+    state,
+    options: {
+      ...normalized,
+      pressureMaxPayloadAgeMinutes: normalized.pressureMaxPayloadAgeMinutes ?? undefined
+    },
+    pressureOutput
+  });
 
   return {
     data,

@@ -111,6 +111,8 @@ Before implementing SignalCore integration, the following must stay true:
 - Phase 1F - Add presenter-safe pressure wording
 - Phase 1G - Frontend display contract for pressure card
 
+Phase 1D implemented the internal SignalCore integration behind `includePressure`. Public API, presenter, and frontend exposure remain blocked.
+
 Notes:
 
 - Phase 1D may modify `signalcore-contract.ts` and `signalcore-v0.ts`.

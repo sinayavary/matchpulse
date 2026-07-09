@@ -5,6 +5,7 @@ import {
   assertNoForbiddenSignalFields
 } from "./signalcore-contract.js";
 import {
+  createPressureSignalFromAdapterOutput,
   generateSignalCoreV0,
   getSignalCoreV0ForFixture,
   normalizeSignalCoreOptions,
@@ -12,6 +13,7 @@ import {
   type SignalCoreV0Signal
 } from "./signalcore-v0.js";
 import type { CanonicalMatchState } from "./match-state-builder.js";
+import type { PressureEngineV1AdapterOutput } from "./pressure-engine-v1-adapter.js";
 
 type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends Array<infer U>
@@ -85,6 +87,74 @@ function makeState(overrides: DeepPartial<CanonicalMatchState> = {}): CanonicalM
 
 function hasSignal(signals: SignalCoreV0Signal[], type: string): boolean {
   return signals.some((signal) => signal.type === type);
+}
+
+function makePressureAdapterOutput(
+  overrides: Partial<PressureEngineV1AdapterOutput> = {}
+): PressureEngineV1AdapterOutput {
+  const base: PressureEngineV1AdapterOutput = {
+    adapter_version: "pressure-v1-stored-payload-adapter",
+    fixture_id: "17952170",
+    status: "available",
+    source: "txline_raw_payloads",
+    payload: {
+      found: true,
+      id: "payload-1",
+      endpoint_type: "scores_snapshot",
+      endpoint_path: "/scores_snapshot",
+      as_of: "2026-07-05T11:54:00.000Z",
+      provider_ts: "2026-07-05T11:55:00.000Z",
+      received_at: "2026-07-05T11:55:30.000Z",
+      stored_at: "2026-07-05T11:56:00.000Z",
+      payload_hash: "hash-1",
+      extracted_record_count: 2
+    },
+    pressure: {
+      engine_version: "pressure-v1-rule-based",
+      kind: "rule_based_pressure_hint",
+      status: "available",
+      pressure_level: "medium",
+      pressure_score: 4,
+      primary_side: "unknown",
+      evaluated_records: 2,
+      usable_records: 1,
+      latest_seq: 12,
+      latest_ts: 1720170960000,
+      evidence: [
+        {
+          seq: 12,
+          ts: 1720170960000,
+          signal: "possessionType",
+          value: "AttackPossession",
+          weight: 2,
+          reason: "possessionType=AttackPossession indicates a sparse pressure state"
+        }
+      ],
+      limitations: [],
+      debug_lineage: [
+        {
+          seq: 12,
+          ts: 1720170960000,
+          extracted_fields: ["seq", "ts", "possessionType"],
+          used: true,
+          reason: "possessionType evidence"
+        }
+      ],
+      safe_scope_note:
+        "This output is a rule-based pressure hint from available TxLINE score fields. It is not a prediction, probability, betting recommendation, or trained model output."
+    },
+    limitations: [],
+    safe_scope_note:
+      "This adapter reads stored TxLINE score snapshot payloads and returns a rule-based pressure hint. It does not call live APIs, write data, predict outcomes, produce probabilities, or provide betting guidance."
+  };
+
+  return {
+    ...base,
+    ...overrides,
+    payload: { ...base.payload, ...overrides.payload },
+    pressure: { ...base.pressure, ...overrides.pressure },
+    limitations: overrides.limitations ?? base.limitations
+  };
 }
 
 test("complete state generates DATA_READY", () => {
@@ -303,9 +373,95 @@ test("oddsLimit caps at 50", () => {
   assert.equal(options.oddsLimit, 50);
 });
 
+test("includePressure defaults false", () => {
+  const options = normalizeSignalCoreOptions({});
+  assert.equal(options.includePressure, false);
+});
+
+test("pressure options clamp safely", () => {
+  const options = normalizeSignalCoreOptions({
+    includePressure: true,
+    pressureWindowSize: 999,
+    pressureMaxEvidence: 999,
+    pressureMaxPayloadAgeMinutes: 999999
+  });
+
+  assert.equal(options.includePressure, true);
+  assert.equal(options.pressureWindowSize, 50);
+  assert.equal(options.pressureMaxEvidence, 20);
+  assert.equal(options.pressureMaxPayloadAgeMinutes, 10080);
+});
+
 test("staleAfterMinutes caps safely", () => {
   const options = normalizeSignalCoreOptions({ staleAfterMinutes: 99_999 });
   assert.equal(options.staleAfterMinutes, 10080);
+});
+
+test("contract allows pressure signal type", () => {
+  assert.equal(
+    SIGNALCORE_ALLOWED_SIGNAL_TYPES.includes("PRESSURE_HINT_AVAILABLE"),
+    true
+  );
+});
+
+test("pressure signal maps approved details shape", () => {
+  const pressureOutput = makePressureAdapterOutput();
+  const signal = createPressureSignalFromAdapterOutput("17952170", pressureOutput);
+
+  assert.ok(signal);
+  assert.equal(signal.type, "PRESSURE_HINT_AVAILABLE");
+  assert.equal(signal.severity === "info" || signal.severity === "warning", true);
+  assert.equal(signal.title, "Pressure hint available");
+
+  const keys = Object.keys(signal.details).sort();
+  assert.deepEqual(keys, [
+    "adapter_status",
+    "evaluated_records",
+    "evidence_count",
+    "fixture_id",
+    "latest_seq",
+    "latest_ts",
+    "limitations",
+    "pressure_kind",
+    "pressure_level",
+    "pressure_score",
+    "source",
+    "usable_records"
+  ]);
+  assert.doesNotThrow(() => assertNoForbiddenSignalFields(signal));
+  assert.equal("debug_lineage" in signal.details, false);
+  assert.equal("payload" in signal.details, false);
+});
+
+test("unavailable pressure returns null", () => {
+  const signal = createPressureSignalFromAdapterOutput(
+    "17952170",
+    makePressureAdapterOutput({
+      status: "unavailable",
+      pressure: {
+        ...makePressureAdapterOutput().pressure,
+        status: "unavailable",
+        evidence: [],
+        evaluated_records: 0,
+        usable_records: 0,
+        latest_seq: null,
+        latest_ts: null,
+        limitations: []
+      }
+    })
+  );
+
+  assert.equal(signal, null);
+});
+
+test("includePressure false preserves existing output", () => {
+  const result = generateSignalCoreV0({
+    state: makeState(),
+    options: { includePressure: false },
+    pressureOutput: makePressureAdapterOutput()
+  });
+
+  assert.equal(hasSignal(result.signals, "PRESSURE_HINT_AVAILABLE"), false);
 });
 
 test("output passes assertNoForbiddenSignalFields", () => {
@@ -314,7 +470,11 @@ test("output passes assertNoForbiddenSignalFields", () => {
 });
 
 test("output does not include forbidden terms", () => {
-  const result = generateSignalCoreV0({ state: makeState(), options: { includeState: true } });
+  const result = generateSignalCoreV0({
+    state: makeState(),
+    options: { includeState: true, includePressure: true },
+    pressureOutput: makePressureAdapterOutput()
+  });
   const serialized = JSON.stringify(result).toLowerCase();
   const forbiddenTerms = [
     "probability",
@@ -332,6 +492,32 @@ test("output does not include forbidden terms", () => {
 
   forbiddenTerms.forEach((term) => {
     assert.equal(serialized.includes(`"${term}"`), false);
+  });
+});
+
+test("pressure output does not expose forbidden property keys", () => {
+  const result = generateSignalCoreV0({
+    state: makeState(),
+    options: { includePressure: true },
+    pressureOutput: makePressureAdapterOutput()
+  });
+  const serialized = JSON.stringify(result);
+  const forbiddenPropertyKeys = [
+    "\"confidence\":",
+    "\"probability\":",
+    "\"recommendation\":",
+    "\"recommended_bet\":",
+    "\"bet\":",
+    "\"wager\":",
+    "\"stake\":",
+    "\"expected_value\":",
+    "\"edge\":",
+    "\"prediction\":",
+    "\"winner\":"
+  ];
+
+  forbiddenPropertyKeys.forEach((key) => {
+    assert.equal(serialized.includes(key), false);
   });
 });
 

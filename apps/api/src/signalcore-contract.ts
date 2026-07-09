@@ -10,7 +10,8 @@ export const SIGNALCORE_ALLOWED_SIGNAL_TYPES = [
   "ODDS_MISSING",
   "DATA_FRESH",
   "DATA_STALE",
-  "IDENTITY_INCOMPLETE"
+  "IDENTITY_INCOMPLETE",
+  "PRESSURE_HINT_AVAILABLE"
 ] as const;
 
 export const SIGNALCORE_ALLOWED_SIGNAL_SEVERITIES = [
@@ -83,7 +84,7 @@ export function getSignalCoreContract() {
     forbidden_output_fields: [...SIGNALCORE_FORBIDDEN_OUTPUT_FIELDS],
     forbidden_topics: [...SIGNALCORE_FORBIDDEN_TOPICS],
     product_options: [...SIGNALCORE_MVP_PRODUCT_OPTIONS],
-    next_phase: "SignalCore v0 implementation" as const
+    next_phase: "Internal pressure integration behind includePressure" as const
   };
 }
 
