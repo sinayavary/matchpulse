@@ -119,7 +119,7 @@ export type TargetIngestionCycleSummary = {
 export class IngestionRunnerValidationError extends TypeError {}
 
 export const TARGET_INGESTION_SAFE_SCOPE_NOTE =
-  "This internal runner only refreshes persisted TxLINE-derived data for demo/backend stability. It does not make predictions or betting recommendations.";
+  "This internal runner only refreshes persisted TxLINE-derived data for product runtime stability. It does not make predictions or betting recommendations.";
 
 export const TARGET_FIXTURE_INGESTION_SCOPE = {
   fixtureId: "17952170",

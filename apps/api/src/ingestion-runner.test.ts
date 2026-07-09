@@ -313,6 +313,13 @@ test("target cycle returns ok when mocked ingestion steps succeed", async () => 
   assert.equal(scoreInput?.includeRaw, false);
 });
 
+test("runner wording uses product runtime stability", async () => {
+  const source = await readFile(new URL("./ingestion-runner.ts", import.meta.url), "utf8");
+
+  assert.match(source, /product runtime stability/);
+  assert.doesNotMatch(source, /demo\/backend stability/);
+});
+
 test("target cycle can use injected runtime targets for score override", async () => {
   const scoreInputs: Parameters<IngestionRunnerDependencies["ingestScore"]>[0][] = [];
 
