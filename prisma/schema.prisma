@@ -167,3 +167,63 @@ model HealthStatus {
   @@index([status])
   @@map("health_status")
 }
+
+model TxlineAuditRun {
+  id            String   @id @default(uuid()) @db.Uuid
+  status        String
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  startedAt     DateTime? @map("started_at") @db.Timestamptz(3)
+  finishedAt    DateTime? @map("finished_at") @db.Timestamptz(3)
+  fixtureIds    Json     @map("fixture_ids")
+  competitionIds Json     @map("competition_ids")
+  notes         String?
+  summaryJson   Json?    @map("summary_json")
+  errorJson     Json?    @map("error_json")
+
+  rawPayloads TxlineRawPayload[]
+  findings    TxlineAuditFinding[]
+
+  @@index([status])
+  @@map("txline_audit_runs")
+}
+
+model TxlineRawPayload {
+  id            String   @id @default(uuid()) @db.Uuid
+  auditRunId    String   @map("audit_run_id") @db.Uuid
+  endpointType  String   @map("endpoint_type")
+  endpointPath  String   @map("endpoint_path")
+  fixtureId     String?  @map("fixture_id")
+  competitionId String?  @map("competition_id")
+  startEpochDay Int?     @map("start_epoch_day")
+  asOf          DateTime? @map("as_of") @db.Timestamptz(3)
+  providerTs    DateTime? @map("provider_ts") @db.Timestamptz(3)
+  receivedAt    DateTime @map("received_at") @db.Timestamptz(3)
+  storedAt      DateTime @map("stored_at") @db.Timestamptz(3)
+  payloadHash   String   @map("payload_hash")
+  payloadJson   Json     @map("payload_json")
+  metaJson      Json?    @map("meta_json")
+
+  auditRun TxlineAuditRun @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+
+  @@index([auditRunId, endpointType])
+  @@index([fixtureId])
+  @@index([competitionId])
+  @@map("txline_raw_payloads")
+}
+
+model TxlineAuditFinding {
+  id          String   @id @default(uuid()) @db.Uuid
+  auditRunId  String   @map("audit_run_id") @db.Uuid
+  fixtureId   String?  @map("fixture_id")
+  category    String
+  severity    String
+  title       String
+  detailsJson Json?    @map("details_json")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  auditRun TxlineAuditRun @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+
+  @@index([auditRunId, category])
+  @@index([fixtureId])
+  @@map("txline_audit_findings")
+}
