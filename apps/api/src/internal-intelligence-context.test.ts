@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildEventImpactAssessment } from "./event-impact-foundation.js";
-import { buildInternalIntelligenceContext } from "./internal-intelligence-context.js";
+import {
+  buildInternalIntelligenceContext,
+  getDbBackedInternalIntelligenceContext
+} from "./internal-intelligence-context.js";
 import { buildMatchEventContextFromRows } from "./match-event-context-builder.js";
 import { buildCanonicalMatchState } from "./match-state-builder.js";
 import { assessStoredOddsReliability } from "./odds-reliability-foundation.js";
@@ -102,4 +105,136 @@ test("output contains no forbidden keys", () => {
   };
   visit(context({ events: [eventRow()] }));
   assert.deepEqual(keys.filter((key) => forbidden.has(key)), []);
+});
+
+function fakeDb(options: { empty?: boolean; partial?: boolean } = {}) {
+  const calls = {
+    fixture: [] as unknown[],
+    matchState: [] as unknown[],
+    odds: [] as unknown[],
+    events: [] as unknown[]
+  };
+  const oddsRows = options.empty ? [] : Array.from({ length: 10 }, (_, index) => ({
+    marketId: `market-${(index % 5) + 1}`,
+    marketName: "Match Result",
+    selectionName: `Selection ${index + 1}`,
+    odds: { toNumber: () => 2 },
+    direction: "flat",
+    sourceTimestamp: referenceTime,
+    createdAt: referenceTime
+  }));
+  const events = options.empty ? [] : [eventRow({ eventType: "red_card" })];
+
+  return {
+    calls,
+    db: {
+      fixture: {
+        findUnique: async (args: unknown) => {
+          calls.fixture.push(args);
+          return options.empty ? null : {
+            fixtureId, competition: "International", homeTeam: "Home", awayTeam: "Away",
+            startTimeUtc: referenceTime, status: "live"
+          };
+        }
+      },
+      matchState: {
+        findUnique: async (args: unknown) => {
+          calls.matchState.push(args);
+          return options.empty || options.partial ? null : {
+            homeScore: 1, awayScore: 0, phase: "live", lastDataReceivedAt: referenceTime
+          };
+        }
+      },
+      oddsSnapshot: {
+        findMany: async (args: unknown) => {
+          calls.odds.push(args);
+          return oddsRows;
+        }
+      },
+      matchEvent: {
+        findMany: async (args: unknown) => {
+          calls.events.push(args);
+          return events;
+        }
+      }
+    }
+  };
+}
+
+async function withFakeDb<T>(fake: ReturnType<typeof fakeDb>, run: () => Promise<T>): Promise<T> {
+  const holder = globalThis as { matchpulsePrisma?: unknown };
+  const previous = holder.matchpulsePrisma;
+  holder.matchpulsePrisma = fake.db;
+  try {
+    return await run();
+  } finally {
+    holder.matchpulsePrisma = previous;
+  }
+}
+
+test("DB-backed provider composes stored match state, odds, events, and impact", async () => {
+  const fake = fakeDb();
+  const result = await withFakeDb(fake, () => getDbBackedInternalIntelligenceContext(fixtureId, {
+    oddsLimit: 500,
+    now: () => referenceTime
+  }));
+
+  assert.equal(result.status, "available");
+  assert.equal(result.match_state.phase, "live");
+  assert.equal(result.odds_reliability.status, "available");
+  assert.equal(result.event_context.event_count, 1);
+  assert.equal(result.event_impact.impact_level, "high");
+  assert.equal(result.generated_at, "2026-07-09T12:00:00.000Z");
+  assert.equal(fake.calls.fixture.length, 1);
+  assert.equal(fake.calls.matchState.length, 1);
+  assert.equal(fake.calls.odds.length, 2);
+  const matchStateOddsQuery = fake.calls.odds.find((query) =>
+    typeof query === "object" && query !== null && "take" in query
+  ) as { take: number } | undefined;
+  assert.equal(matchStateOddsQuery?.take, 50);
+});
+
+test("DB-backed provider reads events once and passes options safely", async () => {
+  const fake = fakeDb();
+  const result = await withFakeDb(fake, () => getDbBackedInternalIntelligenceContext(fixtureId, {
+    includeOdds: false,
+    oddsLimit: 500,
+    recentEventLimit: 1,
+    keyEventLimit: 1,
+    now: () => referenceTime
+  }));
+
+  assert.equal(fake.calls.events.length, 1);
+  assert.equal(fake.calls.odds.length, 1);
+  assert.equal(result.match_state.freshness_label, "Stored scoreboard timestamp available");
+  assert.equal(result.event_context.event_count, 1);
+  assert.equal(result.event_impact.key_event_count, 1);
+  assert.equal(result.generated_at, "2026-07-09T12:00:00.000Z");
+});
+
+test("DB-backed provider returns an empty context safely without stored rows", async () => {
+  const fake = fakeDb({ empty: true });
+  const result = await withFakeDb(fake, () => getDbBackedInternalIntelligenceContext(fixtureId, {
+    now: () => referenceTime
+  }));
+
+  assert.equal(result.status, "empty");
+  assert.equal(result.odds_reliability.status, "unavailable");
+  assert.equal(result.odds_reliability.snapshot_count, 0);
+  assert.equal(result.odds_reliability.market_count, 0);
+  assert.equal(result.odds_reliability.provider_count, 0);
+  assert.equal(result.event_context.event_count, 0);
+  assert.equal(result.event_impact.key_event_count, 0);
+});
+
+test("DB-backed provider returns a partial context safely when stored data is incomplete", async () => {
+  const fake = fakeDb({ partial: true });
+  const result = await withFakeDb(fake, () => getDbBackedInternalIntelligenceContext(fixtureId, {
+    includeOdds: false,
+    now: () => referenceTime
+  }));
+
+  assert.equal(result.status, "partial");
+  assert.equal(result.data_readiness.has_fixture, true);
+  assert.equal(result.data_readiness.has_scoreboard, false);
 });

@@ -1,7 +1,19 @@
-import type { EventImpactAssessment } from "./event-impact-foundation.js";
-import type { MatchEventContext } from "./match-event-context-builder.js";
-import type { CanonicalMatchState } from "./match-state-builder.js";
-import type { OddsReliabilityAssessment } from "./odds-reliability-foundation.js";
+import {
+  buildEventImpactAssessment,
+  type EventImpactAssessment
+} from "./event-impact-foundation.js";
+import {
+  getDbBackedMatchEventContext,
+  type MatchEventContext
+} from "./match-event-context-builder.js";
+import {
+  getDbBackedMatchState,
+  type CanonicalMatchState
+} from "./match-state-builder.js";
+import {
+  getOddsReliabilityAssessmentForFixture,
+  type OddsReliabilityAssessment
+} from "./odds-reliability-foundation.js";
 
 export type InternalIntelligenceContext = {
   fixture_id: string;
@@ -141,4 +153,38 @@ export function buildInternalIntelligenceContext(input: {
     limitations: [...LIMITATIONS],
     safe_scope_note: SAFE_SCOPE_NOTE
   };
+}
+
+export async function getDbBackedInternalIntelligenceContext(
+  fixtureId: string,
+  options: {
+    includeOdds?: boolean;
+    oddsLimit?: number;
+    recentEventLimit?: number;
+    keyEventLimit?: number;
+    now?: () => Date;
+  } = {}
+): Promise<InternalIntelligenceContext> {
+  const [matchState, oddsReliability, eventContext] = await Promise.all([
+    getDbBackedMatchState(fixtureId, {
+      includeOdds: options.includeOdds,
+      oddsLimit: options.oddsLimit
+    }),
+    getOddsReliabilityAssessmentForFixture(fixtureId, { now: options.now }),
+    getDbBackedMatchEventContext(fixtureId, {
+      recentLimit: options.recentEventLimit
+    })
+  ]);
+  const eventImpact = buildEventImpactAssessment(eventContext, {
+    keyEventLimit: options.keyEventLimit
+  });
+
+  return buildInternalIntelligenceContext({
+    fixtureId,
+    matchState,
+    oddsReliability,
+    eventContext,
+    eventImpact,
+    now: options.now
+  });
 }
