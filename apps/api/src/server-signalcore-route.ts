@@ -42,6 +42,9 @@ export function registerInternalSignalCoreRoute(
       pressureWindowSize?: unknown;
       pressureMaxEvidence?: unknown;
       pressureMaxPayloadAgeMinutes?: unknown;
+      includeInternalContext?: unknown;
+      includeEventImpact?: unknown;
+      includeEventContext?: unknown;
     };
     const includeState = readBoolean(query.includeState);
     const includePressure = readBoolean(query.includePressure);
@@ -51,6 +54,9 @@ export function registerInternalSignalCoreRoute(
     const pressureWindowSize = readNumber(query.pressureWindowSize);
     const pressureMaxEvidence = readNumber(query.pressureMaxEvidence);
     const pressureMaxPayloadAgeMinutes = readNumber(query.pressureMaxPayloadAgeMinutes);
+    const includeInternalContext = readBoolean(query.includeInternalContext);
+    const includeEventImpact = readBoolean(query.includeEventImpact);
+    const includeEventContext = readBoolean(query.includeEventContext);
 
     try {
       const output = await getSignalCoreV0ForFixtureImpl(fixtureId, {
@@ -61,7 +67,10 @@ export function registerInternalSignalCoreRoute(
         staleAfterMinutes,
         pressureWindowSize,
         pressureMaxEvidence,
-        pressureMaxPayloadAgeMinutes
+        pressureMaxPayloadAgeMinutes,
+        includeInternalContext,
+        includeEventImpact,
+        includeEventContext
       });
       assertNoForbiddenSignalFields(output);
       return output;

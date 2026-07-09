@@ -15,6 +15,10 @@ import type {
   SignalCoreAllowedSignalSeverity,
   SignalCoreAllowedSignalType
 } from "./signalcore-contract.js";
+import {
+  getDbBackedInternalIntelligenceContext,
+  type InternalIntelligenceContext
+} from "./internal-intelligence-context.js";
 
 export type SignalCoreV0Signal = {
   type: SignalCoreAllowedSignalType;
@@ -33,6 +37,9 @@ export type SignalCoreV0Options = {
   pressureWindowSize?: number;
   pressureMaxEvidence?: number;
   pressureMaxPayloadAgeMinutes?: number;
+  includeInternalContext?: boolean;
+  includeEventImpact?: boolean;
+  includeEventContext?: boolean;
 };
 
 export type NormalizedSignalCoreV0Options = {
@@ -44,6 +51,9 @@ export type NormalizedSignalCoreV0Options = {
   pressureWindowSize: number;
   pressureMaxEvidence: number;
   pressureMaxPayloadAgeMinutes: number | null;
+  includeInternalContext: boolean;
+  includeEventImpact: boolean;
+  includeEventContext: boolean;
 };
 
 export type SignalCoreV0Summary = {
@@ -69,6 +79,9 @@ export type SignalCoreV0Dependencies = {
   getOddsReliabilityAssessmentForFixture?: (
     fixtureId: string
   ) => Promise<OddsReliabilityAssessment>;
+  getInternalIntelligenceContext?: (
+    fixtureId: string
+  ) => Promise<InternalIntelligenceContext>;
 };
 
 export type OddsReliabilitySignalDetails = {
@@ -124,7 +137,10 @@ export function normalizeSignalCoreOptions(
     pressureMaxEvidence: Math.min(20, Math.max(1, requestedPressureMaxEvidence)),
     pressureMaxPayloadAgeMinutes: requestedPressureMaxPayloadAgeMinutes === null
       ? null
-      : Math.min(10080, Math.max(1, requestedPressureMaxPayloadAgeMinutes))
+      : Math.min(10080, Math.max(1, requestedPressureMaxPayloadAgeMinutes)),
+    includeInternalContext: options.includeInternalContext === true,
+    includeEventImpact: options.includeEventImpact === true,
+    includeEventContext: options.includeEventContext === true
   };
 }
 
@@ -136,6 +152,101 @@ export function createSignal(
   details: Record<string, unknown>
 ): SignalCoreV0Signal {
   return { type, severity, title, message, details };
+}
+
+export type InternalContextSignalCoreOptions = {
+  includeEventImpact?: boolean;
+  includeEventContext?: boolean;
+};
+
+export function buildSignalCoreFromInternalContext(
+  context: InternalIntelligenceContext,
+  options: InternalContextSignalCoreOptions = {}
+): SignalCoreV0Data {
+  const signals: SignalCoreV0Signal[] = [];
+  const status = context.status === "available"
+    ? "ready" as const
+    : context.status === "partial" ? "partial" as const : "empty" as const;
+
+  signals.push(createSignal(
+    status === "ready" ? "DATA_READY" : status === "partial" ? "STATE_PARTIAL" : "STATE_EMPTY",
+    status === "ready" ? "info" : status === "partial" ? "warning" : "critical",
+    status === "ready" ? "Internal data ready" : status === "partial" ? "Internal data partial" : "Internal data empty",
+    status === "ready"
+      ? "Stored internal match data is available for SignalCore."
+      : status === "partial"
+        ? "Stored internal match data is available but incomplete."
+        : "No stored internal match data is currently available.",
+    {
+      fixture_id: context.fixture_id,
+      quality_status: context.data_readiness.quality_status,
+      issue_count: context.data_readiness.quality_issues.length
+    }
+  ));
+
+  if (context.data_readiness.has_odds || context.odds_reliability.status !== "unavailable") {
+    signals.push(createSignal(
+      "ODDS_RELIABILITY_ASSESSED",
+      context.odds_reliability.status === "available" ? "info" : "warning",
+      "Odds reliability assessed",
+      "Stored odds reliability has been assessed from database-backed snapshots.",
+      {
+        fixture_id: context.fixture_id,
+        reliability_status: context.odds_reliability.status,
+        snapshot_count: context.odds_reliability.snapshot_count,
+        market_count: context.odds_reliability.market_count,
+        provider_count: context.odds_reliability.provider_count,
+        latest_timestamp: context.odds_reliability.latest_timestamp,
+        limitation_count: context.odds_reliability.limitations.length,
+        source: "database"
+      }
+    ));
+  }
+
+  if (options.includeEventContext === true && context.data_readiness.has_events) {
+    signals.push(createSignal(
+      "PRESSURE_HINT_AVAILABLE",
+      context.event_context.pressure_level === "high" ? "warning" : "info",
+      "Event pressure available",
+      "Stored match events provide a bounded event-pressure summary.",
+      {
+        fixture_id: context.fixture_id,
+        pressure_level: context.event_context.pressure_level,
+        event_count: context.event_context.event_count
+      }
+    ));
+  }
+
+  if (options.includeEventImpact === true && context.data_readiness.has_event_impact) {
+    signals.push(createSignal(
+      "EVENT_IMPACT_ASSESSED",
+      context.event_impact.impact_level === "high" ? "warning" : "info",
+      "Event impact assessed",
+      `${context.event_impact.impact_label}.`,
+      {
+        fixture_id: context.fixture_id,
+        impact_level: context.event_impact.impact_level,
+        key_event_count: context.event_impact.key_event_count,
+        pressure_level: context.event_context.pressure_level
+      }
+    ));
+  }
+
+  return {
+    fixture_id: context.fixture_id,
+    summary: {
+      status,
+      signal_count: signals.length,
+      critical_count: signals.filter((signal) => signal.severity === "critical").length,
+      warning_count: signals.filter((signal) => signal.severity === "warning").length,
+      info_count: signals.filter((signal) => signal.severity === "info").length,
+      has_fixture: context.data_readiness.has_fixture,
+      has_scoreboard: context.data_readiness.has_scoreboard,
+      has_odds: context.data_readiness.has_odds,
+      latest_data_timestamp: context.match_state.last_data_received_at
+    },
+    signals
+  };
 }
 
 const PRESSURE_AVAILABLE_MESSAGE =
@@ -492,6 +603,20 @@ export async function getSignalCoreV0ForFixture(
   deps: SignalCoreV0Dependencies = {}
 ): Promise<SignalCoreV0Response> {
   const normalized = normalizeSignalCoreOptions(options);
+
+  if (normalized.includeInternalContext) {
+    const getInternalContext = deps.getInternalIntelligenceContext ?? getDbBackedInternalIntelligenceContext;
+    const context = await getInternalContext(fixtureId);
+    const data = buildSignalCoreFromInternalContext(context, normalized);
+    return {
+      data,
+      meta: {
+        status: context.status === "available" ? "live" : context.status === "partial" ? "degraded" : "no_data",
+        source: "signalcore",
+        mode: "internal"
+      }
+    };
+  }
 
   let state: CanonicalMatchState;
   if (!process.env.DATABASE_URL) {

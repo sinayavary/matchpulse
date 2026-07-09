@@ -7,6 +7,7 @@ import {
 import {
   createPressureSignalFromAdapterOutput,
   createOddsReliabilitySignalFromAssessment,
+  buildSignalCoreFromInternalContext,
   generateSignalCoreV0,
   getSignalCoreV0ForFixture,
   normalizeSignalCoreOptions,
@@ -16,6 +17,116 @@ import {
 import type { CanonicalMatchState } from "./match-state-builder.js";
 import type { OddsReliabilityAssessment } from "./odds-reliability-foundation.js";
 import type { PressureEngineV1AdapterOutput } from "./pressure-engine-v1-adapter.js";
+import type { InternalIntelligenceContext } from "./internal-intelligence-context.js";
+
+function makeInternalContext(overrides: Partial<InternalIntelligenceContext> = {}): InternalIntelligenceContext {
+  return {
+    fixture_id: "17952170",
+    status: "available",
+    generated_at: "2026-07-05T12:00:00.000Z",
+    data_readiness: {
+      has_fixture: true,
+      has_scoreboard: true,
+      has_odds: true,
+      has_events: true,
+      has_event_impact: true,
+      quality_status: "complete",
+      quality_issues: []
+    },
+    match_state: {
+      phase: "live",
+      home_score: 1,
+      away_score: 1,
+      last_data_received_at: "2026-07-05T11:55:00.000Z",
+      freshness_label: "Stored scoreboard timestamp available"
+    },
+    odds_reliability: {
+      status: "available",
+      snapshot_count: 4,
+      market_count: 2,
+      provider_count: 1,
+      latest_timestamp: "2026-07-05T11:54:00.000Z",
+      limitations: []
+    },
+    event_context: {
+      event_count: 2,
+      latest_event_timestamp: "2026-07-05T11:53:00.000Z",
+      pressure_level: "high",
+      pressure_label: "High event pressure",
+      timeline_summary: {}
+    },
+    event_impact: {
+      impact_level: "high",
+      impact_label: "High event impact",
+      key_event_count: 2,
+      impact_summary: {}
+    },
+    limitations: [],
+    safe_scope_note: "Internal bounded intelligence context for stored match data only.",
+    ...overrides
+  };
+}
+
+test("internal context adapter maps available context to safe compact signals", () => {
+  const result = buildSignalCoreFromInternalContext(makeInternalContext(), {
+    includeEventImpact: true,
+    includeEventContext: true
+  });
+
+  assert.equal(result.fixture_id, "17952170");
+  assert.equal(result.signals.some((signal) => signal.type === "EVENT_IMPACT_ASSESSED"), true);
+  assert.equal(result.signals.some((signal) => signal.type === "PRESSURE_HINT_AVAILABLE"), true);
+  assert.doesNotThrow(() => assertNoForbiddenSignalFields(result));
+  assert.equal("state" in result, false);
+  assert.equal("context" in result, false);
+});
+
+test("internal context adapter maps empty and partial context safely", () => {
+  const empty = buildSignalCoreFromInternalContext(makeInternalContext({
+    status: "empty",
+    data_readiness: {
+      has_fixture: false,
+      has_scoreboard: false,
+      has_odds: false,
+      has_events: false,
+      has_event_impact: false,
+      quality_status: "empty",
+      quality_issues: ["fixture_missing"]
+    },
+    odds_reliability: {
+      status: "unavailable",
+      snapshot_count: 0,
+      market_count: 0,
+      provider_count: 0,
+      latest_timestamp: null,
+      limitations: []
+    }
+  }));
+  const partial = buildSignalCoreFromInternalContext(makeInternalContext({ status: "partial" }));
+
+  assert.equal(empty.summary.status, "empty");
+  assert.equal(partial.summary.status, "partial");
+  assert.equal(empty.signals.some((signal) => signal.type === "EVENT_IMPACT_ASSESSED"), false);
+  assert.doesNotThrow(() => assertNoForbiddenSignalFields(empty));
+  assert.doesNotThrow(() => assertNoForbiddenSignalFields(partial));
+});
+
+test("internal context event signals are opt-in and default SignalCore output is unchanged", () => {
+  const context = makeInternalContext();
+  const withoutEvents = buildSignalCoreFromInternalContext(context);
+  const withEvents = buildSignalCoreFromInternalContext(context, {
+    includeEventImpact: true,
+    includeEventContext: true
+  });
+
+  assert.equal(withoutEvents.signals.some((signal) => signal.type === "EVENT_IMPACT_ASSESSED"), false);
+  assert.equal(withoutEvents.signals.some((signal) => signal.type === "PRESSURE_HINT_AVAILABLE"), false);
+  assert.equal(withEvents.signals.length, withoutEvents.signals.length + 2);
+  assert.deepEqual(
+    generateSignalCoreV0({ state: makeState() }),
+    generateSignalCoreV0({ state: makeState(), options: {} })
+  );
+});
 
 type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends Array<infer U>
