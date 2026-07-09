@@ -235,4 +235,4 @@ Learning Layer gate:
 | Probability v1 | Limited | only market-implied `Pct` rows |
 | Learning Layer | Blocked | no labeled history |
 
-See also: [Pressure SignalCore Contract Review](./pressure-signalcore-contract-review.md)
+See also: [Pressure SignalCore Contract Review](./pressure-signalcore-contract-review.md), [Pressure Presenter Wording Contract](./pressure-presenter-wording-contract.md)
