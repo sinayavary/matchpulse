@@ -119,3 +119,5 @@ Phase 1B does not expose routes.
 Phase 1C may add an internal route or a SignalCore integration only after contract review.
 
 Any later integration must continue to avoid probability, prediction, betting, and betting-advice fields.
+
+See also: [Pressure SignalCore Contract Review](./pressure-signalcore-contract-review.md)

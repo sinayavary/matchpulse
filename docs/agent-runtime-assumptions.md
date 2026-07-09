@@ -234,3 +234,5 @@ Learning Layer gate:
 | Odds Reliability v1 | Allowed as data-quality reliability | no historical accuracy yet |
 | Probability v1 | Limited | only market-implied `Pct` rows |
 | Learning Layer | Blocked | no labeled history |
+
+See also: [Pressure SignalCore Contract Review](./pressure-signalcore-contract-review.md)
