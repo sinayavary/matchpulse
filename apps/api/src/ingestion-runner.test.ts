@@ -3,11 +3,14 @@ import test from "node:test";
 import {
   IngestionRunnerValidationError,
   normalizeIngestionRunnerInput,
+  runTargetIngestionCycle,
   runFixtureIngestionPipeline,
   summarizeCanonicalState,
+  TARGET_INGESTION_SAFE_SCOPE_NOTE,
   type IngestionRunnerDependencies
 } from "./ingestion-runner.js";
 import type { CanonicalMatchState } from "./match-state-builder.js";
+import { readFile } from "node:fs/promises";
 
 function canonicalState(
   quality: CanonicalMatchState["quality"]["status"] = "complete"
@@ -250,4 +253,179 @@ test("summary contains no restricted analytical or wagering fields", () => {
   };
 
   visit(summarizeCanonicalState(canonicalState()));
+});
+
+test("target cycle returns ok when mocked ingestion steps succeed", async () => {
+  const result = await runTargetIngestionCycle({}, {
+    ingestFixtures: async () => ({
+      fetchedCount: 1,
+      normalizedCount: 1,
+      upsertedCount: 1,
+      skippedCount: 0,
+      failedCount: 0,
+      fixtures: [{
+        fixture_id: "17952170",
+        competition: "430",
+        home_team: "Slovenia",
+        away_team: "Cyprus",
+        start_time_utc: null,
+        status: "unknown"
+      }]
+    }),
+    ingestScore: async () => ({
+      fixtureId: "17952170",
+      fetchedCount: 1,
+      selectedSeq: 960,
+      selectedTs: 1_781_226_000_000,
+      action: "game_finalised",
+      scoreAvailable: true,
+      upserted: true,
+      matchState: null
+    }),
+    ingestOdds: async () => ({
+      requested: { fixture_id: "17588223", as_of: "1781226000000" },
+      result: {
+        fetched_count: 1,
+        mapped_count: 1,
+        upserted_count: 1,
+        skipped_count: 0,
+        failed_count: 0
+      },
+      odds_snapshots: []
+    })
+  });
+
+  assert.equal(result.status, "ok");
+  assert.equal(result.targets.fixtures.status, "ok");
+  assert.equal(result.targets.scores.status, "ok");
+  assert.equal(result.targets.odds.status, "ok");
+  assert.equal(result.safe_scope_note, TARGET_INGESTION_SAFE_SCOPE_NOTE);
+});
+
+test("target cycle returns partial when one mocked step fails", async () => {
+  const result = await runTargetIngestionCycle({}, {
+    ingestFixtures: async () => ({
+      fetchedCount: 1,
+      normalizedCount: 1,
+      upsertedCount: 1,
+      skippedCount: 0,
+      failedCount: 0,
+      fixtures: []
+    }),
+    ingestScore: async () => {
+      throw new Error("token=super-secret raw_payload=hidden");
+    },
+    ingestOdds: async () => ({
+      requested: { fixture_id: "17588223", as_of: "1781226000000" },
+      result: {
+        fetched_count: 1,
+        mapped_count: 1,
+        upserted_count: 1,
+        skipped_count: 0,
+        failed_count: 0
+      },
+      odds_snapshots: []
+    })
+  });
+
+  assert.equal(result.status, "partial");
+  assert.equal(result.targets.scores.status, "failed");
+  assert.equal(result.targets.scores.error, "Score refresh failed.");
+  assert.equal(JSON.stringify(result).includes("super-secret"), false);
+});
+
+test("target cycle respects dryRun and skips ingestion calls", async () => {
+  let fixtureCalls = 0;
+  let scoreCalls = 0;
+  let oddsCalls = 0;
+
+  const result = await runTargetIngestionCycle({ dryRun: true }, {
+    ingestFixtures: async () => {
+      fixtureCalls += 1;
+      throw new Error("should not run");
+    },
+    ingestScore: async () => {
+      scoreCalls += 1;
+      throw new Error("should not run");
+    },
+    ingestOdds: async () => {
+      oddsCalls += 1;
+      throw new Error("should not run");
+    }
+  });
+
+  assert.equal(result.status, "ok");
+  assert.equal(result.targets.fixtures.status, "dry_run");
+  assert.equal(result.targets.scores.status, "dry_run");
+  assert.equal(result.targets.odds.status, "dry_run");
+  assert.equal(fixtureCalls, 0);
+  assert.equal(scoreCalls, 0);
+  assert.equal(oddsCalls, 0);
+});
+
+test("target cycle summary excludes raw payloads and secrets", async () => {
+  const result = await runTargetIngestionCycle({}, {
+    ingestFixtures: async () => ({
+      fetchedCount: 1,
+      normalizedCount: 1,
+      upsertedCount: 1,
+      skippedCount: 0,
+      failedCount: 0,
+      fixtures: [{
+        fixture_id: "17952170",
+        competition: "430",
+        home_team: "Slovenia",
+        away_team: "Cyprus",
+        start_time_utc: null,
+        status: "unknown",
+        raw_payload: "must-not-escape",
+        api_secret: "must-not-escape"
+      } as never]
+    }),
+    ingestScore: async () => ({
+      fixtureId: "17952170",
+      fetchedCount: 1,
+      selectedSeq: 960,
+      selectedTs: 1_781_226_000_000,
+      action: "game_finalised",
+      scoreAvailable: true,
+      upserted: true,
+      matchState: null
+    }),
+    ingestOdds: async () => ({
+      requested: { fixture_id: "17588223", as_of: "1781226000000" },
+      result: {
+        fetched_count: 1,
+        mapped_count: 1,
+        upserted_count: 1,
+        skipped_count: 0,
+        failed_count: 0
+      },
+      odds_snapshots: [{
+        fixture_id: "17588223",
+        market_id: "market",
+        market_name: null,
+        selection_name: "home",
+        odds: 2,
+        direction: "flat",
+        source_timestamp: null,
+        raw_payload: "must-not-escape"
+      } as never]
+    })
+  });
+  const serialized = JSON.stringify(result);
+
+  assert.equal(serialized.includes("raw_payload"), false);
+  assert.equal(serialized.includes("api_secret"), false);
+  assert.equal(serialized.includes("must-not-escape"), false);
+});
+
+test("target cycle remains backend-only and does not touch frontend or public api modules", async () => {
+  const source = await readFile(
+    new URL("./ingestion-runner.ts", import.meta.url),
+    "utf8"
+  );
+
+  assert.equal(/apps\/web|apps\\web/i.test(source), false);
+  assert.equal(/public-api|registerPublicApiRoutes|telegram/i.test(source), false);
 });
