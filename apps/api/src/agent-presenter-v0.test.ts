@@ -430,7 +430,7 @@ test("no odds reliability signal returns undefined", () => {
 test("maps odds reliability safely", () => {
   const hint = buildOddsReliabilityHintFromSignals([
     createOddsReliabilitySignal({
-      status: "limited",
+      reliability_status: "limited",
       source: "database",
       snapshot_count: 4,
       market_count: 3,
@@ -455,11 +455,38 @@ test("maps odds reliability safely", () => {
   assert.equal("raw_payload" in (hint ?? {}), false);
 });
 
+test("maps real SignalCore odds reliability detail shape", () => {
+  const hint = buildOddsReliabilityHintFromSignals([
+    createOddsReliabilitySignal({
+      fixture_id: "17952170",
+      reliability_status: "limited",
+      snapshot_count: 4,
+      market_count: 3,
+      provider_count: 1,
+      latest_timestamp: "2026-07-05T11:45:00.000Z",
+      limitation_count: 2,
+      source: "database"
+    })
+  ]);
+
+  assert.deepEqual(hint, {
+    label: "odds_data_limited",
+    status: "limited",
+    source: "database",
+    snapshot_count: 4,
+    market_count: 3,
+    provider_count: 1,
+    latest_timestamp: "2026-07-05T11:45:00.000Z",
+    limitation_count: 2,
+    safe_scope_note: ODDS_RELIABILITY_HINT_SAFE_SCOPE_NOTE
+  });
+});
+
 test("invalid odds reliability details are omitted", () => {
   assert.equal(
     buildOddsReliabilityHintFromSignals([
       createOddsReliabilitySignal({
-        status: "available",
+        reliability_status: "available",
         source: "database",
         snapshot_count: Number.NaN,
         market_count: 3,
@@ -871,7 +898,7 @@ test("includeOddsReliability true adds compact odds_reliability_hint", () => {
       hasOdds: true,
       signals: [
         createOddsReliabilitySignal({
-          status: "available",
+          reliability_status: "available",
           source: "database",
           snapshot_count: 12,
           market_count: 5,
@@ -969,7 +996,7 @@ test("presenter response with odds_reliability_hint passes forbidden property ke
       hasOdds: true,
       signals: [
         createOddsReliabilitySignal({
-          status: "available",
+          reliability_status: "available",
           source: "database",
           snapshot_count: 12,
           market_count: 5,

@@ -259,7 +259,7 @@ export function buildOddsReliabilityHintFromSignals(
   if (!isRecordObject(details)) {
     return undefined;
   }
-  if (!isOddsReliabilityStatus(details.status)) {
+  if (!isOddsReliabilityStatus(details.reliability_status)) {
     return undefined;
   }
   if (details.source !== "database") {
@@ -276,9 +276,9 @@ export function buildOddsReliabilityHintFromSignals(
   }
 
   const label =
-    details.status === "available"
+    details.reliability_status === "available"
       ? "odds_data_available"
-      : details.status === "limited"
+      : details.reliability_status === "limited"
         ? "odds_data_limited"
         : "odds_data_unavailable";
 
@@ -288,7 +288,7 @@ export function buildOddsReliabilityHintFromSignals(
 
   return {
     label,
-    status: details.status,
+    status: details.reliability_status,
     source: "database",
     snapshot_count: details.snapshot_count,
     market_count: details.market_count,
