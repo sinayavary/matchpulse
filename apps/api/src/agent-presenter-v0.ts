@@ -27,6 +27,28 @@ export type AgentPresenterSignal = {
   message: string;
 };
 
+export type AgentPresenterPressureHintLabel =
+  | "No pressure hint"
+  | "Low pressure hint"
+  | "Medium pressure hint"
+  | "High pressure hint"
+  | "Limited pressure hint";
+
+export type AgentPresenterPressureHintLevel =
+  | "none"
+  | "low"
+  | "medium"
+  | "high";
+
+export type AgentPresenterPressureHint = {
+  label: AgentPresenterPressureHintLabel;
+  level: AgentPresenterPressureHintLevel;
+  source: "stored_scores_snapshot";
+  evidence_count: number;
+  limitations: string[];
+  safe_scope_note: string;
+};
+
 export type AgentPresenterBrief = {
   status_label: "ready" | "partial" | "empty";
   headline: string;
@@ -57,6 +79,26 @@ export type AgentPresenterResponse = {
 const SAFE_SCOPE_NOTE =
   "This brief only describes data availability, freshness, and quality for safe display.";
 
+export const PRESSURE_HINT_SAFE_SCOPE_NOTE =
+  "This pressure hint is rule-based and based on available stored score data. It is not a prediction, probability, or betting recommendation.";
+
+const PRESSURE_HINT_LEVELS: readonly AgentPresenterPressureHintLevel[] = [
+  "none",
+  "low",
+  "medium",
+  "high"
+];
+
+function isAgentPresenterPressureHintLevel(
+  value: unknown
+): value is AgentPresenterPressureHintLevel {
+  return typeof value === "string" && PRESSURE_HINT_LEVELS.includes(value as AgentPresenterPressureHintLevel);
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
 export function normalizeAgentPresenterOptions(
   options: AgentPresenterOptions = {}
 ): NormalizedAgentPresenterOptions {
@@ -85,6 +127,53 @@ export function sanitizeSignalsForBrief(
     title: signal.title,
     message: signal.message
   }));
+}
+
+export function buildPressureHintFromSignals(
+  signals: SignalCoreV0Signal[]
+): AgentPresenterPressureHint | undefined {
+  const signal = signals.find((candidate) => candidate.type === "PRESSURE_HINT_AVAILABLE");
+  if (signal === undefined) {
+    return undefined;
+  }
+
+  const details = signal.details as Record<string, unknown>;
+  const source = details.source;
+  if (source !== "stored_scores_snapshot") {
+    return undefined;
+  }
+
+  const rawLevel = details.pressure_level;
+  const level = isAgentPresenterPressureHintLevel(rawLevel) ? rawLevel : "none";
+
+  const evidenceCount = typeof details.evidence_count === "number" && Number.isFinite(details.evidence_count) && details.evidence_count >= 0
+    ? details.evidence_count
+    : 0;
+  const limitations = isStringArray(details.limitations) ? details.limitations : [];
+  const adapterStatus = details.adapter_status;
+
+  const label =
+    signal.severity === "warning" ||
+    adapterStatus === "error" ||
+    adapterStatus === "unavailable" ||
+    limitations.length > 0
+      ? "Limited pressure hint"
+      : level === "none"
+        ? "No pressure hint"
+        : level === "low"
+          ? "Low pressure hint"
+          : level === "medium"
+            ? "Medium pressure hint"
+            : "High pressure hint";
+
+  return {
+    label,
+    level,
+    source: "stored_scores_snapshot",
+    evidence_count: evidenceCount,
+    limitations: [...limitations],
+    safe_scope_note: PRESSURE_HINT_SAFE_SCOPE_NOTE
+  };
 }
 
 export function buildAvailableDataList(

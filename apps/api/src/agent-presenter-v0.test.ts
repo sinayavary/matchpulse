@@ -5,10 +5,13 @@ import { assertNoForbiddenSignalFields } from "./signalcore-contract.js";
 import {
   buildAgentPresenterBrief,
   buildAvailableDataList,
+  buildPressureHintFromSignals,
   buildFreshnessNote,
   buildMissingDataList,
+  PRESSURE_HINT_SAFE_SCOPE_NOTE,
   normalizeAgentPresenterOptions,
-  sanitizeSignalsForBrief
+  sanitizeSignalsForBrief,
+  type AgentPresenterPressureHint
 } from "./agent-presenter-v0.js";
 import type { SignalCoreV0Response, SignalCoreV0Signal } from "./signalcore-v0.js";
 
@@ -65,15 +68,20 @@ function createSignal(
   type: SignalCoreV0Signal["type"],
   severity: SignalCoreV0Signal["severity"],
   title: string,
-  message: string
+  message: string,
+  details: Record<string, unknown> = { ignored: true }
 ): SignalCoreV0Signal {
   return {
     type,
     severity,
     title,
     message,
-    details: { ignored: true }
+    details
   };
+}
+
+function createPressureSignal(details: Record<string, unknown>, severity: SignalCoreV0Signal["severity"] = "info"): SignalCoreV0Signal {
+  return createSignal("PRESSURE_HINT_AVAILABLE", severity, "Pressure hint available", "Rule-based pressure hint is available from stored score data.", details);
 }
 
 function buildSignalCoreOutput(input: {
@@ -340,6 +348,131 @@ test("signal list is sanitized to type severity title message only", () => {
   ]);
 });
 
+test("no pressure signal returns undefined", () => {
+  const signals = [
+    createSignal("DATA_READY", "info", "Data ready", "Fixture and live data are available."),
+    createSignal("ODDS_AVAILABLE", "info", "Odds available", "Odds data is available.")
+  ];
+
+  assert.equal(buildPressureHintFromSignals(signals), undefined);
+});
+
+test("maps low pressure safely", () => {
+  const hint = buildPressureHintFromSignals([
+    createPressureSignal({
+      pressure_level: "low",
+      source: "stored_scores_snapshot",
+      evidence_count: 2,
+      limitations: [],
+      adapter_status: "available",
+      pressure_score: 4,
+      debug_lineage: [{ internal: true }]
+    })
+  ]) as AgentPresenterPressureHint | undefined;
+
+  assert.deepEqual(hint, {
+    label: "Low pressure hint",
+    level: "low",
+    source: "stored_scores_snapshot",
+    evidence_count: 2,
+    limitations: [],
+    safe_scope_note: PRESSURE_HINT_SAFE_SCOPE_NOTE
+  });
+  assert.equal("pressure_score" in (hint ?? {}), false);
+  assert.equal("debug_lineage" in (hint ?? {}), false);
+  assert.equal("adapter_status" in (hint ?? {}), false);
+});
+
+test("warning maps to limited label", () => {
+  const hint = buildPressureHintFromSignals([
+    createPressureSignal({
+      pressure_level: "high",
+      source: "stored_scores_snapshot",
+      evidence_count: 3,
+      limitations: [],
+      adapter_status: "available"
+    }, "warning")
+  ]);
+
+  assert.deepEqual(hint, {
+    label: "Limited pressure hint",
+    level: "high",
+    source: "stored_scores_snapshot",
+    evidence_count: 3,
+    limitations: [],
+    safe_scope_note: PRESSURE_HINT_SAFE_SCOPE_NOTE
+  });
+});
+
+test("invalid source returns undefined", () => {
+  assert.equal(
+    buildPressureHintFromSignals([
+      createPressureSignal({
+        pressure_level: "low",
+        source: "other_source",
+        evidence_count: 1,
+        limitations: [],
+        adapter_status: "available"
+      })
+    ]),
+    undefined
+  );
+});
+
+test("invalid details are sanitized", () => {
+  const hint = buildPressureHintFromSignals([
+    createPressureSignal({
+      pressure_level: "unexpected",
+      source: "stored_scores_snapshot",
+      evidence_count: Number.NaN,
+      limitations: ["limited"],
+      adapter_status: "available"
+    })
+  ]);
+
+  assert.deepEqual(hint, {
+    label: "Limited pressure hint",
+    level: "none",
+    source: "stored_scores_snapshot",
+    evidence_count: 0,
+    limitations: ["limited"],
+    safe_scope_note: PRESSURE_HINT_SAFE_SCOPE_NOTE
+  });
+});
+
+test("output passes forbidden key scan", () => {
+  const output = buildPressureHintFromSignals([
+    createPressureSignal({
+      pressure_level: "medium",
+      source: "stored_scores_snapshot",
+      evidence_count: 2,
+      limitations: [],
+      adapter_status: "available"
+    })
+  ]);
+
+  const serialized = JSON.stringify(output);
+  for (const field of [
+    '"confidence":',
+    '"probability":',
+    '"prediction":',
+    '"recommendation":',
+    '"recommended_bet":',
+    '"bet":',
+    '"wager":',
+    '"stake":',
+    '"expected_value":',
+    '"edge":',
+    '"winner":',
+    '"profit":',
+    '"payout":',
+    '"wallet":',
+    '"deposit":'
+  ]) {
+    assert.equal(serialized?.includes(field), false);
+  }
+});
+
 test("includeState=false omits state", () => {
   const response = buildAgentPresenterBrief(
     buildSignalCoreOutput({
@@ -454,5 +587,30 @@ test("presenter does not use unapproved signal types as new outputs", () => {
     })
   );
 
+  assert.deepEqual(Object.keys(response.data.signals[0]).sort(), ["message", "severity", "title", "type"]);
+});
+
+test("presenter response remains unchanged when pressure signal is present", () => {
+  const response = buildAgentPresenterBrief(
+    buildSignalCoreOutput({
+      status: "ready",
+      hasFixture: true,
+      hasScoreboard: true,
+      hasOdds: true,
+      signals: [
+        createPressureSignal({
+          pressure_level: "medium",
+          source: "stored_scores_snapshot",
+          evidence_count: 4,
+          limitations: [],
+          adapter_status: "available",
+          pressure_score: 7
+        })
+      ]
+    })
+  );
+
+  assert.equal("pressure_hint" in response.data, false);
+  assert.deepEqual(response.data.signals.map((signal) => signal.type), ["PRESSURE_HINT_AVAILABLE"]);
   assert.deepEqual(Object.keys(response.data.signals[0]).sort(), ["message", "severity", "title", "type"]);
 });
