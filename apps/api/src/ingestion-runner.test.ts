@@ -305,12 +305,136 @@ test("target cycle returns ok when mocked ingestion steps succeed", async () => 
   assert.equal(result.targets.fixtures.status, "ok");
   assert.equal(result.targets.scores.status, "ok");
   assert.equal(result.targets.odds.status, "ok");
+  assert.equal(result.targets.events.status, "skipped");
   assert.equal(result.safe_scope_note, TARGET_INGESTION_SAFE_SCOPE_NOTE);
   assert.equal(scoreInputs.length, 1);
   const scoreInput = scoreInputs[0];
   assert.equal(scoreInput?.fixtureId, FALLBACK_RUNTIME_INGESTION_TARGETS.scores[0].fixtureId);
   assert.equal(scoreInput?.asOf, FALLBACK_RUNTIME_INGESTION_TARGETS.scores[0].asOf);
   assert.equal(scoreInput?.includeRaw, false);
+});
+
+function eventSummary(overrides: Partial<{
+  fetched_count: number;
+  mapped_count: number;
+  upserted_count: number;
+  skipped_count: number;
+  failed_count: number;
+  latest_event_timestamp: string | null;
+}> = {}) {
+  return {
+    fixture_id: "17952170",
+    fetched_count: 1,
+    mapped_count: 1,
+    upserted_count: 1,
+    skipped_count: 0,
+    failed_count: 0,
+    latest_event_timestamp: "2026-07-10T12:00:00.000Z",
+    ...overrides
+  };
+}
+
+function eventOnlyTargets() {
+  return {
+    fixtures: [{ competitionId: 430, startEpochDay: 20608 }],
+    scores: [{ fixtureId: "17952170", asOf: 1_780_596_263_367 }],
+    odds: [{ fixtureId: "17588223", asOf: 1_781_226_000_000 }],
+    events: [{ fixtureId: "event-target", asOf: 1_700_000_000_000 }],
+    source: "env" as const
+  };
+}
+
+test("event target uses injected ingestion and maps success, no_data, and partial", async () => {
+  const calls: Array<{ fixtureId: string; asOf?: number; includeRaw?: boolean }> = [];
+  const base = {
+    fixtures: false,
+    scores: false,
+    odds: false,
+    events: true,
+    runtimeTargets: eventOnlyTargets()
+  };
+  const dependencies = {
+    ingestEvents: async (input: typeof calls[number]) => {
+      calls.push(input);
+      return eventSummary();
+    }
+  };
+
+  const success = await runTargetIngestionCycle(base, dependencies);
+  assert.equal(success.status, "ok");
+  assert.deepEqual(success.targets.events, {
+    attempted: true,
+    status: "ok",
+    count: 1,
+    fetched_count: 1,
+    mapped_count: 1,
+    upserted_count: 1,
+    skipped_count: 0,
+    failed_count: 0,
+    latest_event_timestamp: "2026-07-10T12:00:00.000Z"
+  });
+  assert.deepEqual(calls, [{ fixtureId: "event-target", asOf: 1_700_000_000_000, includeRaw: false }]);
+
+  const noData = await runTargetIngestionCycle(base, {
+    ingestEvents: async () => eventSummary({ fetched_count: 0, mapped_count: 0, upserted_count: 0 })
+  });
+  assert.deepEqual(noData.targets.events, {
+    attempted: true,
+    status: "no_data",
+    count: 0,
+    fetched_count: 0,
+    mapped_count: 0,
+    upserted_count: 0,
+    skipped_count: 0,
+    failed_count: 0,
+    latest_event_timestamp: "2026-07-10T12:00:00.000Z"
+  });
+
+  const partial = await runTargetIngestionCycle(base, {
+    ingestEvents: async () => eventSummary({ failed_count: 1 })
+  });
+  assert.deepEqual(partial.targets.events, {
+    attempted: true,
+    status: "partial",
+    count: 1,
+    fetched_count: 1,
+    mapped_count: 1,
+    upserted_count: 1,
+    skipped_count: 0,
+    failed_count: 1,
+    latest_event_timestamp: "2026-07-10T12:00:00.000Z",
+    error: "Event refresh failed."
+  });
+});
+
+test("event target safely handles thrown or missing ingestion dependency", async () => {
+  const input = {
+    fixtures: false,
+    scores: false,
+    odds: false,
+    events: true,
+    runtimeTargets: eventOnlyTargets()
+  };
+
+  const failed = await runTargetIngestionCycle(input, {
+    ingestEvents: async () => { throw new Error("raw event payload and secret"); }
+  });
+  assert.deepEqual(failed.targets.events, {
+    attempted: true,
+    status: "failed",
+    count: 0,
+    error: "Event refresh failed."
+  });
+  assert.equal(JSON.stringify(failed).includes("raw event payload"), false);
+
+  const unavailable = await runTargetIngestionCycle(input);
+  assert.deepEqual(unavailable.targets.events, {
+    attempted: false,
+    status: "skipped",
+    count: 0,
+    error: "Event ingestion is unavailable."
+  });
+  assert.equal(unavailable.status, "ok");
 });
 
 test("runner wording uses product runtime stability", async () => {
@@ -328,6 +452,7 @@ test("target cycle can use injected runtime targets for score override", async (
       fixtures: [{ competitionId: 430, startEpochDay: 20608 }],
       scores: [{ fixtureId: "override-score", asOf: 1_700_000_000_000 }],
       odds: [{ fixtureId: "override-odds", asOf: 1_700_000_000_001 }],
+      events: [],
       source: "env"
     }
   }, {
@@ -434,6 +559,7 @@ test("target cycle respects dryRun and skips ingestion calls", async () => {
   assert.equal(result.targets.fixtures.status, "dry_run");
   assert.equal(result.targets.scores.status, "dry_run");
   assert.equal(result.targets.odds.status, "dry_run");
+  assert.equal(result.targets.events.status, "dry_run");
   assert.equal(fixtureCalls, 0);
   assert.equal(scoreCalls, 0);
   assert.equal(oddsCalls, 0);

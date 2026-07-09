@@ -114,7 +114,8 @@ test("worker runs once on start when enabled and runOnStart is true", async () =
         targets: {
           fixtures: { attempted: true, status: "ok", count: 1 },
           scores: { attempted: true, status: "ok", count: 1 },
-          odds: { attempted: true, status: "ok", count: 1 }
+          odds: { attempted: true, status: "ok", count: 1 },
+          events: { attempted: false, status: "skipped", count: 0 }
         },
         safe_scope_note: "safe"
       };
@@ -155,7 +156,8 @@ test("worker does not overlap cycles", async () => {
         targets: {
           fixtures: { attempted: true, status: "ok", count: 1 },
           scores: { attempted: true, status: "ok", count: 1 },
-          odds: { attempted: true, status: "ok", count: 1 }
+          odds: { attempted: true, status: "ok", count: 1 },
+          events: { attempted: false, status: "skipped", count: 0 }
         },
         safe_scope_note: "safe"
       };
@@ -216,7 +218,8 @@ test("worker stops cleanly", async () => {
     targets: {
       fixtures: { attempted: true, status: "ok", count: 1 },
       scores: { attempted: true, status: "ok", count: 1 },
-      odds: { attempted: true, status: "ok", count: 1 }
+      odds: { attempted: true, status: "ok", count: 1 },
+      events: { attempted: false, status: "skipped", count: 0 }
     },
     finished_at: "2026-07-09T00:00:01.000Z",
     safe_scope_note: "safe"
@@ -243,7 +246,8 @@ test("sanitized log excludes raw payloads and secrets", async () => {
       targets: {
         fixtures: { attempted: true, status: "ok", count: 1 },
         scores: { attempted: true, status: "partial", count: 1 },
-        odds: { attempted: true, status: "failed" }
+        odds: { attempted: true, status: "failed" },
+        events: { attempted: false, status: "skipped" }
       },
       safe_scope_note: "safe",
       raw_payload: "must-not-escape",
@@ -276,9 +280,10 @@ test("no real TxLINE call is made in worker tests", async () => {
         started_at: "2026-07-09T00:00:00.000Z",
         finished_at: "2026-07-09T00:00:01.000Z",
         targets: {
-          fixtures: { attempted: true, status: "ok", count: 1 },
-          scores: { attempted: true, status: "ok", count: 1 },
-          odds: { attempted: true, status: "ok", count: 1 }
+        fixtures: { attempted: true, status: "ok", count: 1 },
+        scores: { attempted: true, status: "ok", count: 1 },
+        odds: { attempted: true, status: "ok", count: 1 },
+        events: { attempted: false, status: "skipped", count: 0 }
         },
         safe_scope_note: "safe"
       };

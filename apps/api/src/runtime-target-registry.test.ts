@@ -16,7 +16,8 @@ test("valid env returns env targets", () => {
     MATCHPULSE_RUNTIME_TARGETS_JSON: JSON.stringify({
       fixtures: [{ competitionId: 430, startEpochDay: 20608 }],
       scores: [{ fixtureId: "17952170", asOf: 1_780_596_263_367 }],
-      odds: [{ fixtureId: "17588223", asOf: 1_781_226_000_000 }]
+      odds: [{ fixtureId: "17588223", asOf: 1_781_226_000_000 }],
+      events: [{ fixtureId: "17952170", asOf: 1_780_596_263_367 }]
     })
   });
 
@@ -24,6 +25,7 @@ test("valid env returns env targets", () => {
     fixtures: [{ competitionId: 430, startEpochDay: 20608 }],
     scores: [{ fixtureId: "17952170", asOf: 1_780_596_263_367 }],
     odds: [{ fixtureId: "17588223", asOf: 1_781_226_000_000 }],
+    events: [{ fixtureId: "17952170", asOf: 1_780_596_263_367 }],
     source: "env"
   });
 });
@@ -52,6 +54,11 @@ test("invalid items are skipped", () => {
         null,
         { fixtureId: "17588223", asOf: -1 },
         { fixtureId: "17588223", asOf: 1_781_226_000_000 }
+      ],
+      events: [
+        { fixtureId: "", asOf: 1_780_596_263_367 },
+        { fixtureId: "17952170", asOf: 0 },
+        { fixtureId: "17952170" }
       ]
     })
   });
@@ -60,6 +67,7 @@ test("invalid items are skipped", () => {
     fixtures: [{ competitionId: 430, startEpochDay: 20608 }],
     scores: [{ fixtureId: "17952170", asOf: 1_780_596_263_367 }],
     odds: [{ fixtureId: "17588223", asOf: 1_781_226_000_000 }],
+    events: [{ fixtureId: "17952170" }],
     source: "env"
   });
 });

@@ -13,10 +13,16 @@ export type RuntimeOddsTarget = {
   asOf: number;
 };
 
+export type RuntimeEventTarget = {
+  fixtureId: string;
+  asOf?: number;
+};
+
 export type RuntimeIngestionTargets = {
   fixtures: RuntimeFixtureTarget[];
   scores: RuntimeScoreTarget[];
   odds: RuntimeOddsTarget[];
+  events: RuntimeEventTarget[];
   source: "env" | "fallback";
 };
 
@@ -24,12 +30,14 @@ type RuntimeTargetRegistryInput = {
   fixtures?: unknown;
   scores?: unknown;
   odds?: unknown;
+  events?: unknown;
 };
 
 export const FALLBACK_RUNTIME_INGESTION_TARGETS: RuntimeIngestionTargets = {
   fixtures: [{ competitionId: 430, startEpochDay: 20608 }],
   scores: [{ fixtureId: "17952170", asOf: 1_780_596_263_367 }],
   odds: [{ fixtureId: "17588223", asOf: 1_781_226_000_000 }],
+  events: [{ fixtureId: "17952170", asOf: 1_780_596_263_367 }],
   source: "fallback"
 };
 
@@ -88,14 +96,31 @@ function normalizeOdds(value: unknown): RuntimeOddsTarget[] {
   return targets;
 }
 
+function normalizeEvents(value: unknown): RuntimeEventTarget[] {
+  if (!Array.isArray(value)) return [];
+
+  const targets: RuntimeEventTarget[] = [];
+  for (const item of value) {
+    if (!isRuntimeTargetRecord(item)) continue;
+    const fixtureId = readNonEmptyString(item.fixtureId);
+    const asOf = item.asOf === undefined || item.asOf === null
+      ? null
+      : readPositiveFiniteNumber(item.asOf);
+    if (fixtureId === null || (item.asOf !== undefined && item.asOf !== null && asOf === null)) continue;
+    targets.push(asOf === null ? { fixtureId } : { fixtureId, asOf });
+  }
+  return targets;
+}
+
 function normalizeRuntimeTargets(value: unknown): RuntimeIngestionTargets | null {
   if (!isRuntimeTargetRecord(value)) return null;
 
   const fixtures = normalizeFixtures(value.fixtures);
   const scores = normalizeScores(value.scores);
   const odds = normalizeOdds(value.odds);
+  const events = normalizeEvents(value.events);
 
-  if (fixtures.length === 0 && scores.length === 0 && odds.length === 0) {
+  if (fixtures.length === 0 && scores.length === 0 && odds.length === 0 && events.length === 0) {
     return null;
   }
 
@@ -103,6 +128,7 @@ function normalizeRuntimeTargets(value: unknown): RuntimeIngestionTargets | null
     fixtures,
     scores,
     odds,
+    events,
     source: "env"
   };
 }

@@ -19,6 +19,7 @@ import {
   getRuntimeIngestionTargetsFromEnv,
   type RuntimeIngestionTargets
 } from "./runtime-target-registry.js";
+import type { TxlineMatchEventIngestionSummary } from "./txline-event-ingestion.js";
 
 export type IngestionRunnerInput = {
   fixtureId: string;
@@ -70,6 +71,11 @@ export type IngestionRunnerDependencies = {
     asOf: number;
     includeRaw?: boolean;
   }) => Promise<OddsIngestionResult>;
+  ingestEvents?: (input: {
+    fixtureId: string;
+    asOf?: number;
+    includeRaw?: boolean;
+  }) => Promise<TxlineMatchEventIngestionSummary>;
   buildState: (
     fixtureId: string,
     options: { includeOdds: boolean; oddsLimit: number }
@@ -82,6 +88,7 @@ export type TargetIngestionCycleInput = {
   fixtures?: boolean;
   scores?: boolean;
   odds?: boolean;
+  events?: boolean;
   pressureReady?: boolean;
   dryRun?: boolean;
   runtimeTargets?: RuntimeIngestionTargets;
@@ -101,6 +108,12 @@ export type TargetIngestionCycleTargetSummary = {
   attempted: boolean;
   status: TargetIngestionCycleTargetStatus;
   count?: number;
+  fetched_count?: number;
+  mapped_count?: number;
+  upserted_count?: number;
+  skipped_count?: number;
+  failed_count?: number;
+  latest_event_timestamp?: string | null;
   error?: string;
 };
 
@@ -112,6 +125,7 @@ export type TargetIngestionCycleSummary = {
     fixtures: TargetIngestionCycleTargetSummary;
     scores: TargetIngestionCycleTargetSummary;
     odds: TargetIngestionCycleTargetSummary;
+    events: TargetIngestionCycleTargetSummary;
   };
   safe_scope_note: string;
 };
@@ -248,7 +262,8 @@ function getSelectedTargetFlags(input: TargetIngestionCycleInput) {
   return {
     fixtures: input.fixtures ?? (enableAllTargets ? true : defaultTargetSelection),
     scores: input.scores ?? (enableAllTargets ? true : defaultTargetSelection),
-    odds: input.odds ?? (enableAllTargets ? true : defaultTargetSelection)
+    odds: input.odds ?? (enableAllTargets ? true : defaultTargetSelection),
+    events: input.events ?? (enableAllTargets ? true : defaultTargetSelection)
   };
 }
 
@@ -284,6 +299,43 @@ function toTargetCycleStatus(
   return buildTargetCycleSummary(true, "ok", count);
 }
 
+function toEventTargetCycleStatus(
+  result: TxlineMatchEventIngestionSummary
+): TargetIngestionCycleTargetSummary {
+  const count = result.upserted_count;
+  if (result.failed_count > 0) {
+    return {
+      ...buildTargetCycleSummary(true, "partial", count, "Event refresh failed."),
+      fetched_count: result.fetched_count,
+      mapped_count: result.mapped_count,
+      upserted_count: result.upserted_count,
+      skipped_count: result.skipped_count,
+      failed_count: result.failed_count,
+      latest_event_timestamp: result.latest_event_timestamp
+    };
+  }
+  if (result.fetched_count === 0 || result.mapped_count === 0 || result.upserted_count === 0) {
+    return {
+      ...buildTargetCycleSummary(true, "no_data", count),
+      fetched_count: result.fetched_count,
+      mapped_count: result.mapped_count,
+      upserted_count: result.upserted_count,
+      skipped_count: result.skipped_count,
+      failed_count: result.failed_count,
+      latest_event_timestamp: result.latest_event_timestamp
+    };
+  }
+  return {
+    ...buildTargetCycleSummary(true, "ok", count),
+    fetched_count: result.fetched_count,
+    mapped_count: result.mapped_count,
+    upserted_count: result.upserted_count,
+    skipped_count: result.skipped_count,
+    failed_count: result.failed_count,
+    latest_event_timestamp: result.latest_event_timestamp
+  };
+}
+
 export async function runTargetIngestionCycle(
   input: TargetIngestionCycleInput = {},
   dependencies: Partial<IngestionRunnerDependencies> = {}
@@ -294,6 +346,7 @@ export async function runTargetIngestionCycle(
   const fixtureTarget = runtimeTargets.fixtures[0] ?? FALLBACK_RUNTIME_INGESTION_TARGETS.fixtures[0];
   const scoreTarget = runtimeTargets.scores[0] ?? FALLBACK_RUNTIME_INGESTION_TARGETS.scores[0];
   const oddsTarget = runtimeTargets.odds[0] ?? FALLBACK_RUNTIME_INGESTION_TARGETS.odds[0];
+  const eventTarget = runtimeTargets.events[0] ?? FALLBACK_RUNTIME_INGESTION_TARGETS.events[0];
   const startedAt = new Date().toISOString();
 
   if (input.dryRun === true) {
@@ -309,7 +362,8 @@ export async function runTargetIngestionCycle(
       targets: {
         fixtures: dryRunTarget(selected.fixtures),
         scores: dryRunTarget(selected.scores),
-        odds: dryRunTarget(selected.odds)
+        odds: dryRunTarget(selected.odds),
+        events: dryRunTarget(selected.events)
       },
       safe_scope_note: TARGET_INGESTION_SAFE_SCOPE_NOTE
     };
@@ -323,6 +377,9 @@ export async function runTargetIngestionCycle(
     : buildTargetCycleSummary(false, "skipped", 0);
   let odds = selected.odds
     ? buildTargetCycleSummary(true, "failed", 0, "Odds refresh failed.")
+    : buildTargetCycleSummary(false, "skipped", 0);
+  let events = selected.events
+    ? buildTargetCycleSummary(true, "failed", 0, "Event refresh failed.")
     : buildTargetCycleSummary(false, "skipped", 0);
 
   if (selected.fixtures) {
@@ -361,7 +418,23 @@ export async function runTargetIngestionCycle(
     }
   }
 
-  const attemptedTargets = [fixtures, scores, odds].filter((target) => target.attempted);
+  if (selected.events) {
+    if (deps.ingestEvents === undefined) {
+      events = buildTargetCycleSummary(false, "skipped", 0, "Event ingestion is unavailable.");
+    } else {
+      try {
+        events = toEventTargetCycleStatus(await deps.ingestEvents({
+          fixtureId: eventTarget.fixtureId,
+          ...(eventTarget.asOf === undefined ? {} : { asOf: eventTarget.asOf }),
+          includeRaw: false
+        }));
+      } catch {
+        events = buildTargetCycleSummary(true, "failed", 0, "Event refresh failed.");
+      }
+    }
+  }
+
+  const attemptedTargets = [fixtures, scores, odds, events].filter((target) => target.attempted);
   const hasFailedTarget = attemptedTargets.some((target) => target.status === "failed");
   const hasPartialTarget = attemptedTargets.some((target) => target.status === "partial");
   const hasSuccessTarget = attemptedTargets.some((target) => target.status === "ok");
@@ -377,7 +450,8 @@ export async function runTargetIngestionCycle(
     targets: {
       fixtures,
       scores,
-      odds
+      odds,
+      events
     },
     safe_scope_note: TARGET_INGESTION_SAFE_SCOPE_NOTE
   };

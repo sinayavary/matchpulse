@@ -36,6 +36,7 @@ export type ProductRuntimeRefreshWorkerSummary = {
     fixtures: { status: string; count?: number };
     scores: { status: string; count?: number };
     odds: { status: string; count?: number };
+    events: { status: string; count?: number };
   };
   finished_at: string;
 };
@@ -111,6 +112,12 @@ function buildSummary(summary: Awaited<ReturnType<typeof runTargetIngestionCycle
         ...(typeof summary.targets.odds.count === "number"
           ? { count: summary.targets.odds.count }
           : {})
+      },
+      events: {
+        status: summary.targets.events.status,
+        ...(typeof summary.targets.events.count === "number"
+          ? { count: summary.targets.events.count }
+          : {})
       }
     },
     finished_at: summary.finished_at
@@ -123,7 +130,8 @@ function buildFailedSummary(): ProductRuntimeRefreshWorkerSummary {
     targets: {
       fixtures: { status: "failed" },
       scores: { status: "failed" },
-      odds: { status: "failed" }
+      odds: { status: "failed" },
+      events: { status: "failed" }
     },
     finished_at: new Date().toISOString()
   };
