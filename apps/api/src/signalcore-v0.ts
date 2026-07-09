@@ -4,6 +4,10 @@ import {
   type CanonicalMatchState
 } from "./match-state-builder.js";
 import {
+  getOddsReliabilityAssessmentForFixture,
+  type OddsReliabilityAssessment
+} from "./odds-reliability-foundation.js";
+import {
   getPressureEngineV1FromStoredScores,
   type PressureEngineV1AdapterOutput
 } from "./pressure-engine-v1-adapter.js";
@@ -23,6 +27,7 @@ export type SignalCoreV0Signal = {
 export type SignalCoreV0Options = {
   includeState?: boolean;
   includePressure?: boolean;
+  includeOddsReliability?: boolean;
   oddsLimit?: number;
   staleAfterMinutes?: number;
   pressureWindowSize?: number;
@@ -33,6 +38,7 @@ export type SignalCoreV0Options = {
 export type NormalizedSignalCoreV0Options = {
   includeState: boolean;
   includePressure: boolean;
+  includeOddsReliability: boolean;
   oddsLimit: number;
   staleAfterMinutes: number;
   pressureWindowSize: number;
@@ -57,6 +63,23 @@ export type SignalCoreV0Data = {
   summary: SignalCoreV0Summary;
   signals: SignalCoreV0Signal[];
   state?: CanonicalMatchState;
+};
+
+export type SignalCoreV0Dependencies = {
+  getOddsReliabilityAssessmentForFixture?: (
+    fixtureId: string
+  ) => Promise<OddsReliabilityAssessment>;
+};
+
+export type OddsReliabilitySignalDetails = {
+  fixture_id: string;
+  reliability_status: OddsReliabilityAssessment["status"];
+  snapshot_count: number;
+  market_count: number;
+  provider_count: number;
+  latest_timestamp: string | null;
+  limitation_count: number;
+  source: "database";
 };
 
 export type SignalCoreV0Response = {
@@ -94,6 +117,7 @@ export function normalizeSignalCoreOptions(
   return {
     includeState: options.includeState === true,
     includePressure: options.includePressure === true,
+    includeOddsReliability: options.includeOddsReliability === true,
     oddsLimit: Math.min(50, Math.max(1, requestedOddsLimit)),
     staleAfterMinutes: Math.min(10080, Math.max(1, requestedStaleAfterMinutes)),
     pressureWindowSize: Math.min(50, Math.max(1, requestedPressureWindowSize)),
@@ -178,6 +202,42 @@ export function createPressureSignalFromAdapterOutput(
   );
 }
 
+export function createOddsReliabilitySignalFromAssessment(
+  assessment: OddsReliabilityAssessment
+): SignalCoreV0Signal {
+  const status = assessment.status;
+  const severity = status === "available" ? "info" : "warning";
+  const title =
+    status === "available"
+      ? "Odds reliability assessed"
+      : status === "limited"
+        ? "Odds reliability assessment limited"
+        : "Odds reliability assessment unavailable";
+  const message =
+    status === "available"
+      ? "Stored odds reliability has been assessed from database-backed snapshots."
+      : status === "limited"
+        ? "Stored odds reliability assessment is available, but with limitations."
+        : "Stored odds reliability assessment could not be completed for this fixture.";
+
+  return createSignal(
+    "ODDS_RELIABILITY_ASSESSED",
+    severity,
+    title,
+    message,
+    {
+      fixture_id: assessment.fixture_id,
+      reliability_status: status,
+      snapshot_count: assessment.snapshot_count,
+      market_count: assessment.market_count,
+      provider_count: assessment.provider_count,
+      latest_timestamp: assessment.latest_timestamp,
+      limitation_count: assessment.limitations.length,
+      source: assessment.source
+    }
+  );
+}
+
 function toSummaryStatus(state: CanonicalMatchState): SignalCoreV0Summary["status"] {
   return state.quality.status === "complete"
     ? "ready"
@@ -232,6 +292,7 @@ export function generateSignalCoreV0(input: {
   state: CanonicalMatchState;
   options?: SignalCoreV0Options;
   pressureOutput?: PressureEngineV1AdapterOutput | null;
+  oddsReliabilityAssessment?: OddsReliabilityAssessment | null;
 }): SignalCoreV0Data {
   const normalized = normalizeSignalCoreOptions(input.options);
   const { state } = input;
@@ -364,6 +425,25 @@ export function generateSignalCoreV0(input: {
     }
   }
 
+  if (normalized.includeOddsReliability) {
+    const oddsReliabilitySignal = createOddsReliabilitySignalFromAssessment(
+      input.oddsReliabilityAssessment ?? {
+        fixture_id: state.fixture_id,
+        status: "unavailable",
+        source: "database",
+        snapshot_count: 0,
+        market_count: 0,
+        provider_count: 0,
+        latest_timestamp: null,
+        limitations: [],
+        signals: [],
+        safe_scope_note:
+          "Stored odds reliability assessment could not be completed for this fixture."
+      }
+    );
+    signals.push(oddsReliabilitySignal);
+  }
+
   signals.push(
     isFresh(state.freshness.latest_data_timestamp, normalized.staleAfterMinutes)
       ? createSignal(
@@ -408,7 +488,8 @@ export function generateSignalCoreV0(input: {
 
 export async function getSignalCoreV0ForFixture(
   fixtureId: string,
-  options: SignalCoreV0Options = {}
+  options: SignalCoreV0Options = {},
+  deps: SignalCoreV0Dependencies = {}
 ): Promise<SignalCoreV0Response> {
   const normalized = normalizeSignalCoreOptions(options);
 
@@ -451,13 +532,37 @@ export async function getSignalCoreV0ForFixture(
     }
   }
 
+  let oddsReliabilityAssessment: OddsReliabilityAssessment | null | undefined;
+  if (normalized.includeOddsReliability) {
+    const getOddsReliabilityAssessmentForFixtureImpl =
+      deps.getOddsReliabilityAssessmentForFixture ?? getOddsReliabilityAssessmentForFixture;
+    try {
+      oddsReliabilityAssessment = await getOddsReliabilityAssessmentForFixtureImpl(fixtureId);
+    } catch {
+      oddsReliabilityAssessment = {
+        fixture_id: fixtureId,
+        status: "unavailable",
+        source: "database",
+        snapshot_count: 0,
+        market_count: 0,
+        provider_count: 0,
+        latest_timestamp: null,
+        limitations: ["Odds reliability assessment could not be completed."],
+        signals: [],
+        safe_scope_note:
+          "Stored odds reliability assessment could not be completed for this fixture."
+      };
+    }
+  }
+
   const data = generateSignalCoreV0({
     state,
     options: {
       ...normalized,
       pressureMaxPayloadAgeMinutes: normalized.pressureMaxPayloadAgeMinutes ?? undefined
     },
-    pressureOutput
+    pressureOutput,
+    oddsReliabilityAssessment
   });
 
   return {

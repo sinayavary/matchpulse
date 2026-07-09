@@ -22,6 +22,10 @@ test("contract includes ODDS_AVAILABLE", () => {
   assert.ok(SIGNALCORE_ALLOWED_SIGNAL_TYPES.includes("ODDS_AVAILABLE"));
 });
 
+test("contract includes ODDS_RELIABILITY_ASSESSED", () => {
+  assert.ok(SIGNALCORE_ALLOWED_SIGNAL_TYPES.includes("ODDS_RELIABILITY_ASSESSED"));
+});
+
 test("forbidden output fields include required safety boundaries", () => {
   for (const field of [
     "probability",

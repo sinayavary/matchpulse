@@ -153,6 +153,34 @@ test("internal signalcore route accepts pressure params", async () => {
   await app.close();
 });
 
+test("internal signalcore route forwards odds reliability option", async () => {
+  const app = Fastify();
+  let seenOptions: SignalCoreV0Options | null = null;
+  registerInternalSignalCoreRoute(app, {
+    getSignalCoreV0ForFixture: async (_fixtureId, options) => {
+      seenOptions = options ?? null;
+      return makeSignalCoreResponse(false);
+    }
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/api/internal/signalcore/matches/17952170?includeOddsReliability=true"
+  });
+
+  assert.equal(response.statusCode, 200);
+  const body = response.json();
+  assert.equal(body.meta.source, "signalcore");
+  assert.equal(body.meta.mode, "internal");
+  if (seenOptions === null) {
+    throw new Error("Expected the route to forward signalcore options");
+  }
+  const capturedOptions = seenOptions as SignalCoreV0Options;
+  assert.equal(capturedOptions.includeOddsReliability, true);
+  assert.equal(hasForbiddenKeys(body), false);
+  await app.close();
+});
+
 test("invalid pressure numeric params do not crash", async () => {
   const app = Fastify();
   let seenOptions: SignalCoreV0Options | null = null;

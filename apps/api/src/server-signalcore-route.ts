@@ -36,6 +36,7 @@ export function registerInternalSignalCoreRoute(
     const query = request.query as {
       includeState?: unknown;
       includePressure?: unknown;
+      includeOddsReliability?: unknown;
       oddsLimit?: unknown;
       staleAfterMinutes?: unknown;
       pressureWindowSize?: unknown;
@@ -44,6 +45,7 @@ export function registerInternalSignalCoreRoute(
     };
     const includeState = readBoolean(query.includeState);
     const includePressure = readBoolean(query.includePressure);
+    const includeOddsReliability = readBoolean(query.includeOddsReliability);
     const oddsLimit = readNumber(query.oddsLimit);
     const staleAfterMinutes = readNumber(query.staleAfterMinutes);
     const pressureWindowSize = readNumber(query.pressureWindowSize);
@@ -54,6 +56,7 @@ export function registerInternalSignalCoreRoute(
       const output = await getSignalCoreV0ForFixtureImpl(fixtureId, {
         includeState,
         includePressure,
+        includeOddsReliability,
         oddsLimit,
         staleAfterMinutes,
         pressureWindowSize,

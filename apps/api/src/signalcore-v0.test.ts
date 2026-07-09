@@ -6,6 +6,7 @@ import {
 } from "./signalcore-contract.js";
 import {
   createPressureSignalFromAdapterOutput,
+  createOddsReliabilitySignalFromAssessment,
   generateSignalCoreV0,
   getSignalCoreV0ForFixture,
   normalizeSignalCoreOptions,
@@ -13,6 +14,7 @@ import {
   type SignalCoreV0Signal
 } from "./signalcore-v0.js";
 import type { CanonicalMatchState } from "./match-state-builder.js";
+import type { OddsReliabilityAssessment } from "./odds-reliability-foundation.js";
 import type { PressureEngineV1AdapterOutput } from "./pressure-engine-v1-adapter.js";
 
 type DeepPartial<T> = {
@@ -154,6 +156,31 @@ function makePressureAdapterOutput(
     payload: { ...base.payload, ...overrides.payload },
     pressure: { ...base.pressure, ...overrides.pressure },
     limitations: overrides.limitations ?? base.limitations
+  };
+}
+
+function makeOddsReliabilityAssessment(
+  overrides: Partial<OddsReliabilityAssessment> = {}
+): OddsReliabilityAssessment {
+  const base: OddsReliabilityAssessment = {
+    fixture_id: "17952170",
+    status: "available",
+    source: "database",
+    snapshot_count: 12,
+    market_count: 5,
+    provider_count: 3,
+    latest_timestamp: "2026-07-05T11:58:00.000Z",
+    limitations: [],
+    signals: [],
+    safe_scope_note:
+      "Stored odds reliability assessment is based on database-backed snapshots only."
+  };
+
+  return {
+    ...base,
+    ...overrides,
+    limitations: overrides.limitations ?? base.limitations,
+    signals: overrides.signals ?? base.signals
   };
 }
 
@@ -462,6 +489,101 @@ test("includePressure false preserves existing output", () => {
   });
 
   assert.equal(hasSignal(result.signals, "PRESSURE_HINT_AVAILABLE"), false);
+});
+
+test("includeOddsReliability defaults false", () => {
+  const options = normalizeSignalCoreOptions({});
+  assert.equal(options.includeOddsReliability, false);
+});
+
+test("includeOddsReliability false preserves existing output", () => {
+  const baseline = generateSignalCoreV0({
+    state: makeState()
+  });
+  const result = generateSignalCoreV0({
+    state: makeState(),
+    options: { includeOddsReliability: false },
+    oddsReliabilityAssessment: makeOddsReliabilityAssessment()
+  });
+
+  assert.deepEqual(result, baseline);
+  assert.equal(hasSignal(result.signals, "ODDS_RELIABILITY_ASSESSED"), false);
+});
+
+test("includeOddsReliability true adds compact safe odds reliability signal", () => {
+  const assessment = makeOddsReliabilityAssessment({
+    status: "limited",
+    snapshot_count: 4,
+    market_count: 3,
+    provider_count: 1,
+    latest_timestamp: "2026-07-05T11:45:00.000Z",
+    limitations: [
+      "Low snapshot count; only 4 stored odds snapshots were found.",
+      "Limited source diversity; this does not represent broad bookmaker consensus."
+    ]
+  });
+  const result = generateSignalCoreV0({
+    state: makeState(),
+    options: { includeOddsReliability: true },
+    oddsReliabilityAssessment: assessment
+  });
+  const signal = result.signals.find((candidate) => candidate.type === "ODDS_RELIABILITY_ASSESSED");
+
+  assert.ok(signal);
+  assert.equal(signal?.type, "ODDS_RELIABILITY_ASSESSED");
+  assert.equal(signal?.severity, "warning");
+  assert.equal(signal?.details.fixture_id, "17952170");
+  assert.equal(signal?.details.reliability_status, "limited");
+  assert.equal(signal?.details.snapshot_count, 4);
+  assert.equal(signal?.details.market_count, 3);
+  assert.equal(signal?.details.provider_count, 1);
+  assert.equal(signal?.details.latest_timestamp, "2026-07-05T11:45:00.000Z");
+  assert.equal(signal?.details.limitation_count, 2);
+  assert.equal(signal?.details.source, "database");
+  assert.doesNotThrow(() => assertNoForbiddenSignalFields(signal));
+  assert.equal("limitations" in (signal?.details ?? {}), false);
+  assert.equal("signals" in (signal?.details ?? {}), false);
+});
+
+test("odds reliability signal detail shape stays compact and approved", () => {
+  const signal = createOddsReliabilitySignalFromAssessment(makeOddsReliabilityAssessment({
+    status: "available"
+  }));
+
+  const keys = Object.keys(signal.details).sort();
+  assert.deepEqual(keys, [
+    "fixture_id",
+    "latest_timestamp",
+    "limitation_count",
+    "market_count",
+    "provider_count",
+    "reliability_status",
+    "snapshot_count",
+    "source"
+  ]);
+  assert.doesNotThrow(() => assertNoForbiddenSignalFields(signal));
+});
+
+test("odds reliability assessment failure still yields a safe degraded signal", async () => {
+  const result = await getSignalCoreV0ForFixture(
+    "17952170",
+    { includeOddsReliability: true },
+    {
+      getOddsReliabilityAssessmentForFixture: async () => {
+        throw new Error("boom");
+      }
+    }
+  );
+
+  const signal = result.data.signals.find((candidate) => candidate.type === "ODDS_RELIABILITY_ASSESSED");
+  assert.ok(signal);
+  assert.equal(signal?.details.reliability_status, "unavailable");
+  assert.equal(signal?.details.snapshot_count, 0);
+  assert.equal(signal?.details.market_count, 0);
+  assert.equal(signal?.details.provider_count, 0);
+  assert.equal(signal?.details.latest_timestamp, null);
+  assert.equal(signal?.details.limitation_count, 1);
+  assert.doesNotThrow(() => assertNoForbiddenSignalFields(signal));
 });
 
 test("output passes assertNoForbiddenSignalFields", () => {
