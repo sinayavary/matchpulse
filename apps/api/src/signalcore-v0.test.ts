@@ -53,13 +53,29 @@ function makeInternalContext(overrides: Partial<InternalIntelligenceContext> = {
       latest_event_timestamp: "2026-07-05T11:53:00.000Z",
       pressure_level: "high",
       pressure_label: "High event pressure",
-      timeline_summary: {}
+      timeline_summary: {
+        goals: 0,
+        yellow_cards: 0,
+        red_cards: 0,
+        substitutions: 0,
+        penalties: 0,
+        var_events: 0,
+        other_events: 0
+      }
     },
     event_impact: {
       impact_level: "high",
       impact_label: "High event impact",
       key_event_count: 2,
-      impact_summary: {}
+      impact_summary: {
+        goals: 0,
+        cards: 0,
+        red_cards: 0,
+        penalties: 0,
+        var_events: 0,
+        substitutions: 0,
+        pressure_level: "high"
+      }
     },
     limitations: [],
     safe_scope_note: "Internal bounded intelligence context for stored match data only.",

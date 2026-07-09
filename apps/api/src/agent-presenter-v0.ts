@@ -17,6 +17,7 @@ export type NormalizedAgentPresenterOptions = {
   includeState: boolean;
   includePressure: boolean;
   includeOddsReliability: boolean;
+  includeEventImpact: boolean;
   oddsLimit: number;
   staleAfterMinutes: number;
   pressureWindowSize: number;
@@ -71,6 +72,15 @@ export type AgentPresenterOddsReliabilityHint = {
   safe_scope_note: string;
 };
 
+export type AgentPresenterEventImpactHint = {
+  status: "available" | "unavailable";
+  level: AgentPresenterPressureHintLevel;
+  label: string;
+  key_event_count: number;
+  pressure_level: AgentPresenterPressureHintLevel;
+  source: "stored_events";
+};
+
 export type AgentPresenterBrief = {
   status_label: "ready" | "partial" | "empty";
   headline: string;
@@ -92,6 +102,7 @@ export type AgentPresenterResponse = {
     state?: CanonicalMatchState;
     pressure_hint?: AgentPresenterPressureHint;
     odds_reliability_hint?: AgentPresenterOddsReliabilityHint;
+    event_impact_hint?: AgentPresenterEventImpactHint;
   };
   meta: {
     status: "live" | "degraded" | "no_data";
@@ -175,6 +186,7 @@ export function normalizeAgentPresenterOptions(
     includeState: options.includeState === true,
     includePressure: options.includePressure === true,
     includeOddsReliability: options.includeOddsReliability === true,
+    includeEventImpact: options.includeEventImpact === true,
     oddsLimit: Math.min(50, Math.max(1, requestedOddsLimit)),
     staleAfterMinutes: Math.min(10080, Math.max(1, requestedStaleAfterMinutes)),
     pressureWindowSize: Math.min(50, Math.max(1, requestedPressureWindowSize)),
@@ -183,6 +195,40 @@ export function normalizeAgentPresenterOptions(
       ? null
       : Math.min(10080, Math.max(1, requestedPressureMaxPayloadAgeMinutes)),
     format: options.format === "full" ? "full" : "compact"
+  };
+}
+
+function eventImpactLabel(level: AgentPresenterPressureHintLevel): string {
+  if (level === "high") return "High stored-event impact";
+  if (level === "medium") return "Moderate stored-event impact";
+  if (level === "low") return "Low stored-event impact";
+  return "No stored-event impact";
+}
+
+export function buildEventImpactHintFromSignals(
+  signals: SignalCoreV0Signal[]
+): AgentPresenterEventImpactHint | undefined {
+  const signal = signals.find((candidate) => candidate.type === "EVENT_IMPACT_ASSESSED");
+  if (signal === undefined || !isRecordObject(signal.details)) return undefined;
+
+  const details = signal.details;
+  if (!isAgentPresenterPressureHintLevel(details.impact_level) ||
+    !isAgentPresenterPressureHintLevel(details.pressure_level) ||
+    typeof details.key_event_count !== "number" ||
+    !Number.isFinite(details.key_event_count) ||
+    !Number.isInteger(details.key_event_count) ||
+    details.key_event_count < 0) {
+    return undefined;
+  }
+
+  const level = details.impact_level;
+  return {
+    status: "available",
+    level,
+    label: eventImpactLabel(level),
+    key_event_count: Math.min(10, details.key_event_count),
+    pressure_level: details.pressure_level,
+    source: "stored_events"
   };
 }
 
@@ -441,6 +487,13 @@ export function buildAgentPresenterBrief(
     }
   }
 
+  if (normalized.includeEventImpact) {
+    const eventImpactHint = buildEventImpactHintFromSignals(data.signals);
+    if (eventImpactHint !== undefined) {
+      response.data.event_impact_hint = eventImpactHint;
+    }
+  }
+
   assertNoForbiddenSignalFields(response);
   return response;
 }
@@ -454,6 +507,8 @@ export async function getAgentPresenterBriefForFixture(
     includeState: normalized.includeState,
     includePressure: normalized.includePressure,
     includeOddsReliability: normalized.includeOddsReliability,
+    includeInternalContext: normalized.includeEventImpact,
+    includeEventImpact: normalized.includeEventImpact,
     oddsLimit: normalized.oddsLimit,
     staleAfterMinutes: normalized.staleAfterMinutes,
     pressureWindowSize: normalized.pressureWindowSize,

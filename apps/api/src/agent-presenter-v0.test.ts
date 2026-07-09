@@ -6,6 +6,7 @@ import {
   buildAgentPresenterBrief,
   buildAvailableDataList,
   buildOddsReliabilityHintFromSignals,
+  buildEventImpactHintFromSignals,
   buildPressureHintFromSignals,
   buildFreshnessNote,
   buildMissingDataList,
@@ -887,6 +888,65 @@ test("includeOddsReliability false does not change presenter output", () => {
 
   assert.deepEqual(withExplicitFalse, baseline);
   assert.equal("odds_reliability_hint" in withExplicitFalse.data, false);
+});
+
+test("includeEventImpact defaults to false", () => {
+  assert.equal(normalizeAgentPresenterOptions({}).includeEventImpact, false);
+});
+
+test("includeEventImpact false does not change presenter output", () => {
+  const signalCoreOutput = buildSignalCoreOutput({
+    status: "ready", hasFixture: true, hasScoreboard: true, hasOdds: true,
+    signals: [createSignal("EVENT_IMPACT_ASSESSED", "info", "Event impact assessed", "Stored event impact assessed.", {
+      impact_level: "high", key_event_count: 2, pressure_level: "medium", raw: "hidden"
+    })]
+  });
+  const baseline = buildAgentPresenterBrief(signalCoreOutput);
+  assert.deepEqual(buildAgentPresenterBrief(signalCoreOutput, { includeEventImpact: false }), baseline);
+  assert.equal("event_impact_hint" in baseline.data, false);
+});
+
+test("includeEventImpact true maps a compact event impact hint", () => {
+  const response = buildAgentPresenterBrief(buildSignalCoreOutput({
+    status: "ready", hasFixture: true, hasScoreboard: true, hasOdds: true,
+    signals: [createSignal("EVENT_IMPACT_ASSESSED", "warning", "Event impact assessed", "Stored event impact assessed.", {
+      impact_level: "high", key_event_count: 3, pressure_level: "medium", raw_payload: { secret: true }, formula: "hidden"
+    })]
+  }), { includeEventImpact: true });
+  assert.deepEqual(response.data.event_impact_hint, {
+    status: "available", level: "high", label: "High stored-event impact",
+    key_event_count: 3, pressure_level: "medium", source: "stored_events"
+  });
+});
+
+test("malformed or missing event impact signals are omitted", () => {
+  const malformed = createSignal("EVENT_IMPACT_ASSESSED", "info", "Event impact assessed", "", {
+    impact_level: "extreme", key_event_count: 1, pressure_level: "low"
+  });
+  assert.equal(buildEventImpactHintFromSignals([malformed]), undefined);
+  assert.equal(buildEventImpactHintFromSignals([]), undefined);
+  const nonInteger = createSignal("EVENT_IMPACT_ASSESSED", "info", "Event impact assessed", "", {
+    impact_level: "low", key_event_count: 1.5, pressure_level: "none"
+  });
+  assert.equal(buildEventImpactHintFromSignals([nonInteger]), undefined);
+});
+
+test("event impact key event count is capped and presenter output has no forbidden fields", () => {
+  const response = buildAgentPresenterBrief(buildSignalCoreOutput({
+    status: "ready", hasFixture: true, hasScoreboard: true, hasOdds: true,
+    signals: [createSignal("EVENT_IMPACT_ASSESSED", "info", "Event impact assessed", "", {
+      impact_level: "low", key_event_count: 99, pressure_level: "none",
+      raw: {}, raw_payload: {}, debug: {}, debug_lineage: [], formula: "x", state: {}, insight: {},
+      probability: 0, prediction: "x", confidence: 1, winner: "x", recommended_bet: "x",
+      expected_value: 0, EV: 0, edge: 0, wager: "x", stake: 0, profit: 0, payout: 0, wallet: "x", deposit: "x"
+    })]
+  }), { includeEventImpact: true });
+  assert.equal(response.data.event_impact_hint?.key_event_count, 10);
+  const propertyKeys = new Set(collectPropertyKeys(response));
+  for (const field of ["raw", "raw_payload", "debug", "debug_lineage", "formula", "signals", "state", "insight", "probability", "prediction", "confidence", "winner", "recommended_bet", "expected_value", "EV", "edge", "wager", "stake", "profit", "payout", "wallet", "deposit"]) {
+    assert.equal(propertyKeys.has(field), field === "signals");
+  }
+  assertNoForbiddenSignalFields(response);
 });
 
 test("includeOddsReliability true adds compact odds_reliability_hint", () => {

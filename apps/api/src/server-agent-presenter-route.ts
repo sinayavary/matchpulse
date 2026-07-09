@@ -39,6 +39,7 @@ export function registerInternalAgentPresenterRoute(
       includeState?: unknown;
       includePressure?: unknown;
       includeOddsReliability?: unknown;
+      includeEventImpact?: unknown;
       oddsLimit?: unknown;
       staleAfterMinutes?: unknown;
       pressureWindowSize?: unknown;
@@ -50,6 +51,7 @@ export function registerInternalAgentPresenterRoute(
     const includeState = readBoolean(query.includeState);
     const includePressure = readBoolean(query.includePressure);
     const includeOddsReliability = readBoolean(query.includeOddsReliability);
+    const includeEventImpact = readBoolean(query.includeEventImpact);
     const oddsLimit = readNumber(query.oddsLimit);
     const staleAfterMinutes = readNumber(query.staleAfterMinutes);
     const pressureWindowSize = readNumber(query.pressureWindowSize);
@@ -62,6 +64,7 @@ export function registerInternalAgentPresenterRoute(
         includeState,
         includePressure,
         includeOddsReliability,
+        includeEventImpact,
         oddsLimit,
         staleAfterMinutes,
         pressureWindowSize,
