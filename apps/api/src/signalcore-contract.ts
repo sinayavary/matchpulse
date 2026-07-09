@@ -85,7 +85,7 @@ export function getSignalCoreContract() {
     forbidden_output_fields: [...SIGNALCORE_FORBIDDEN_OUTPUT_FIELDS],
     forbidden_topics: [...SIGNALCORE_FORBIDDEN_TOPICS],
     product_options: [...SIGNALCORE_MVP_PRODUCT_OPTIONS],
-    next_phase: "Internal odds reliability integration behind includeOddsReliability" as const
+    next_phase: "Internal agent presenter odds reliability hint behind includeOddsReliability" as const
   };
 }
 

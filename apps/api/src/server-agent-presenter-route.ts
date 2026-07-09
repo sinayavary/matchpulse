@@ -38,6 +38,7 @@ export function registerInternalAgentPresenterRoute(
     const query = request.query as {
       includeState?: unknown;
       includePressure?: unknown;
+      includeOddsReliability?: unknown;
       oddsLimit?: unknown;
       staleAfterMinutes?: unknown;
       pressureWindowSize?: unknown;
@@ -48,6 +49,7 @@ export function registerInternalAgentPresenterRoute(
 
     const includeState = readBoolean(query.includeState);
     const includePressure = readBoolean(query.includePressure);
+    const includeOddsReliability = readBoolean(query.includeOddsReliability);
     const oddsLimit = readNumber(query.oddsLimit);
     const staleAfterMinutes = readNumber(query.staleAfterMinutes);
     const pressureWindowSize = readNumber(query.pressureWindowSize);
@@ -59,6 +61,7 @@ export function registerInternalAgentPresenterRoute(
       const output = await getAgentPresenterBriefForFixtureImpl(fixtureId, {
         includeState,
         includePressure,
+        includeOddsReliability,
         oddsLimit,
         staleAfterMinutes,
         pressureWindowSize,

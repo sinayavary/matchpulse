@@ -56,7 +56,10 @@ function hasForbiddenKeys(value: unknown): boolean {
   return false;
 }
 
-function makePresenterResponse(includePressureHint: boolean): AgentPresenterResponse {
+function makePresenterResponse(
+  includePressureHint: boolean,
+  includeOddsReliabilityHint = false
+): AgentPresenterResponse {
   return {
     data: {
       fixture_id: "17952170",
@@ -94,6 +97,22 @@ function makePresenterResponse(includePressureHint: boolean): AgentPresenterResp
               limitations: [],
               safe_scope_note:
                 "This pressure hint is rule-based and based on available stored score data. It is not a prediction, probability, or betting recommendation."
+            }
+          }
+        : {}),
+      ...(includeOddsReliabilityHint
+        ? {
+            odds_reliability_hint: {
+              label: "odds_data_available" as const,
+              status: "available" as const,
+              source: "database" as const,
+              snapshot_count: 12,
+              market_count: 5,
+              provider_count: 3,
+              latest_timestamp: "2026-07-05T11:58:00.000Z",
+              limitation_count: 0,
+              safe_scope_note:
+                "This is a data-quality hint about stored odds availability, coverage, and freshness. It is not a prediction, probability, betting recommendation, expected value, or wagering instruction."
             }
           }
         : {})
@@ -160,6 +179,35 @@ test("internal agent presenter route accepts pressure params and forwards option
   assert.equal(capturedOptions.format, "full");
   assert.deepEqual(body.data.pressure_hint, makePresenterResponse(true).data.pressure_hint);
   assert.deepEqual(Object.keys(body.data.pressure_hint).sort(), ALLOWED_PRESSURE_HINT_KEYS);
+  assert.equal(hasForbiddenKeys(body), false);
+  await app.close();
+});
+
+test("internal agent presenter route forwards odds reliability option", async () => {
+  const app = Fastify();
+  let seenOptions: AgentPresenterOptions | null = null;
+  registerInternalAgentPresenterRoute(app, {
+    getAgentPresenterBriefForFixture: async (_fixtureId, options) => {
+      seenOptions = options ?? null;
+      return makePresenterResponse(false, true);
+    }
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/api/internal/agent/matches/17952170/brief?includeOddsReliability=true"
+  });
+
+  assert.equal(response.statusCode, 200);
+  const body = response.json();
+  assert.equal(body.meta.source, "agent-presenter");
+  assert.equal(body.meta.mode, "internal");
+  if (seenOptions === null) {
+    throw new Error("Expected the route to forward agent presenter options");
+  }
+  const capturedOptions = seenOptions as AgentPresenterOptions;
+  assert.equal(capturedOptions.includeOddsReliability, true);
+  assert.deepEqual(body.data.odds_reliability_hint, makePresenterResponse(false, true).data.odds_reliability_hint);
   assert.equal(hasForbiddenKeys(body), false);
   await app.close();
 });

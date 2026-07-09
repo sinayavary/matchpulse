@@ -16,6 +16,7 @@ export type AgentPresenterOptions = SignalCoreV0Options & {
 export type NormalizedAgentPresenterOptions = {
   includeState: boolean;
   includePressure: boolean;
+  includeOddsReliability: boolean;
   oddsLimit: number;
   staleAfterMinutes: number;
   pressureWindowSize: number;
@@ -53,6 +54,23 @@ export type AgentPresenterPressureHint = {
   safe_scope_note: string;
 };
 
+export type AgentPresenterOddsReliabilityHintLabel =
+  | "odds_data_unavailable"
+  | "odds_data_limited"
+  | "odds_data_available";
+
+export type AgentPresenterOddsReliabilityHint = {
+  label: AgentPresenterOddsReliabilityHintLabel;
+  status: "unavailable" | "limited" | "available";
+  source: "database";
+  snapshot_count: number;
+  market_count: number;
+  provider_count: number;
+  latest_timestamp: string | null;
+  limitation_count: number;
+  safe_scope_note: string;
+};
+
 export type AgentPresenterBrief = {
   status_label: "ready" | "partial" | "empty";
   headline: string;
@@ -73,6 +91,7 @@ export type AgentPresenterResponse = {
     signals: AgentPresenterSignal[];
     state?: CanonicalMatchState;
     pressure_hint?: AgentPresenterPressureHint;
+    odds_reliability_hint?: AgentPresenterOddsReliabilityHint;
   };
   meta: {
     status: "live" | "degraded" | "no_data";
@@ -86,6 +105,9 @@ const SAFE_SCOPE_NOTE =
 
 export const PRESSURE_HINT_SAFE_SCOPE_NOTE =
   "This pressure hint is rule-based and based on available stored score data. It is not a prediction, probability, or betting recommendation.";
+
+export const ODDS_RELIABILITY_HINT_SAFE_SCOPE_NOTE =
+  "This is a data-quality hint about stored odds availability, coverage, and freshness. It is not a prediction, probability, betting recommendation, expected value, or wagering instruction.";
 
 const PRESSURE_HINT_LEVELS: readonly AgentPresenterPressureHintLevel[] = [
   "none",
@@ -102,6 +124,28 @@ function isAgentPresenterPressureHintLevel(
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isRecordObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function isOddsReliabilityStatus(
+  value: unknown
+): value is AgentPresenterOddsReliabilityHint["status"] {
+  return value === "unavailable" || value === "limited" || value === "available";
+}
+
+function isOddsReliabilityHintLabel(
+  value: unknown
+): value is AgentPresenterOddsReliabilityHintLabel {
+  return value === "odds_data_unavailable" ||
+    value === "odds_data_limited" ||
+    value === "odds_data_available";
 }
 
 export function normalizeAgentPresenterOptions(
@@ -130,6 +174,7 @@ export function normalizeAgentPresenterOptions(
   return {
     includeState: options.includeState === true,
     includePressure: options.includePressure === true,
+    includeOddsReliability: options.includeOddsReliability === true,
     oddsLimit: Math.min(50, Math.max(1, requestedOddsLimit)),
     staleAfterMinutes: Math.min(10080, Math.max(1, requestedStaleAfterMinutes)),
     pressureWindowSize: Math.min(50, Math.max(1, requestedPressureWindowSize)),
@@ -160,7 +205,10 @@ export function buildPressureHintFromSignals(
     return undefined;
   }
 
-  const details = signal.details as Record<string, unknown>;
+  const details = signal.details;
+  if (!isRecordObject(details)) {
+    return undefined;
+  }
   const source = details.source;
   if (source !== "stored_scores_snapshot") {
     return undefined;
@@ -196,6 +244,58 @@ export function buildPressureHintFromSignals(
     evidence_count: evidenceCount,
     limitations: [...limitations],
     safe_scope_note: PRESSURE_HINT_SAFE_SCOPE_NOTE
+  };
+}
+
+export function buildOddsReliabilityHintFromSignals(
+  signals: SignalCoreV0Signal[]
+): AgentPresenterOddsReliabilityHint | undefined {
+  const signal = signals.find((candidate) => candidate.type === "ODDS_RELIABILITY_ASSESSED");
+  if (signal === undefined) {
+    return undefined;
+  }
+
+  const details = signal.details;
+  if (!isRecordObject(details)) {
+    return undefined;
+  }
+  if (!isOddsReliabilityStatus(details.status)) {
+    return undefined;
+  }
+  if (details.source !== "database") {
+    return undefined;
+  }
+  if (!isNonNegativeFiniteNumber(details.snapshot_count) ||
+    !isNonNegativeFiniteNumber(details.market_count) ||
+    !isNonNegativeFiniteNumber(details.provider_count) ||
+    !isNonNegativeFiniteNumber(details.limitation_count)) {
+    return undefined;
+  }
+  if (!(typeof details.latest_timestamp === "string" || details.latest_timestamp === null)) {
+    return undefined;
+  }
+
+  const label =
+    details.status === "available"
+      ? "odds_data_available"
+      : details.status === "limited"
+        ? "odds_data_limited"
+        : "odds_data_unavailable";
+
+  if (!isOddsReliabilityHintLabel(label)) {
+    return undefined;
+  }
+
+  return {
+    label,
+    status: details.status,
+    source: "database",
+    snapshot_count: details.snapshot_count,
+    market_count: details.market_count,
+    provider_count: details.provider_count,
+    latest_timestamp: details.latest_timestamp,
+    limitation_count: details.limitation_count,
+    safe_scope_note: ODDS_RELIABILITY_HINT_SAFE_SCOPE_NOTE
   };
 }
 
@@ -334,6 +434,13 @@ export function buildAgentPresenterBrief(
     }
   }
 
+  if (normalized.includeOddsReliability) {
+    const oddsReliabilityHint = buildOddsReliabilityHintFromSignals(data.signals);
+    if (oddsReliabilityHint !== undefined) {
+      response.data.odds_reliability_hint = oddsReliabilityHint;
+    }
+  }
+
   assertNoForbiddenSignalFields(response);
   return response;
 }
@@ -346,6 +453,7 @@ export async function getAgentPresenterBriefForFixture(
   const signalCoreOutput = await getSignalCoreV0ForFixture(fixtureId, {
     includeState: normalized.includeState,
     includePressure: normalized.includePressure,
+    includeOddsReliability: normalized.includeOddsReliability,
     oddsLimit: normalized.oddsLimit,
     staleAfterMinutes: normalized.staleAfterMinutes,
     pressureWindowSize: normalized.pressureWindowSize,

@@ -5,9 +5,11 @@ import { assertNoForbiddenSignalFields } from "./signalcore-contract.js";
 import {
   buildAgentPresenterBrief,
   buildAvailableDataList,
+  buildOddsReliabilityHintFromSignals,
   buildPressureHintFromSignals,
   buildFreshnessNote,
   buildMissingDataList,
+  ODDS_RELIABILITY_HINT_SAFE_SCOPE_NOTE,
   PRESSURE_HINT_SAFE_SCOPE_NOTE,
   normalizeAgentPresenterOptions,
   sanitizeSignalsForBrief,
@@ -82,6 +84,19 @@ function createSignal(
 
 function createPressureSignal(details: Record<string, unknown>, severity: SignalCoreV0Signal["severity"] = "info"): SignalCoreV0Signal {
   return createSignal("PRESSURE_HINT_AVAILABLE", severity, "Pressure hint available", "Rule-based pressure hint is available from stored score data.", details);
+}
+
+function createOddsReliabilitySignal(
+  details: Record<string, unknown>,
+  severity: SignalCoreV0Signal["severity"] = "info"
+): SignalCoreV0Signal {
+  return createSignal(
+    "ODDS_RELIABILITY_ASSESSED",
+    severity,
+    "Odds reliability assessed",
+    "Stored odds reliability has been assessed from database-backed snapshots.",
+    details
+  );
 }
 
 const FORBIDDEN_PRESENTER_PROPERTY_KEYS = [
@@ -403,6 +418,72 @@ test("no pressure signal returns undefined", () => {
   assert.equal(buildPressureHintFromSignals(signals), undefined);
 });
 
+test("no odds reliability signal returns undefined", () => {
+  const signals = [
+    createSignal("DATA_READY", "info", "Data ready", "Fixture and live data are available."),
+    createSignal("ODDS_AVAILABLE", "info", "Odds available", "Odds data is available.")
+  ];
+
+  assert.equal(buildOddsReliabilityHintFromSignals(signals), undefined);
+});
+
+test("maps odds reliability safely", () => {
+  const hint = buildOddsReliabilityHintFromSignals([
+    createOddsReliabilitySignal({
+      status: "limited",
+      source: "database",
+      snapshot_count: 4,
+      market_count: 3,
+      provider_count: 1,
+      latest_timestamp: "2026-07-05T11:45:00.000Z",
+      limitation_count: 2,
+      raw_payload: { internal: true }
+    })
+  ]);
+
+  assert.deepEqual(hint, {
+    label: "odds_data_limited",
+    status: "limited",
+    source: "database",
+    snapshot_count: 4,
+    market_count: 3,
+    provider_count: 1,
+    latest_timestamp: "2026-07-05T11:45:00.000Z",
+    limitation_count: 2,
+    safe_scope_note: ODDS_RELIABILITY_HINT_SAFE_SCOPE_NOTE
+  });
+  assert.equal("raw_payload" in (hint ?? {}), false);
+});
+
+test("invalid odds reliability details are omitted", () => {
+  assert.equal(
+    buildOddsReliabilityHintFromSignals([
+      createOddsReliabilitySignal({
+        status: "available",
+        source: "database",
+        snapshot_count: Number.NaN,
+        market_count: 3,
+        provider_count: 1,
+        latest_timestamp: null,
+        limitation_count: 0
+      })
+    ]),
+    undefined
+  );
+  assert.equal(
+    buildOddsReliabilityHintFromSignals([
+      createSignal(
+        "ODDS_RELIABILITY_ASSESSED",
+        "warning",
+        "Odds reliability assessed",
+        "Stored odds reliability has been assessed from database-backed snapshots.",
+        null as unknown as Record<string, unknown>
+      )
+    ]),
+    undefined
+  );
+});
+
 test("maps low pressure safely", () => {
   const hint = buildPressureHintFromSignals([
     createPressureSignal({
@@ -541,6 +622,10 @@ test("format defaults to compact", () => {
 
 test("includePressure defaults to false", () => {
   assert.equal(normalizeAgentPresenterOptions({}).includePressure, false);
+});
+
+test("includeOddsReliability defaults to false", () => {
+  assert.equal(normalizeAgentPresenterOptions({}).includeOddsReliability, false);
 });
 
 test("pressure options clamp safely", () => {
@@ -749,6 +834,96 @@ test("includePressure true does not add pressure_hint for invalid source", () =>
   assert.equal("pressure_hint" in response.data, false);
 });
 
+test("includeOddsReliability false does not change presenter output", () => {
+  const signalCoreOutput = buildSignalCoreOutput({
+    status: "ready",
+    hasFixture: true,
+    hasScoreboard: true,
+    hasOdds: true,
+    signals: [
+      createOddsReliabilitySignal({
+        status: "available",
+        source: "database",
+        snapshot_count: 9,
+        market_count: 4,
+        provider_count: 2,
+        latest_timestamp: "2026-07-05T11:58:00.000Z",
+        limitation_count: 0
+      })
+    ]
+  });
+
+  const baseline = buildAgentPresenterBrief(signalCoreOutput);
+  const withExplicitFalse = buildAgentPresenterBrief(signalCoreOutput, {
+    includeOddsReliability: false
+  });
+
+  assert.deepEqual(withExplicitFalse, baseline);
+  assert.equal("odds_reliability_hint" in withExplicitFalse.data, false);
+});
+
+test("includeOddsReliability true adds compact odds_reliability_hint", () => {
+  const response = buildAgentPresenterBrief(
+    buildSignalCoreOutput({
+      status: "ready",
+      hasFixture: true,
+      hasScoreboard: true,
+      hasOdds: true,
+      signals: [
+        createOddsReliabilitySignal({
+          status: "available",
+          source: "database",
+          snapshot_count: 12,
+          market_count: 5,
+          provider_count: 3,
+          latest_timestamp: "2026-07-05T11:58:00.000Z",
+          limitation_count: 0
+        })
+      ]
+    }),
+    { includeOddsReliability: true }
+  );
+
+  assert.deepEqual(response.data.odds_reliability_hint, {
+    label: "odds_data_available",
+    status: "available",
+    source: "database",
+    snapshot_count: 12,
+    market_count: 5,
+    provider_count: 3,
+    latest_timestamp: "2026-07-05T11:58:00.000Z",
+    limitation_count: 0,
+    safe_scope_note: ODDS_RELIABILITY_HINT_SAFE_SCOPE_NOTE
+  });
+  assert.equal("raw_payload" in (response.data.odds_reliability_hint ?? {}), false);
+  assert.equal("probability" in (response.data.odds_reliability_hint ?? {}), false);
+});
+
+test("includeOddsReliability true omits malformed odds reliability signal", () => {
+  const response = buildAgentPresenterBrief(
+    buildSignalCoreOutput({
+      status: "ready",
+      hasFixture: true,
+      hasScoreboard: true,
+      hasOdds: true,
+      signals: [
+        createOddsReliabilitySignal({
+          status: "available",
+          source: "database",
+          snapshot_count: "invalid",
+          market_count: 5,
+          provider_count: 3,
+          latest_timestamp: "2026-07-05T11:58:00.000Z",
+          limitation_count: 0
+        })
+      ]
+    }),
+    { includeOddsReliability: true }
+  );
+
+  assert.equal("odds_reliability_hint" in response.data, false);
+});
+
 test("presenter response with pressure_hint passes forbidden property key scan", () => {
   const response = buildAgentPresenterBrief(
     buildSignalCoreOutput({
@@ -777,6 +952,49 @@ test("presenter response with pressure_hint passes forbidden property key scan",
   assert.deepEqual(
     Object.keys(response.data.pressure_hint ?? {}).sort(),
     ALLOWED_PRESSURE_HINT_KEYS
+  );
+
+  const propertyKeys = new Set(collectPropertyKeys(response));
+  for (const field of FORBIDDEN_PRESENTER_PROPERTY_KEYS) {
+    assert.equal(propertyKeys.has(field), false);
+  }
+});
+
+test("presenter response with odds_reliability_hint passes forbidden property key scan", () => {
+  const response = buildAgentPresenterBrief(
+    buildSignalCoreOutput({
+      status: "ready",
+      hasFixture: true,
+      hasScoreboard: true,
+      hasOdds: true,
+      signals: [
+        createOddsReliabilitySignal({
+          status: "available",
+          source: "database",
+          snapshot_count: 12,
+          market_count: 5,
+          provider_count: 3,
+          latest_timestamp: "2026-07-05T11:58:00.000Z",
+          limitation_count: 0
+        })
+      ]
+    }),
+    { includeOddsReliability: true }
+  );
+
+  assert.deepEqual(
+    Object.keys(response.data.odds_reliability_hint ?? {}).sort(),
+    [
+      "label",
+      "latest_timestamp",
+      "limitation_count",
+      "market_count",
+      "provider_count",
+      "safe_scope_note",
+      "snapshot_count",
+      "source",
+      "status"
+    ]
   );
 
   const propertyKeys = new Set(collectPropertyKeys(response));
