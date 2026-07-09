@@ -4,6 +4,15 @@ import Fastify from "fastify";
 import { registerInternalAgentPresenterRoute } from "./server-agent-presenter-route.js";
 import type { AgentPresenterOptions, AgentPresenterResponse } from "./agent-presenter-v0.js";
 
+const ALLOWED_PRESSURE_HINT_KEYS = [
+  "evidence_count",
+  "label",
+  "level",
+  "limitations",
+  "safe_scope_note",
+  "source"
+];
+
 function collectKeys(value: unknown): string[] {
   const keys: string[] = [];
   const visit = (current: unknown): void => {
@@ -38,7 +47,9 @@ function hasForbiddenKeys(value: unknown): boolean {
     "pressure_score",
     "adapter_status",
     "debug_lineage",
-    "raw_payload"
+    "raw_payload",
+    "primary_side",
+    "formula"
   ]) {
     if (keys.has(key)) return true;
   }
@@ -148,6 +159,7 @@ test("internal agent presenter route accepts pressure params and forwards option
   assert.equal(capturedOptions.pressureMaxPayloadAgeMinutes, 10080);
   assert.equal(capturedOptions.format, "full");
   assert.deepEqual(body.data.pressure_hint, makePresenterResponse(true).data.pressure_hint);
+  assert.deepEqual(Object.keys(body.data.pressure_hint).sort(), ALLOWED_PRESSURE_HINT_KEYS);
   assert.equal(hasForbiddenKeys(body), false);
   await app.close();
 });

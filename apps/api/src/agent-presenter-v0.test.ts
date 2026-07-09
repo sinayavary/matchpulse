@@ -85,25 +85,50 @@ function createPressureSignal(details: Record<string, unknown>, severity: Signal
 }
 
 const FORBIDDEN_PRESENTER_PROPERTY_KEYS = [
-  '"confidence":',
-  '"probability":',
-  '"prediction":',
-  '"recommendation":',
-  '"recommended_bet":',
-  '"bet":',
-  '"wager":',
-  '"stake":',
-  '"expected_value":',
-  '"edge":',
-  '"winner":',
-  '"profit":',
-  '"payout":',
-  '"wallet":',
-  '"deposit":',
-  '"pressure_score":',
-  '"adapter_status":',
-  '"debug_lineage":'
+  "pressure_score",
+  "adapter_status",
+  "debug_lineage",
+  "raw_payload",
+  "primary_side",
+  "formula",
+  "probability",
+  "confidence",
+  "prediction",
+  "recommendation",
+  "recommended_bet",
+  "bet",
+  "wager",
+  "stake",
+  "expected_value",
+  "edge",
+  "winner",
+  "profit",
+  "payout",
+  "wallet",
+  "deposit"
 ];
+
+const ALLOWED_PRESSURE_HINT_KEYS = [
+  "evidence_count",
+  "label",
+  "level",
+  "limitations",
+  "safe_scope_note",
+  "source"
+];
+
+function collectPropertyKeys(value: unknown): string[] {
+  const keys: string[] = [];
+  const visit = (current: unknown): void => {
+    if (current === null || typeof current !== "object") return;
+    for (const [key, nested] of Object.entries(current)) {
+      keys.push(key);
+      visit(nested);
+    }
+  };
+  visit(value);
+  return keys;
+}
 
 function buildSignalCoreOutput(input: {
   fixtureId?: string;
@@ -472,9 +497,9 @@ test("output passes forbidden key scan", () => {
     })
   ]);
 
-  const serialized = JSON.stringify(output);
+  const propertyKeys = new Set(collectPropertyKeys(output));
   for (const field of FORBIDDEN_PRESENTER_PROPERTY_KEYS) {
-    assert.equal(serialized?.includes(field), false);
+    assert.equal(propertyKeys.has(field), false);
   }
 });
 
@@ -739,15 +764,23 @@ test("presenter response with pressure_hint passes forbidden property key scan",
           limitations: [],
           adapter_status: "available",
           pressure_score: 9,
-          debug_lineage: [{ internal: true }]
+          primary_side: "home",
+          debug_lineage: [{ internal: true }],
+          raw_payload: { internal: true },
+          formula: "internal"
         })
       ]
     }),
     { includePressure: true }
   );
 
-  const serialized = JSON.stringify(response);
+  assert.deepEqual(
+    Object.keys(response.data.pressure_hint ?? {}).sort(),
+    ALLOWED_PRESSURE_HINT_KEYS
+  );
+
+  const propertyKeys = new Set(collectPropertyKeys(response));
   for (const field of FORBIDDEN_PRESENTER_PROPERTY_KEYS) {
-    assert.equal(serialized.includes(field), false);
+    assert.equal(propertyKeys.has(field), false);
   }
 });
