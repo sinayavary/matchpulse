@@ -156,6 +156,8 @@ test("complete ready state produces a display-ready product insight", () => {
   assert.equal(response.data.readiness.display_ready, true);
   assert.equal(response.data.data_quality.level, "complete");
   assert.equal(response.data.freshness.freshness_label, "fresh");
+  assert.equal(response.data.decision_context.readiness_level, "ready");
+  assert.equal(response.data.decision_context.attention_level, "low");
 });
 
 test("partial state captures missing odds while preserving safe notes", () => {
@@ -178,6 +180,8 @@ test("partial state captures missing odds while preserving safe notes", () => {
   assert.equal(response.data.data_quality.level, "partial");
   assert.equal(response.data.data_quality.issues.includes("odds_missing"), true);
   assert.equal(response.data.user_facing_notes.includes("Odds data is missing."), true);
+  assert.equal(response.data.decision_context.readiness_level, "limited");
+  assert.equal(response.data.decision_context.market_reliability_level, "unavailable");
 });
 
 test("odds missing prefers product-facing partial data quality even when summary is ready", () => {
@@ -225,6 +229,8 @@ test("empty state reports no persisted data", () => {
   assert.equal(response.data.readiness.display_ready, false);
   assert.equal(response.data.data_quality.level, "empty");
   assert.equal(response.data.data_quality.issues.includes("no_persisted_data"), true);
+  assert.equal(response.data.decision_context.readiness_level, "not_ready");
+  assert.equal(response.data.decision_context.attention_level, "high");
 });
 
 test("stale state upgrades status and freshness label", () => {
@@ -246,6 +252,8 @@ test("stale state upgrades status and freshness label", () => {
   assert.equal(response.data.readiness.is_stale, true);
   assert.equal(response.data.freshness.freshness_label, "stale");
   assert.equal(response.meta.status, "stale");
+  assert.equal(response.data.decision_context.attention_level, "high");
+  assert.equal(response.data.decision_context.limitations.includes("Stale data."), true);
 });
 
 test("stale plus missing odds does not produce complete data quality", () => {
@@ -354,6 +362,66 @@ test("insight summary stays compact while preserving status quality and top sign
   });
 });
 
+test("event impact context raises safe attention without exposing event details", () => {
+  const response = buildProductAgentV1(
+    buildSignalCoreOutput({
+      status: "ready",
+      hasFixture: true,
+      hasScoreboard: true,
+      hasOdds: true,
+      latestDataTimestamp: "2026-07-05T12:15:00.000Z",
+      signals: [
+        {
+          ...createSignal("EVENT_IMPACT_ASSESSED", "warning", "Event impact assessed", "Stored events were assessed."),
+          details: { impact_level: "high" }
+        }
+      ]
+    })
+  );
+
+  assert.equal(response.data.decision_context.event_pressure_level, "high");
+  assert.equal(response.data.decision_context.attention_level, "high");
+  assert.equal(response.data.decision_context.limitations.includes("Event impact is based on stored events only."), true);
+  assert.equal(response.data.decision_context.operator_guidance.includes(
+    "Highlight the stored-event impact notice with its data limitation."
+  ), true);
+});
+
+test("medium event impact and limited reliability use optional precomputed safe inputs", () => {
+  const response = buildProductAgentV1(
+    buildSignalCoreOutput({
+      status: "ready",
+      hasFixture: true,
+      hasScoreboard: true,
+      hasOdds: true,
+      latestDataTimestamp: "2026-07-05T12:15:00.000Z",
+      signals: []
+    }),
+    { event_impact_level: "medium", odds_reliability_status: "limited" }
+  );
+
+  assert.equal(response.data.decision_context.event_pressure_level, "medium");
+  assert.equal(response.data.decision_context.market_reliability_level, "limited");
+  assert.equal(response.data.decision_context.attention_level, "medium");
+  assert.equal(response.data.decision_context.operator_guidance.includes("Show the odds coverage limitation."), true);
+});
+
+test("no event impact stays at none with bounded operator guidance", () => {
+  const response = buildProductAgentV1(
+    buildSignalCoreOutput({
+      status: "ready",
+      hasFixture: true,
+      hasScoreboard: true,
+      hasOdds: true,
+      latestDataTimestamp: "2026-07-05T12:15:00.000Z",
+      signals: []
+    })
+  );
+
+  assert.equal(response.data.decision_context.event_pressure_level, "none");
+  assert.equal(response.data.decision_context.operator_guidance[0], "Use the standard match intelligence card.");
+});
+
 test("safe scope note explicitly excludes predictions probabilities recommendations and betting guidance", () => {
   const response = buildProductAgentV1(
     buildSignalCoreOutput({
@@ -392,12 +460,18 @@ test("forbidden words and keys are absent from Product Agent v1 output", () => {
     "prediction",
     "probability",
     "confidence",
+    "formula",
+    "raw",
+    "raw_payload",
+    "debug",
+    "debug_lineage",
     "recommendation",
     "recommended_bet",
     "bet",
     "wager",
     "stake",
     "expected_value",
+    "ev",
     "edge",
     "winner",
     "deposit",

@@ -16,6 +16,15 @@ export type ProductAgentV1Signal = {
   message: string;
 };
 
+export type ProductAgentV1DecisionContext = {
+  attention_level: "none" | "low" | "medium" | "high";
+  readiness_level: "not_ready" | "limited" | "ready";
+  market_reliability_level: "unavailable" | "limited" | "available";
+  event_pressure_level: "none" | "low" | "medium" | "high";
+  operator_guidance: string[];
+  limitations: string[];
+};
+
 export type ProductAgentV1Insight = {
   agent_version: "product-agent-v1";
   fixture_id: string;
@@ -45,6 +54,7 @@ export type ProductAgentV1Insight = {
     info: number;
     top_signals: ProductAgentV1Signal[];
   };
+  decision_context: ProductAgentV1DecisionContext;
   user_facing_notes: string[];
   safe_scope_note: string;
 };
@@ -69,11 +79,17 @@ export type ProductAgentV1InsightSummary = {
   display_ready: boolean;
 };
 
-type ProductAgentV1BuildInput = {
+export type ProductAgentV1BuildInput = {
   fixture_id: string;
   summary: SignalCoreV0Response["data"]["summary"];
-  signals: Array<Pick<SignalCoreV0Signal, "type" | "severity" | "title" | "message">>;
+  signals: Array<
+    Pick<SignalCoreV0Signal, "type" | "severity" | "title" | "message"> & {
+      details?: Record<string, unknown>;
+    }
+  >;
   state?: CanonicalMatchState;
+  odds_reliability_status?: ProductAgentV1DecisionContext["market_reliability_level"];
+  event_impact_level?: ProductAgentV1DecisionContext["event_pressure_level"];
 };
 
 const SAFE_SCOPE_NOTE =
@@ -91,6 +107,129 @@ const severityPriority: Record<ProductAgentV1Signal["severity"], number> = {
   warning: 1,
   info: 2
 };
+
+const eventPressureLevels = new Set<ProductAgentV1DecisionContext["event_pressure_level"]>([
+  "none", "low", "medium", "high"
+]);
+
+const marketReliabilityLevels = new Set<ProductAgentV1DecisionContext["market_reliability_level"]>([
+  "unavailable", "limited", "available"
+]);
+
+function getSignalDetail(
+  signal: ProductAgentV1BuildInput["signals"][number],
+  key: string
+): unknown {
+  return "details" in signal && signal.details !== null && typeof signal.details === "object"
+    ? (signal.details as Record<string, unknown>)[key]
+    : undefined;
+}
+
+function buildMarketReliabilityLevel(
+  input: ProductAgentV1BuildInput
+): ProductAgentV1DecisionContext["market_reliability_level"] {
+  if (input.odds_reliability_status !== undefined) return input.odds_reliability_status;
+
+  const reliabilitySignal = input.signals.find((signal) => signal.type === "ODDS_RELIABILITY_ASSESSED");
+  const signalStatus = reliabilitySignal === undefined
+    ? undefined
+    : getSignalDetail(reliabilitySignal, "reliability_status");
+  if (typeof signalStatus === "string" && marketReliabilityLevels.has(
+    signalStatus as ProductAgentV1DecisionContext["market_reliability_level"]
+  )) {
+    return signalStatus as ProductAgentV1DecisionContext["market_reliability_level"];
+  }
+
+  if (!input.summary.has_odds) return "unavailable";
+  return input.signals.some((signal) => signal.type === "ODDS_MISSING") ? "limited" : "available";
+}
+
+function buildEventPressureLevel(
+  input: ProductAgentV1BuildInput
+): ProductAgentV1DecisionContext["event_pressure_level"] {
+  if (input.event_impact_level !== undefined) return input.event_impact_level;
+
+  const eventSignal = input.signals.find((signal) => signal.type === "EVENT_IMPACT_ASSESSED") ??
+    input.signals.find((signal) => signal.type === "PRESSURE_HINT_AVAILABLE");
+  const level = eventSignal === undefined
+    ? undefined
+    : getSignalDetail(eventSignal, eventSignal.type === "EVENT_IMPACT_ASSESSED" ? "impact_level" : "pressure_level");
+  if (typeof level === "string" && eventPressureLevels.has(
+    level as ProductAgentV1DecisionContext["event_pressure_level"]
+  )) {
+    return level as ProductAgentV1DecisionContext["event_pressure_level"];
+  }
+
+  return "none";
+}
+
+function buildDecisionContext(input: {
+  source: ProductAgentV1BuildInput;
+  status: ProductAgentV1Status;
+  dataQuality: ProductAgentV1Insight["data_quality"];
+  freshness: ProductAgentV1Insight["freshness"];
+  displayReady: boolean;
+}): ProductAgentV1DecisionContext {
+  const market_reliability_level = buildMarketReliabilityLevel(input.source);
+  const event_pressure_level = buildEventPressureLevel(input.source);
+  const hasCritical = input.source.signals.some((signal) => signal.severity === "critical");
+  const hasWarning = input.source.signals.some((signal) => signal.severity === "warning");
+  const readiness_level = input.status === "empty" || !input.displayReady
+    ? "not_ready"
+    : input.dataQuality.level !== "complete" || input.freshness.freshness_label === "stale" ||
+        market_reliability_level !== "available" || event_pressure_level === "high"
+      ? "limited"
+      : "ready";
+  const attention_level = input.status === "empty" || input.freshness.freshness_label === "stale" ||
+      hasCritical || event_pressure_level === "high"
+    ? "high"
+    : input.dataQuality.level === "partial" || hasWarning || market_reliability_level === "limited" ||
+        event_pressure_level === "medium"
+      ? "medium"
+      : input.source.signals.some((signal) => signal.severity === "info") || event_pressure_level === "low"
+        ? "low"
+        : "none";
+  const limitations: string[] = [];
+
+  if (!input.source.summary.has_fixture) limitations.push("Missing fixture.");
+  if (!input.source.summary.has_scoreboard) limitations.push("Missing scoreboard.");
+  if (!input.source.summary.has_odds) limitations.push("Missing odds.");
+  if (input.freshness.freshness_label === "stale") limitations.push("Stale data.");
+  if (market_reliability_level === "limited") limitations.push("Limited odds coverage.");
+  if (event_pressure_level === "none") {
+    limitations.push("Event impact is unavailable.");
+    limitations.push("No live event source is connected.");
+  } else {
+    limitations.push("Event impact is based on stored events only.");
+  }
+
+  const operator_guidance: string[] = [];
+  if (readiness_level === "not_ready") {
+    operator_guidance.push("Suppress the match intelligence card until required data is available.");
+  } else if (readiness_level === "limited") {
+    operator_guidance.push("Display with data limitations.");
+  } else {
+    operator_guidance.push("Use the standard match intelligence card.");
+  }
+  if (input.freshness.freshness_label === "stale") {
+    operator_guidance.push("Highlight the stale data warning.");
+  }
+  if (market_reliability_level !== "available") {
+    operator_guidance.push("Show the odds coverage limitation.");
+  }
+  if (event_pressure_level === "high") {
+    operator_guidance.push("Highlight the stored-event impact notice with its data limitation.");
+  }
+
+  return {
+    attention_level,
+    readiness_level,
+    market_reliability_level,
+    event_pressure_level,
+    operator_guidance,
+    limitations: Array.from(new Set(limitations))
+  };
+}
 
 function isStaleData(input: ProductAgentV1BuildInput): boolean {
   return input.summary.latest_data_timestamp !== null &&
@@ -242,6 +381,13 @@ export function buildProductAgentV1Insight(
   const freshness = buildFreshness(input);
   const status = buildStatus(input);
   const issues = buildIssueList(input);
+  const displayReady = input.summary.status !== "empty" &&
+    input.summary.has_fixture &&
+    (input.summary.has_scoreboard || input.summary.has_odds);
+  const dataQuality = {
+    level: buildDataQualityLevel(input, issues),
+    issues
+  } as const;
   const insight: ProductAgentV1Insight = {
     agent_version: "product-agent-v1",
     fixture_id: input.fixture_id,
@@ -249,18 +395,13 @@ export function buildProductAgentV1Insight(
     headline: buildHeadline(status),
     summary: buildSummary(input, freshness.note),
     readiness: {
-      display_ready: input.summary.status !== "empty" &&
-        input.summary.has_fixture &&
-        (input.summary.has_scoreboard || input.summary.has_odds),
+      display_ready: displayReady,
       has_fixture: input.summary.has_fixture,
       has_scoreboard: input.summary.has_scoreboard,
       has_odds: input.summary.has_odds,
       is_stale: status === "stale"
     },
-    data_quality: {
-      level: buildDataQualityLevel(input, issues),
-      issues
-    },
+    data_quality: dataQuality,
     freshness,
     signal_brief: {
       total: input.summary.signal_count,
@@ -269,6 +410,13 @@ export function buildProductAgentV1Insight(
       info: input.summary.info_count,
       top_signals: buildTopSignals(input.signals)
     },
+    decision_context: buildDecisionContext({
+      source: input,
+      status,
+      dataQuality,
+      freshness,
+      displayReady
+    }),
     user_facing_notes: buildUserFacingNotes(input, freshness.note),
     safe_scope_note: SAFE_SCOPE_NOTE
   };
@@ -296,13 +444,18 @@ export function buildProductAgentV1InsightSummary(
 }
 
 export function buildProductAgentV1(
-  signalCoreOutput: SignalCoreV0Response
+  signalCoreOutput: SignalCoreV0Response,
+  decisionContextInput: Pick<
+    ProductAgentV1BuildInput,
+    "odds_reliability_status" | "event_impact_level"
+  > = {}
 ): ProductAgentV1Response {
   const insight = buildProductAgentV1Insight({
     fixture_id: signalCoreOutput.data.fixture_id,
     summary: signalCoreOutput.data.summary,
     signals: signalCoreOutput.data.signals,
-    state: signalCoreOutput.data.state
+    state: signalCoreOutput.data.state,
+    ...decisionContextInput
   });
 
   const response: ProductAgentV1Response = {
