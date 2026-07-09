@@ -2,6 +2,7 @@ import type { CanonicalMatchState } from "./match-state-builder.js";
 import { assertNoForbiddenSignalFields } from "./signalcore-contract.js";
 import {
   getSignalCoreV0ForFixture,
+  type SignalCoreV0Dependencies,
   type SignalCoreV0Options,
   type SignalCoreV0Response,
   type SignalCoreV0Signal
@@ -123,6 +124,52 @@ function getSignalDetail(
   return "details" in signal && signal.details !== null && typeof signal.details === "object"
     ? (signal.details as Record<string, unknown>)[key]
     : undefined;
+}
+
+function isMarketReliabilityLevel(
+  value: unknown
+): value is ProductAgentV1DecisionContext["market_reliability_level"] {
+  return typeof value === "string" && marketReliabilityLevels.has(
+    value as ProductAgentV1DecisionContext["market_reliability_level"]
+  );
+}
+
+function isEventPressureLevel(
+  value: unknown
+): value is ProductAgentV1DecisionContext["event_pressure_level"] {
+  return typeof value === "string" && eventPressureLevels.has(
+    value as ProductAgentV1DecisionContext["event_pressure_level"]
+  );
+}
+
+export function extractProductAgentDecisionContextInputFromSignalCore(
+  signalCoreOutput: SignalCoreV0Response
+): Pick<ProductAgentV1BuildInput, "odds_reliability_status" | "event_impact_level"> {
+  const input: Pick<
+    ProductAgentV1BuildInput,
+    "odds_reliability_status" | "event_impact_level"
+  > = {};
+  const reliabilitySignal = signalCoreOutput.data.signals.find(
+    (signal) => signal.type === "ODDS_RELIABILITY_ASSESSED"
+  );
+  const eventImpactSignal = signalCoreOutput.data.signals.find(
+    (signal) => signal.type === "EVENT_IMPACT_ASSESSED"
+  );
+  const reliabilityStatus = reliabilitySignal === undefined
+    ? undefined
+    : getSignalDetail(reliabilitySignal, "reliability_status");
+  const eventImpactLevel = eventImpactSignal === undefined
+    ? undefined
+    : getSignalDetail(eventImpactSignal, "impact_level");
+
+  if (isMarketReliabilityLevel(reliabilityStatus)) {
+    input.odds_reliability_status = reliabilityStatus;
+  }
+  if (isEventPressureLevel(eventImpactLevel)) {
+    input.event_impact_level = eventImpactLevel;
+  }
+
+  return input;
 }
 
 function buildMarketReliabilityLevel(
@@ -473,11 +520,18 @@ export function buildProductAgentV1(
 
 export async function getProductAgentV1ForFixture(
   fixtureId: string,
-  options: SignalCoreV0Options = {}
+  options: SignalCoreV0Options = {},
+  dependencies: SignalCoreV0Dependencies = {}
 ): Promise<ProductAgentV1Response> {
   const signalCoreOutput = await getSignalCoreV0ForFixture(fixtureId, {
     ...options,
-    includeState: true
-  });
-  return buildProductAgentV1(signalCoreOutput);
+    includeState: true,
+    includeOddsReliability: true,
+    includeInternalContext: true,
+    includeEventImpact: true
+  }, dependencies);
+  return buildProductAgentV1(
+    signalCoreOutput,
+    extractProductAgentDecisionContextInputFromSignalCore(signalCoreOutput)
+  );
 }

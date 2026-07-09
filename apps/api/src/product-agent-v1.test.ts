@@ -5,7 +5,9 @@ import { assertNoForbiddenSignalFields } from "./signalcore-contract.js";
 import {
   buildProductAgentV1,
   buildProductAgentV1Insight,
-  buildProductAgentV1InsightSummary
+  buildProductAgentV1InsightSummary,
+  extractProductAgentDecisionContextInputFromSignalCore,
+  getProductAgentV1ForFixture
 } from "./product-agent-v1.js";
 import type { SignalCoreV0Response, SignalCoreV0Signal } from "./signalcore-v0.js";
 
@@ -387,6 +389,111 @@ test("event impact context raises safe attention without exposing event details"
   ), true);
 });
 
+test("extracts only approved assessment values from SignalCore", () => {
+  const output = buildSignalCoreOutput({
+    status: "ready",
+    hasFixture: true,
+    hasScoreboard: true,
+    hasOdds: true,
+    signals: [
+      {
+        ...createSignal("ODDS_RELIABILITY_ASSESSED", "warning", "Odds reliability assessed", "Stored odds reliability was assessed."),
+        details: {
+          reliability_status: "limited",
+          snapshot_count: 99,
+          raw_payload: "must not be copied"
+        }
+      },
+      {
+        ...createSignal("EVENT_IMPACT_ASSESSED", "warning", "Event impact assessed", "Stored event impact was assessed."),
+        details: {
+          impact_level: "high",
+          key_event_count: 4
+        }
+      }
+    ]
+  });
+
+  assert.deepEqual(extractProductAgentDecisionContextInputFromSignalCore(output), {
+    odds_reliability_status: "limited",
+    event_impact_level: "high"
+  });
+});
+
+test("invalid or missing assessment details are ignored safely", () => {
+  const output = buildSignalCoreOutput({
+    status: "ready",
+    hasFixture: true,
+    hasScoreboard: true,
+    hasOdds: true,
+    signals: [
+      {
+        ...createSignal("ODDS_RELIABILITY_ASSESSED", "warning", "Odds reliability assessed", "Stored odds reliability was assessed."),
+        details: { reliability_status: "unknown" }
+      },
+      {
+        ...createSignal("EVENT_IMPACT_ASSESSED", "warning", "Event impact assessed", "Stored event impact was assessed."),
+        details: { impact_level: null }
+      }
+    ]
+  });
+
+  assert.deepEqual(extractProductAgentDecisionContextInputFromSignalCore(output), {});
+});
+
+test("fixture wiring requests safe assessments and forwards only their levels", async () => {
+  let capturedOptions: Record<string, unknown> | undefined;
+  const response = await getProductAgentV1ForFixture("17952170", {
+    oddsLimit: 7,
+    staleAfterMinutes: 45
+  }, {
+    getInternalIntelligenceContext: async (fixtureId) => {
+      capturedOptions = { fixtureId };
+      return {
+        fixture_id: fixtureId,
+        status: "available",
+        data_readiness: {
+          quality_status: "complete",
+          quality_issues: [],
+          has_fixture: true,
+          has_scoreboard: true,
+          has_odds: true,
+          has_events: true,
+          has_event_impact: true
+        },
+        match_state: {
+          last_data_received_at: "2026-07-05T12:15:00.000Z"
+        },
+        odds_reliability: {
+          status: "limited",
+          snapshot_count: 1,
+          market_count: 1,
+          provider_count: 1,
+          latest_timestamp: "2026-07-05T12:14:00.000Z",
+          limitations: [],
+          signals: [],
+          safe_scope_note: "safe"
+        },
+        event_context: {
+          pressure_level: "high",
+          event_count: 1
+        },
+        event_impact: {
+          impact_level: "high",
+          impact_label: "High stored-event impact",
+          key_event_count: 1
+        }
+      } as never;
+    }
+  });
+
+  assert.deepEqual(capturedOptions, { fixtureId: "17952170" });
+  assert.equal(response.data.decision_context.market_reliability_level, "limited");
+  assert.equal(response.data.decision_context.event_pressure_level, "high");
+  assert.equal(response.data.decision_context.attention_level, "high");
+  assert.equal("raw_payload" in response.data.decision_context, false);
+});
+
 test("medium event impact and limited reliability use optional precomputed safe inputs", () => {
   const response = buildProductAgentV1(
     buildSignalCoreOutput({
@@ -465,6 +572,7 @@ test("forbidden words and keys are absent from Product Agent v1 output", () => {
     "raw_payload",
     "debug",
     "debug_lineage",
+    "internal_context",
     "recommendation",
     "recommended_bet",
     "bet",
