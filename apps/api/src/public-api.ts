@@ -144,6 +144,56 @@ export type PublicBundleResponse = {
   };
 };
 
+export type PublicMatchIntelligenceCardResponse = {
+  data: {
+    fixture_id: string;
+    agent_version: "presenter-v0";
+    brief: {
+      status_label: "ready" | "partial" | "empty";
+      headline: string;
+      overview: string;
+      available_data: string[];
+      missing_data: string[];
+      freshness_note: string;
+      quality_notes: string[];
+      safe_scope_note: string;
+    };
+    signal_summary: {
+      status: "ready" | "partial" | "empty";
+      has_fixture: boolean;
+      has_scoreboard: boolean;
+      has_odds: boolean;
+      latest_data_timestamp: string | null;
+    };
+    pressure_hint?: {
+      label: string;
+      level: "none" | "low" | "medium" | "high";
+      source: "stored_scores_snapshot";
+      evidence_count: number;
+      limitations: string[];
+      safe_scope_note: string;
+    };
+    odds_reliability_hint?: {
+      label: "odds_data_unavailable" | "odds_data_limited" | "odds_data_available";
+      status: "unavailable" | "limited" | "available";
+      source: "database";
+      snapshot_count: number;
+      market_count: number;
+      provider_count: number;
+      latest_timestamp: string | null;
+      limitation_count: number;
+      safe_scope_note: string;
+    };
+  } | null;
+  meta: {
+    status: PublicMetaStatus;
+    source: "database";
+    mode: PublicApiMode;
+    public_api_version: "public-v0";
+    message?: string;
+  };
+};
+
 export type PublicApiDependencies = {
   getDbClient: () => PublicApiDbClient;
   getDbBackedMatchState: (
@@ -154,6 +204,8 @@ export type PublicApiDependencies = {
     fixtureId: string,
     options?: {
       includeState?: boolean;
+      includePressure?: boolean;
+      includeOddsReliability?: boolean;
       oddsLimit?: number;
       staleAfterMinutes?: number;
       format?: "compact" | "full";
@@ -172,6 +224,22 @@ const defaultDependencies: PublicApiDependencies = {
 const forbiddenPublicFields = new Set<string>(
   SIGNALCORE_FORBIDDEN_OUTPUT_FIELDS.map((field) => field.toLowerCase())
 );
+
+const forbiddenPublicCardFields = new Set<string>([
+  ...forbiddenPublicFields,
+  "formula",
+  "raw_payload",
+  "debug_lineage",
+  "primary_side",
+  "pressure_score",
+  "adapter_status",
+  "raw odds rows",
+  "internal model details",
+  "secrets",
+  "signals",
+  "state",
+  "insight"
+]);
 
 const liveStatusTokens = new Set([
   "live",
@@ -348,9 +416,79 @@ export function normalizePublicBundleQuery(query: {
   };
 }
 
+export function normalizePublicMatchIntelligenceCardQuery(query: {
+  oddsLimit?: unknown;
+  staleAfterMinutes?: unknown;
+}): {
+  oddsLimit: number;
+  staleAfterMinutes: number;
+} {
+  return {
+    oddsLimit: normalizeLimit(query.oddsLimit, 20, 50),
+    staleAfterMinutes: normalizeStaleAfterMinutes(query.staleAfterMinutes, 180)
+  };
+}
+
 function sanitizeAndAssertPublicPayload<T>(value: T): T {
   const sanitized = sanitizePublicPayload(value);
   assertNoForbiddenPublicKeys(sanitized);
+  return sanitized;
+}
+
+function sanitizePublicCardPayload<T>(value: T): T {
+  const visited = new WeakMap<object, unknown>();
+
+  function sanitize(current: unknown): unknown {
+    if (Array.isArray(current)) {
+      return current.map((item) => sanitize(item));
+    }
+    if (!isPlainObject(current)) {
+      return current;
+    }
+    const cached = visited.get(current);
+    if (cached !== undefined) return cached;
+
+    const output: Record<string, unknown> = {};
+    visited.set(current, output);
+    for (const [key, nested] of Object.entries(current)) {
+      if (forbiddenPublicCardFields.has(key.toLowerCase())) continue;
+      output[key] = sanitize(nested);
+    }
+    return output;
+  }
+
+  return sanitize(value) as T;
+}
+
+function assertNoForbiddenPublicCardKeys(value: unknown): void {
+  const visited = new WeakSet<object>();
+
+  function inspect(current: unknown, path: string): void {
+    if (!isPlainObject(current) && !Array.isArray(current)) return;
+    if (visited.has(current as object)) return;
+    visited.add(current as object);
+
+    if (Array.isArray(current)) {
+      current.forEach((item, index) => inspect(item, `${path}[${index}]`));
+      return;
+    }
+
+    for (const [key, nestedValue] of Object.entries(current)) {
+      const normalizedKey = key.toLowerCase();
+      const fieldPath = path ? `${path}.${key}` : key;
+      if (forbiddenPublicCardFields.has(normalizedKey)) {
+        throw new TypeError(`Forbidden public card field: ${fieldPath}`);
+      }
+      inspect(nestedValue, fieldPath);
+    }
+  }
+
+  inspect(value, "");
+}
+
+function sanitizeAndAssertPublicCardPayload<T>(value: T): T {
+  const sanitized = sanitizePublicCardPayload(value);
+  assertNoForbiddenPublicCardKeys(sanitized);
   return sanitized;
 }
 
@@ -602,6 +740,96 @@ export function buildPublicBundleResponse(input: {
     }
   };
   assertNoForbiddenPublicKeys(output);
+  return output;
+}
+
+function toPublicCardMetaStatus(input: {
+  presenterOutput: AgentPresenterResponse;
+  staleAfterMinutes: number;
+  now: Date;
+}): PublicMetaStatus {
+  if (input.presenterOutput.meta.status === "no_data" ||
+    input.presenterOutput.data.signal_summary.status === "empty") {
+    return "no_data";
+  }
+
+  const latestTimestamp = parseTimestamp(input.presenterOutput.data.signal_summary.latest_data_timestamp);
+  if (latestTimestamp !== null &&
+    input.now.getTime() - latestTimestamp > input.staleAfterMinutes * 60_000) {
+    return "stale";
+  }
+
+  return input.presenterOutput.meta.status === "live" ? "live" : "degraded";
+}
+
+export function buildPublicMatchIntelligenceCardResponse(input: {
+  presenterOutput: AgentPresenterResponse;
+  staleAfterMinutes: number;
+  now: Date;
+  message?: string;
+  metaStatus?: PublicMetaStatus;
+}): PublicMatchIntelligenceCardResponse {
+  const { data: presenterData } = input.presenterOutput;
+  const payload = sanitizeAndAssertPublicCardPayload({
+    fixture_id: presenterData.fixture_id,
+    agent_version: presenterData.agent_version,
+    brief: {
+      status_label: presenterData.brief.status_label,
+      headline: presenterData.brief.headline,
+      overview: presenterData.brief.overview,
+      available_data: [...presenterData.brief.available_data],
+      missing_data: [...presenterData.brief.missing_data],
+      freshness_note: presenterData.brief.freshness_note,
+      quality_notes: [...presenterData.brief.quality_notes],
+      safe_scope_note: presenterData.brief.safe_scope_note
+    },
+    signal_summary: {
+      status: presenterData.signal_summary.status,
+      has_fixture: presenterData.signal_summary.has_fixture,
+      has_scoreboard: presenterData.signal_summary.has_scoreboard,
+      has_odds: presenterData.signal_summary.has_odds,
+      latest_data_timestamp: presenterData.signal_summary.latest_data_timestamp
+    },
+    ...(presenterData.pressure_hint === undefined
+      ? {}
+      : {
+          pressure_hint: {
+            label: presenterData.pressure_hint.label,
+            level: presenterData.pressure_hint.level,
+            source: presenterData.pressure_hint.source,
+            evidence_count: presenterData.pressure_hint.evidence_count,
+            limitations: [...presenterData.pressure_hint.limitations],
+            safe_scope_note: presenterData.pressure_hint.safe_scope_note
+          }
+        }),
+    ...(presenterData.odds_reliability_hint === undefined
+      ? {}
+      : {
+          odds_reliability_hint: {
+            label: presenterData.odds_reliability_hint.label,
+            status: presenterData.odds_reliability_hint.status,
+            source: presenterData.odds_reliability_hint.source,
+            snapshot_count: presenterData.odds_reliability_hint.snapshot_count,
+            market_count: presenterData.odds_reliability_hint.market_count,
+            provider_count: presenterData.odds_reliability_hint.provider_count,
+            latest_timestamp: presenterData.odds_reliability_hint.latest_timestamp,
+            limitation_count: presenterData.odds_reliability_hint.limitation_count,
+            safe_scope_note: presenterData.odds_reliability_hint.safe_scope_note
+          }
+        })
+  });
+
+  const output: PublicMatchIntelligenceCardResponse = {
+    data: payload,
+    meta: {
+      status: input.metaStatus ?? toPublicCardMetaStatus(input),
+      source: "database",
+      mode: "public",
+      public_api_version: "public-v0",
+      ...(input.message === undefined ? {} : { message: input.message })
+    }
+  };
+  assertNoForbiddenPublicCardKeys(output);
   return output;
 }
 
@@ -1135,6 +1363,54 @@ export function registerPublicApiRoutes(
           source: "database" as const,
           mode: "public" as const,
           message: "Public match bundle is temporarily unavailable."
+        }
+      };
+    }
+  });
+
+  app.get("/api/public/matches/:fixtureId/intelligence-card", async (request, reply) => {
+    const { fixtureId } = request.params as { fixtureId: string };
+    const query = request.query as {
+      oddsLimit?: unknown;
+      staleAfterMinutes?: unknown;
+      includeState?: unknown;
+      includeSignals?: unknown;
+    };
+    const normalized = normalizePublicMatchIntelligenceCardQuery(query);
+    const now = deps.now();
+
+    try {
+      const presenterOutput = await deps.getAgentPresenterBriefForFixture(fixtureId, {
+        includeState: false,
+        includePressure: true,
+        includeOddsReliability: true,
+        oddsLimit: normalized.oddsLimit,
+        staleAfterMinutes: normalized.staleAfterMinutes,
+        format: "compact"
+      });
+      const isNoData = presenterOutput.meta.status === "no_data" ||
+        presenterOutput.data.signal_summary.status === "empty";
+      if (isNoData) {
+        notFound(reply);
+      }
+      return buildPublicMatchIntelligenceCardResponse({
+        presenterOutput,
+        staleAfterMinutes: normalized.staleAfterMinutes,
+        now,
+        ...(isNoData
+          ? { metaStatus: "no_data" as const, message: "Match intelligence card data is not available for this fixture." }
+          : {})
+      });
+    } catch {
+      unavailable(reply);
+      return {
+        data: null,
+        meta: {
+          status: "degraded" as const,
+          source: "database" as const,
+          mode: "public" as const,
+          public_api_version: "public-v0" as const,
+          message: "Public match intelligence card is temporarily unavailable."
         }
       };
     }

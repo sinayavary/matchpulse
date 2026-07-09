@@ -6,7 +6,9 @@ import type { CanonicalMatchState } from "./match-state-builder.js";
 import {
   assertNoForbiddenPublicKeys,
   buildPublicBundleResponse,
+  buildPublicMatchIntelligenceCardResponse,
   normalizePublicBundleQuery,
+  normalizePublicMatchIntelligenceCardQuery,
   normalizePublicMatchQuery,
   normalizePublicMatchesQuery,
   registerPublicApiRoutes,
@@ -85,7 +87,10 @@ function makeState(overrides: Partial<CanonicalMatchState> = {}): CanonicalMatch
   };
 }
 
-function makePresenterOutput(state: CanonicalMatchState): AgentPresenterResponse {
+function makePresenterOutput(
+  state: CanonicalMatchState,
+  options: { includePressureHint?: boolean; includeOddsReliabilityHint?: boolean } = {}
+): AgentPresenterResponse {
   return {
     data: {
       fixture_id: state.fixture_id,
@@ -122,7 +127,36 @@ function makePresenterOutput(state: CanonicalMatchState): AgentPresenterResponse
         title: "Data ready",
         message: "Fixture and live data are available."
       }],
-      state
+      state,
+      ...(options.includePressureHint
+        ? {
+            pressure_hint: {
+              label: "Medium pressure hint",
+              level: "medium" as const,
+              source: "stored_scores_snapshot" as const,
+              evidence_count: 3,
+              limitations: ["Stored score snapshots are limited."],
+              safe_scope_note:
+                "This pressure hint is rule-based and based on available stored score data. It is not a prediction, probability, or betting recommendation."
+            }
+          }
+        : {}),
+      ...(options.includeOddsReliabilityHint
+        ? {
+            odds_reliability_hint: {
+              label: "odds_data_limited" as const,
+              status: "limited" as const,
+              source: "database" as const,
+              snapshot_count: 64,
+              market_count: 31,
+              provider_count: 1,
+              latest_timestamp: "2026-06-12T00:46:20.916Z",
+              limitation_count: 2,
+              safe_scope_note:
+                "This is a data-quality hint about stored odds availability, coverage, and freshness. It is not a prediction, probability, betting recommendation, expected value, or wagering instruction."
+            }
+          }
+        : {})
     },
     meta: {
       status: "live",
@@ -419,6 +453,26 @@ test("public bundle query caps oddsLimit at 50", () => {
   assert.equal(normalizePublicBundleQuery({ oddsLimit: 999 }).oddsLimit, 50);
 });
 
+test("public intelligence card query defaults to safe values", () => {
+  const normalized = normalizePublicMatchIntelligenceCardQuery({});
+  assert.equal(normalized.oddsLimit, 20);
+  assert.equal(normalized.staleAfterMinutes, 180);
+});
+
+test("public intelligence card query caps oddsLimit and staleAfterMinutes", () => {
+  const normalized = normalizePublicMatchIntelligenceCardQuery({
+    oddsLimit: 999,
+    staleAfterMinutes: 99_999,
+    includeState: true,
+    includeSignals: true
+  } as {
+    oddsLimit: unknown;
+    staleAfterMinutes: unknown;
+  });
+  assert.equal(normalized.oddsLimit, 50);
+  assert.equal(normalized.staleAfterMinutes, 10080);
+});
+
 test("single public match route caps oddsLimit at 50", async () => {
   await withDatabaseUrl(async () => {
     const app = Fastify();
@@ -676,6 +730,143 @@ test("public bundle insight does not leak internal-only fields", () => {
   ]);
 });
 
+test("public intelligence card builder returns only the allowed top-level fields", () => {
+  const output = buildPublicMatchIntelligenceCardResponse({
+    presenterOutput: makePresenterOutput(makeState(), {
+      includePressureHint: true,
+      includeOddsReliabilityHint: true
+    }),
+    staleAfterMinutes: 180,
+    now: new Date("2026-06-04T19:00:00.000Z")
+  });
+
+  assert.deepEqual(Object.keys(output.data ?? {}).sort(), [
+    "agent_version",
+    "brief",
+    "fixture_id",
+    "odds_reliability_hint",
+    "pressure_hint",
+    "signal_summary"
+  ]);
+  assert.equal(output.meta.mode, "public");
+  assert.equal(output.meta.public_api_version, "public-v0");
+});
+
+test("public intelligence card builder includes compact brief", () => {
+  const output = buildPublicMatchIntelligenceCardResponse({
+    presenterOutput: makePresenterOutput(makeState()),
+    staleAfterMinutes: 180,
+    now: new Date("2026-06-04T19:00:00.000Z")
+  });
+
+  assert.deepEqual(output.data?.brief, {
+    status_label: "ready",
+    headline: "Safe headline",
+    overview: "Safe overview",
+    available_data: ["Fixture identity is available."],
+    missing_data: [],
+    freshness_note: "Latest persisted data is within the freshness window.",
+    quality_notes: ["Data is available for safe display."],
+    safe_scope_note:
+      "This brief only describes data availability, freshness, and quality for safe display."
+  });
+});
+
+test("public intelligence card builder reduces signal_summary to allowed keys only", () => {
+  const output = buildPublicMatchIntelligenceCardResponse({
+    presenterOutput: makePresenterOutput(makeState()),
+    staleAfterMinutes: 180,
+    now: new Date("2026-06-04T19:00:00.000Z")
+  });
+
+  assert.deepEqual(Object.keys(output.data?.signal_summary ?? {}).sort(), [
+    "has_fixture",
+    "has_odds",
+    "has_scoreboard",
+    "latest_data_timestamp",
+    "status"
+  ]);
+});
+
+test("public intelligence card builder includes optional hints when present", () => {
+  const output = buildPublicMatchIntelligenceCardResponse({
+    presenterOutput: makePresenterOutput(makeState(), {
+      includePressureHint: true,
+      includeOddsReliabilityHint: true
+    }),
+    staleAfterMinutes: 180,
+    now: new Date("2026-06-04T19:00:00.000Z")
+  });
+
+  assert.equal(output.data?.pressure_hint?.level, "medium");
+  assert.equal(output.data?.odds_reliability_hint?.status, "limited");
+});
+
+test("public intelligence card builder excludes signals state and insight", () => {
+  const contaminated = makePresenterOutput(makeState(), {
+    includePressureHint: true,
+    includeOddsReliabilityHint: true
+  }) as AgentPresenterResponse & {
+    data: AgentPresenterResponse["data"] & {
+      insight?: { safe: boolean };
+      state: CanonicalMatchState & { debug_lineage?: string };
+      signals: Array<AgentPresenterResponse["data"]["signals"][number] & { raw_payload?: string }>;
+    };
+  };
+  contaminated.data.insight = { safe: false };
+  contaminated.data.state = {
+    ...contaminated.data.state,
+    debug_lineage: "remove"
+  };
+  contaminated.data.signals = [{
+    ...contaminated.data.signals[0],
+    raw_payload: "remove"
+  }];
+
+  const output = buildPublicMatchIntelligenceCardResponse({
+    presenterOutput: contaminated,
+    staleAfterMinutes: 180,
+    now: new Date("2026-06-04T19:00:00.000Z")
+  });
+
+  const serialized = JSON.stringify(output).toLowerCase();
+  assert.equal(serialized.includes("\"signals\""), false);
+  assert.equal(serialized.includes("\"state\""), false);
+  assert.equal(serialized.includes("\"insight\""), false);
+});
+
+test("public intelligence card forbidden key scan passes for card-specific fields", () => {
+  const contaminated = makePresenterOutput(makeState(), {
+    includePressureHint: true,
+    includeOddsReliabilityHint: true
+  }) as AgentPresenterResponse & {
+    data: AgentPresenterResponse["data"] & {
+      brief: AgentPresenterResponse["data"]["brief"] & { formula?: string };
+      pressure_hint?: AgentPresenterResponse["data"]["pressure_hint"] & { adapter_status?: string };
+      odds_reliability_hint?: AgentPresenterResponse["data"]["odds_reliability_hint"] & { primary_side?: string };
+    };
+  };
+  contaminated.data.brief.formula = "remove";
+  if (contaminated.data.pressure_hint !== undefined) {
+    contaminated.data.pressure_hint.adapter_status = "remove";
+  }
+  if (contaminated.data.odds_reliability_hint !== undefined) {
+    contaminated.data.odds_reliability_hint.primary_side = "remove";
+  }
+
+  const output = buildPublicMatchIntelligenceCardResponse({
+    presenterOutput: contaminated,
+    staleAfterMinutes: 180,
+    now: new Date("2026-06-04T19:00:00.000Z")
+  });
+
+  const serialized = JSON.stringify(output).toLowerCase();
+  for (const field of ["formula", "adapter_status", "primary_side"]) {
+    assert.equal(serialized.includes(`\"${field}\"`), false);
+  }
+  assertNoForbiddenPublicKeys(output);
+});
+
 test("public sanitizer is case-insensitive", () => {
   const payload = sanitizePublicPayload({
     outer: {
@@ -904,6 +1095,154 @@ test("public matches insight summaries exclude forbidden product and betting fie
       assert.equal(serialized.includes(`\"${field}\"`), false);
     }
 
+    await app.close();
+  });
+});
+
+test("public intelligence card route forwards pressure and odds reliability options", async () => {
+  await withDatabaseUrl(async () => {
+    const app = Fastify();
+    const captured: Array<Record<string, unknown>> = [];
+    registerPublicApiRoutes(app, {
+      getDbClient: () => makeDbClient([]),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async (_fixtureId, options) => {
+        captured.push({ ...options });
+        return makePresenterOutput(makeState(), {
+          includePressureHint: true,
+          includeOddsReliabilityHint: true
+        });
+      }
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches/17952170/intelligence-card?oddsLimit=999&staleAfterMinutes=999999"
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(captured, [{
+      includeState: false,
+      includePressure: true,
+      includeOddsReliability: true,
+      oddsLimit: 50,
+      staleAfterMinutes: 10080,
+      format: "compact"
+    }]);
+    await app.close();
+  });
+});
+
+test("public intelligence card route does not allow query params to expose state or signals", async () => {
+  await withDatabaseUrl(async () => {
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => makeDbClient([]),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState(), {
+        includePressureHint: true
+      })
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches/17952170/intelligence-card?includeState=true&includeSignals=true"
+    });
+
+    assert.equal(response.statusCode, 200);
+    const serialized = JSON.stringify(response.json()).toLowerCase();
+    assert.equal(serialized.includes("\"signals\""), false);
+    assert.equal(serialized.includes("\"state\""), false);
+    assert.equal(serialized.includes("\"insight\""), false);
+    await app.close();
+  });
+});
+
+test("public intelligence card route returns safe no_data body for missing fixture", async () => {
+  await withDatabaseUrl(async () => {
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => makeDbClient([]),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async (fixtureId) => ({
+        ...makePresenterOutput(makeState({ fixture_id: fixtureId })),
+        data: {
+          ...makePresenterOutput(makeState({ fixture_id: fixtureId })).data,
+          fixture_id: fixtureId,
+          brief: {
+            status_label: "empty",
+            headline: "No persisted match data is available.",
+            overview: "The system does not have enough persisted data to build a brief.",
+            available_data: [],
+            missing_data: ["Fixture identity is missing.", "Scoreboard data is missing.", "Odds data is missing."],
+            freshness_note: "No latest data timestamp is available.",
+            quality_notes: [],
+            safe_scope_note:
+              "This brief only describes data availability, freshness, and quality for safe display."
+          },
+          signal_summary: {
+            status: "empty",
+            signal_count: 0,
+            critical_count: 0,
+            warning_count: 0,
+            info_count: 0,
+            has_fixture: false,
+            has_scoreboard: false,
+            has_odds: false,
+            latest_data_timestamp: null
+          }
+        },
+        meta: {
+          status: "no_data" as const,
+          source: "agent-presenter" as const,
+          mode: "internal" as const
+        }
+      })
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches/not-real/intelligence-card"
+    });
+
+    assert.equal(response.statusCode, 404);
+    assert.equal(response.json().meta.status, "no_data");
+    assert.equal(
+      response.json().meta.message,
+      "Match intelligence card data is not available for this fixture."
+    );
+    assert.equal(response.json().data.fixture_id, "not-real");
+    await app.close();
+  });
+});
+
+test("public intelligence card route returns a safe degraded response on runtime failure", async () => {
+  await withDatabaseUrl(async () => {
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => makeDbClient([]),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => {
+        throw new Error("Internal stack with secrets and raw_payload");
+      }
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches/17952170/intelligence-card"
+    });
+
+    assert.equal(response.statusCode, 503);
+    assert.deepEqual(response.json(), {
+      data: null,
+      meta: {
+        status: "degraded",
+        source: "database",
+        mode: "public",
+        public_api_version: "public-v0",
+        message: "Public match intelligence card is temporarily unavailable."
+      }
+    });
     await app.close();
   });
 });
