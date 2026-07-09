@@ -4,6 +4,8 @@ Phase 0A creates a backend-only runtime audit foundation for TxLINE payloads.
 
 This phase exists to validate the raw data contract before any prediction, pressure scoring, odds reliability, or learning layer is built on top of it.
 
+Related decision record: [Agent Runtime Assumptions](./agent-runtime-assumptions.md)
+
 ## Why this phase exists
 
 - confirm that live TxLINE payloads can be fetched and archived safely
