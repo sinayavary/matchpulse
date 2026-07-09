@@ -51,6 +51,7 @@ import {
   getDbOddsSnapshotsByFixtureId,
   ingestTxlineOddsSnapshot
 } from "./txline-odds-ingestion.js";
+import { ingestTxlineMatchEvents } from "./txline-event-ingestion.js";
 import {
   discoverTxlineOddsAvailability,
   TxlineOddsDiscoveryError
@@ -429,6 +430,44 @@ app.get("/api/internal/db/odds-snapshots/:fixtureId", async (request) => {
   }
 });
 
+app.get("/api/internal/db/match-events/:fixtureId", async (request) => {
+  const { fixtureId } = request.params as { fixtureId: string };
+  const empty = { found: false, count: 0, latest_event_timestamp: null, events: [] };
+  if (!process.env.DATABASE_URL) {
+    return { data: empty, meta: { status: "no_data" as const, source: "database" as const } };
+  }
+
+  try {
+    const events = await getDbClient().matchEvent.findMany({
+      where: { fixtureId },
+      orderBy: [{ sourceTimestamp: "desc" }, { createdAt: "desc" }],
+      select: {
+        externalSeq: true, eventType: true, eventMinute: true, teamSide: true,
+        title: true, description: true, sourceTimestamp: true
+      }
+    });
+    return {
+      data: {
+        found: events.length > 0,
+        count: events.length,
+        latest_event_timestamp: events[0]?.sourceTimestamp?.toISOString() ?? null,
+        events: events.map((event) => ({
+          external_seq: event.externalSeq,
+          event_type: event.eventType,
+          event_minute: event.eventMinute,
+          team_side: event.teamSide,
+          title: event.title,
+          description: event.description,
+          source_timestamp: event.sourceTimestamp?.toISOString() ?? null
+        }))
+      },
+      meta: { status: events.length > 0 ? "live" as const : "no_data" as const, source: "database" as const }
+    };
+  } catch {
+    return { data: empty, meta: { status: "degraded" as const, source: "database" as const } };
+  }
+});
+
 app.get("/api/internal/txline/status", async () => {
   const txlineConfig = getTxlineConfigFromEnv();
   const statusData = toTxlineStatusData(txlineConfig);
@@ -683,6 +722,58 @@ app.post("/api/internal/txline/ingest/odds", async (request, reply) => {
         status: "degraded" as const,
         source: "database" as const,
         mode: "internal" as const,
+        message: safeTxlineError(error).message
+      }
+    };
+  }
+});
+
+app.post("/api/internal/txline/ingest/events", async (request, reply) => {
+  const body = request.body as { fixtureId?: unknown; events?: unknown } | undefined;
+  const fixtureId = typeof body?.fixtureId === "string" ? body.fixtureId.trim() : "";
+  const rawEvents = body?.events;
+  const emptyResult = {
+    fixture_id: fixtureId,
+    fetched_count: 0,
+    mapped_count: 0,
+    upserted_count: 0,
+    skipped_count: 0,
+    failed_count: 0,
+    latest_event_timestamp: null
+  };
+  if (!fixtureId || !Array.isArray(rawEvents)) {
+    reply.code(400);
+    return {
+      data: { result: emptyResult },
+      meta: {
+        status: "error" as const, source: "database" as const, mode: "internal" as const,
+        message: "fixtureId and an events array are required."
+      }
+    };
+  }
+  if (!process.env.DATABASE_URL) {
+    return {
+      data: { result: emptyResult },
+      meta: {
+        status: "no_data" as const, source: "database" as const, mode: "internal" as const,
+        message: "Database is not configured."
+      }
+    };
+  }
+  try {
+    const result = await ingestTxlineMatchEvents({ fixtureId, rawEvents });
+    return {
+      data: { result },
+      meta: {
+        status: result.failed_count > 0 ? "degraded" as const : "live" as const,
+        source: "database" as const, mode: "internal" as const
+      }
+    };
+  } catch (error) {
+    return {
+      data: { result: emptyResult },
+      meta: {
+        status: "error" as const, source: "database" as const, mode: "internal" as const,
         message: safeTxlineError(error).message
       }
     };
