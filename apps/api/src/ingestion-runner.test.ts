@@ -7,6 +7,7 @@ import {
   runFixtureIngestionPipeline,
   summarizeCanonicalState,
   TARGET_INGESTION_SAFE_SCOPE_NOTE,
+  TARGET_SCORE_INGESTION_SCOPE,
   type IngestionRunnerDependencies
 } from "./ingestion-runner.js";
 import type { CanonicalMatchState } from "./match-state-builder.js";
@@ -256,6 +257,8 @@ test("summary contains no restricted analytical or wagering fields", () => {
 });
 
 test("target cycle returns ok when mocked ingestion steps succeed", async () => {
+  const scoreInputs: Parameters<IngestionRunnerDependencies["ingestScore"]>[0][] = [];
+
   const result = await runTargetIngestionCycle({}, {
     ingestFixtures: async () => ({
       fetchedCount: 1,
@@ -272,16 +275,19 @@ test("target cycle returns ok when mocked ingestion steps succeed", async () => 
         status: "unknown"
       }]
     }),
-    ingestScore: async () => ({
-      fixtureId: "17952170",
-      fetchedCount: 1,
-      selectedSeq: 960,
-      selectedTs: 1_781_226_000_000,
-      action: "game_finalised",
-      scoreAvailable: true,
-      upserted: true,
-      matchState: null
-    }),
+    ingestScore: async (input) => {
+      scoreInputs.push(input);
+      return {
+        fixtureId: "17952170",
+        fetchedCount: 1,
+        selectedSeq: 960,
+        selectedTs: 1_781_226_000_000,
+        action: "game_finalised",
+        scoreAvailable: true,
+        upserted: true,
+        matchState: null
+      };
+    },
     ingestOdds: async () => ({
       requested: { fixture_id: "17588223", as_of: "1781226000000" },
       result: {
@@ -300,6 +306,11 @@ test("target cycle returns ok when mocked ingestion steps succeed", async () => 
   assert.equal(result.targets.scores.status, "ok");
   assert.equal(result.targets.odds.status, "ok");
   assert.equal(result.safe_scope_note, TARGET_INGESTION_SAFE_SCOPE_NOTE);
+  assert.equal(scoreInputs.length, 1);
+  const scoreInput = scoreInputs[0];
+  assert.equal(scoreInput?.fixtureId, TARGET_SCORE_INGESTION_SCOPE.fixtureId);
+  assert.equal(scoreInput?.asOf, TARGET_SCORE_INGESTION_SCOPE.asOf);
+  assert.equal(scoreInput?.includeRaw, false);
 });
 
 test("target cycle returns partial when one mocked step fails", async () => {

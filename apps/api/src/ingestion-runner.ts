@@ -119,6 +119,11 @@ export const TARGET_FIXTURE_INGESTION_SCOPE = {
   startEpochDay: 20608
 } as const;
 
+export const TARGET_SCORE_INGESTION_SCOPE = {
+  fixtureId: "17952170",
+  asOf: 1_780_596_263_367
+} as const;
+
 export const TARGET_ODDS_INGESTION_SCOPE = {
   fixtureId: "17588223",
   competitionId: 72,
@@ -322,8 +327,8 @@ export async function runTargetIngestionCycle(
   if (selected.scores) {
     try {
       scores = toTargetCycleStatus(await deps.ingestScore({
-        fixtureId: TARGET_FIXTURE_INGESTION_SCOPE.fixtureId,
-        asOf: Date.now(),
+        fixtureId: TARGET_SCORE_INGESTION_SCOPE.fixtureId,
+        asOf: TARGET_SCORE_INGESTION_SCOPE.asOf,
         includeRaw: false
       }));
     } catch {
