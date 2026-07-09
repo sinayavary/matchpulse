@@ -13,6 +13,7 @@ Pressure remains internal-only for now, and presenter exposure stays blocked unt
 - SignalCore can internally emit `PRESSURE_HINT_AVAILABLE`.
 - The internal route can return pressure only with `includePressure=true`.
 - Phase 1I wired the compact `pressure_hint` into the internal presenter response behind `includePressure`.
+- Phase 1J wired the existing internal agent presenter route to accept `includePressure` query params.
 - Public API, frontend, and Telegram remain blocked from pressure exposure.
 
 ## Approved Presenter Meaning
