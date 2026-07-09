@@ -71,6 +71,9 @@ import {
   type IngestionRunnerInput
 } from "./ingestion-runner.js";
 import {
+  createProductRuntimeRefreshWorker
+} from "./product-runtime-refresh-worker.js";
+import {
   assertNoForbiddenSignalFields,
   getSignalCoreContract
 } from "./signalcore-contract.js";
@@ -88,6 +91,16 @@ import { registerTxlineRuntimeAuditRoutes } from "./txline-runtime-audit-routes.
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
+const productRuntimeRefreshWorker = createProductRuntimeRefreshWorker({
+  logger: app.log
+});
+let productRuntimeRefreshWorkerStarted = false;
+
+app.addHook("onClose", async () => {
+  if (productRuntimeRefreshWorkerStarted) {
+    await productRuntimeRefreshWorker.stop();
+  }
+});
 
 const readBoolean = (value: unknown): boolean | undefined => {
   if (typeof value === "boolean") return value;
@@ -1603,7 +1616,17 @@ app.post("/api/telegram/webhook", async (request) => {
   return response({ ok: true, mode: "mock" });
 });
 
-app.listen({ port, host: "0.0.0.0" }).catch((error) => {
-  app.log.error(error);
-  process.exit(1);
-});
+app.listen({ port, host: "0.0.0.0" })
+  .then(async () => {
+    if (!productRuntimeRefreshWorker.config.enabled) return;
+    try {
+      await productRuntimeRefreshWorker.start();
+      productRuntimeRefreshWorkerStarted = true;
+    } catch (error) {
+      app.log.error(error);
+    }
+  })
+  .catch((error) => {
+    app.log.error(error);
+    process.exit(1);
+  });
