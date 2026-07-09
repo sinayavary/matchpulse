@@ -89,6 +89,18 @@ import { registerTxlineRuntimeAuditRoutes } from "./txline-runtime-audit-routes.
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
 
+const readBoolean = (value: unknown): boolean | undefined => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (value.toLowerCase() === "true") return true;
+    if (value.toLowerCase() === "false") return false;
+  }
+  return undefined;
+};
+
+const readNumber = (value: unknown): number | undefined =>
+  typeof value === "number" ? value : typeof value === "string" ? Number(value) : undefined;
+
 await app.register(cors, {
   origin: process.env.CORS_ORIGIN ?? true
 });
@@ -115,24 +127,30 @@ app.get("/api/internal/signalcore/matches/:fixtureId", async (request) => {
   const { fixtureId } = request.params as { fixtureId: string };
   const query = request.query as {
     includeState?: unknown;
+    includePressure?: unknown;
     oddsLimit?: unknown;
     staleAfterMinutes?: unknown;
+    pressureWindowSize?: unknown;
+    pressureMaxEvidence?: unknown;
+    pressureMaxPayloadAgeMinutes?: unknown;
   };
-  const includeState = typeof query.includeState === "string"
-    ? query.includeState.toLowerCase() === "true"
-    : query.includeState === true;
-  const oddsLimit = typeof query.oddsLimit === "string"
-    ? Number(query.oddsLimit)
-    : typeof query.oddsLimit === "number" ? query.oddsLimit : undefined;
-  const staleAfterMinutes = typeof query.staleAfterMinutes === "string"
-    ? Number(query.staleAfterMinutes)
-    : typeof query.staleAfterMinutes === "number" ? query.staleAfterMinutes : undefined;
+  const includeState = readBoolean(query.includeState);
+  const includePressure = readBoolean(query.includePressure);
+  const oddsLimit = readNumber(query.oddsLimit);
+  const staleAfterMinutes = readNumber(query.staleAfterMinutes);
+  const pressureWindowSize = readNumber(query.pressureWindowSize);
+  const pressureMaxEvidence = readNumber(query.pressureMaxEvidence);
+  const pressureMaxPayloadAgeMinutes = readNumber(query.pressureMaxPayloadAgeMinutes);
 
   try {
     const output = await getSignalCoreV0ForFixture(fixtureId, {
       includeState,
+      includePressure,
       oddsLimit,
-      staleAfterMinutes
+      staleAfterMinutes,
+      pressureWindowSize,
+      pressureMaxEvidence,
+      pressureMaxPayloadAgeMinutes
     });
     assertNoForbiddenSignalFields(output);
     return output;
