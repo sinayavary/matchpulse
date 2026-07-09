@@ -12,7 +12,7 @@ Pressure remains internal-only for now, and presenter exposure stays blocked unt
 
 - SignalCore can internally emit `PRESSURE_HINT_AVAILABLE`.
 - The internal route can return pressure only with `includePressure=true`.
-- The presenter does not yet request or expose pressure.
+- Phase 1I wired the compact `pressure_hint` into the internal presenter response behind `includePressure`.
 - Public API, frontend, and Telegram remain blocked from pressure exposure.
 
 ## Approved Presenter Meaning
@@ -112,7 +112,7 @@ wallet
 deposit
 ```
 
-## Approved Future Presenter Shape
+## Approved Internal Presenter Shape
 
 For a later implementation phase, the presenter may expose a compact optional field:
 
@@ -135,8 +135,7 @@ This pressure hint is rule-based and based on available stored score data. It is
 
 Important:
 
-- This is only a proposed future presenter shape.
-- Do not implement it in this phase.
+- This remains an internal-only presenter shape behind `includePressure`.
 - Do not include raw payload.
 - Do not include debug lineage.
 - Do not include formulas.
@@ -176,7 +175,7 @@ Clarify:
 | Decision | Status | Reason |
 | --- | --- | --- |
 | Presenter pressure wording | Approved in contract | safe labels/messages defined |
-| Presenter pressure implementation | Blocked | needs helper + tests |
+| Presenter pressure implementation | Internal-only | compact presenter hint is gated behind `includePressure` |
 | Public API exposure | Blocked | requires separate review |
 | Frontend exposure | Blocked | requires display contract |
 | Probability wording | Blocked | not calibrated and unsafe |

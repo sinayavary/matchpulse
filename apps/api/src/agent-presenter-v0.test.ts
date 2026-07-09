@@ -84,6 +84,27 @@ function createPressureSignal(details: Record<string, unknown>, severity: Signal
   return createSignal("PRESSURE_HINT_AVAILABLE", severity, "Pressure hint available", "Rule-based pressure hint is available from stored score data.", details);
 }
 
+const FORBIDDEN_PRESENTER_PROPERTY_KEYS = [
+  '"confidence":',
+  '"probability":',
+  '"prediction":',
+  '"recommendation":',
+  '"recommended_bet":',
+  '"bet":',
+  '"wager":',
+  '"stake":',
+  '"expected_value":',
+  '"edge":',
+  '"winner":',
+  '"profit":',
+  '"payout":',
+  '"wallet":',
+  '"deposit":',
+  '"pressure_score":',
+  '"adapter_status":',
+  '"debug_lineage":'
+];
+
 function buildSignalCoreOutput(input: {
   fixtureId?: string;
   status: SignalCoreV0Response["data"]["summary"]["status"];
@@ -452,23 +473,7 @@ test("output passes forbidden key scan", () => {
   ]);
 
   const serialized = JSON.stringify(output);
-  for (const field of [
-    '"confidence":',
-    '"probability":',
-    '"prediction":',
-    '"recommendation":',
-    '"recommended_bet":',
-    '"bet":',
-    '"wager":',
-    '"stake":',
-    '"expected_value":',
-    '"edge":',
-    '"winner":',
-    '"profit":',
-    '"payout":',
-    '"wallet":',
-    '"deposit":'
-  ]) {
+  for (const field of FORBIDDEN_PRESENTER_PROPERTY_KEYS) {
     assert.equal(serialized?.includes(field), false);
   }
 });
@@ -509,6 +514,24 @@ test("format defaults to compact", () => {
   assert.equal(normalizeAgentPresenterOptions().format, "compact");
 });
 
+test("includePressure defaults to false", () => {
+  assert.equal(normalizeAgentPresenterOptions({}).includePressure, false);
+});
+
+test("pressure options clamp safely", () => {
+  const options = normalizeAgentPresenterOptions({
+    includePressure: true,
+    pressureWindowSize: 999,
+    pressureMaxEvidence: 999,
+    pressureMaxPayloadAgeMinutes: 999999
+  });
+
+  assert.equal(options.includePressure, true);
+  assert.equal(options.pressureWindowSize, 50);
+  assert.equal(options.pressureMaxEvidence, 20);
+  assert.equal(options.pressureMaxPayloadAgeMinutes, 10080);
+});
+
 test("oddsLimit caps at 50", () => {
   assert.equal(normalizeAgentPresenterOptions({ oddsLimit: 999 }).oddsLimit, 50);
 });
@@ -526,6 +549,31 @@ test("output passes assertNoForbiddenSignalFields", () => {
       hasOdds: true,
       signals: []
     })
+  );
+
+  assert.doesNotThrow(() => assertNoForbiddenSignalFields(response));
+});
+
+test("output with pressure_hint passes assertNoForbiddenSignalFields", () => {
+  const response = buildAgentPresenterBrief(
+    buildSignalCoreOutput({
+      status: "ready",
+      hasFixture: true,
+      hasScoreboard: true,
+      hasOdds: true,
+      signals: [
+        createPressureSignal({
+          pressure_level: "medium",
+          source: "stored_scores_snapshot",
+          evidence_count: 4,
+          limitations: [],
+          adapter_status: "available",
+          pressure_score: 7,
+          debug_lineage: [{ internal: true }]
+        })
+      ]
+    }),
+    { includePressure: true }
   );
 
   assert.doesNotThrow(() => assertNoForbiddenSignalFields(response));
@@ -590,7 +638,7 @@ test("presenter does not use unapproved signal types as new outputs", () => {
   assert.deepEqual(Object.keys(response.data.signals[0]).sort(), ["message", "severity", "title", "type"]);
 });
 
-test("presenter response remains unchanged when pressure signal is present", () => {
+test("includePressure false does not add pressure_hint when pressure signal is present", () => {
   const response = buildAgentPresenterBrief(
     buildSignalCoreOutput({
       status: "ready",
@@ -607,10 +655,99 @@ test("presenter response remains unchanged when pressure signal is present", () 
           pressure_score: 7
         })
       ]
-    })
+    }),
+    { includePressure: false }
   );
 
   assert.equal("pressure_hint" in response.data, false);
   assert.deepEqual(response.data.signals.map((signal) => signal.type), ["PRESSURE_HINT_AVAILABLE"]);
   assert.deepEqual(Object.keys(response.data.signals[0]).sort(), ["message", "severity", "title", "type"]);
+});
+
+test("includePressure true adds compact pressure_hint", () => {
+  const response = buildAgentPresenterBrief(
+    buildSignalCoreOutput({
+      status: "ready",
+      hasFixture: true,
+      hasScoreboard: true,
+      hasOdds: true,
+      signals: [
+        createPressureSignal({
+          pressure_level: "medium",
+          source: "stored_scores_snapshot",
+          evidence_count: 4,
+          limitations: [],
+          adapter_status: "available",
+          pressure_score: 7,
+          debug_lineage: [{ internal: true }],
+          raw_payload: { internal: true }
+        })
+      ]
+    }),
+    { includePressure: true }
+  );
+
+  assert.deepEqual(response.data.pressure_hint, {
+    label: "Medium pressure hint",
+    level: "medium",
+    source: "stored_scores_snapshot",
+    evidence_count: 4,
+    limitations: [],
+    safe_scope_note: PRESSURE_HINT_SAFE_SCOPE_NOTE
+  });
+  assert.equal("pressure_score" in (response.data.pressure_hint ?? {}), false);
+  assert.equal("adapter_status" in (response.data.pressure_hint ?? {}), false);
+  assert.equal("debug_lineage" in (response.data.pressure_hint ?? {}), false);
+  assert.equal("raw_payload" in (response.data.pressure_hint ?? {}), false);
+});
+
+test("includePressure true does not add pressure_hint for invalid source", () => {
+  const response = buildAgentPresenterBrief(
+    buildSignalCoreOutput({
+      status: "ready",
+      hasFixture: true,
+      hasScoreboard: true,
+      hasOdds: true,
+      signals: [
+        createPressureSignal({
+          pressure_level: "medium",
+          source: "other_source",
+          evidence_count: 4,
+          limitations: [],
+          adapter_status: "available"
+        })
+      ]
+    }),
+    { includePressure: true }
+  );
+
+  assert.equal("pressure_hint" in response.data, false);
+});
+
+test("presenter response with pressure_hint passes forbidden property key scan", () => {
+  const response = buildAgentPresenterBrief(
+    buildSignalCoreOutput({
+      status: "ready",
+      hasFixture: true,
+      hasScoreboard: true,
+      hasOdds: true,
+      signals: [
+        createPressureSignal({
+          pressure_level: "high",
+          source: "stored_scores_snapshot",
+          evidence_count: 5,
+          limitations: [],
+          adapter_status: "available",
+          pressure_score: 9,
+          debug_lineage: [{ internal: true }]
+        })
+      ]
+    }),
+    { includePressure: true }
+  );
+
+  const serialized = JSON.stringify(response);
+  for (const field of FORBIDDEN_PRESENTER_PROPERTY_KEYS) {
+    assert.equal(serialized.includes(field), false);
+  }
 });

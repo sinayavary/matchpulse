@@ -15,8 +15,12 @@ export type AgentPresenterOptions = SignalCoreV0Options & {
 
 export type NormalizedAgentPresenterOptions = {
   includeState: boolean;
+  includePressure: boolean;
   oddsLimit: number;
   staleAfterMinutes: number;
+  pressureWindowSize: number;
+  pressureMaxEvidence: number;
+  pressureMaxPayloadAgeMinutes: number | null;
   format: AgentPresenterFormat;
 };
 
@@ -68,6 +72,7 @@ export type AgentPresenterResponse = {
     signal_summary: SignalCoreV0Response["data"]["summary"];
     signals: AgentPresenterSignal[];
     state?: CanonicalMatchState;
+    pressure_hint?: AgentPresenterPressureHint;
   };
   meta: {
     status: "live" | "degraded" | "no_data";
@@ -100,7 +105,7 @@ function isStringArray(value: unknown): value is string[] {
 }
 
 export function normalizeAgentPresenterOptions(
-  options: AgentPresenterOptions = {}
+  options: AgentPresenterOptions | NormalizedAgentPresenterOptions = {}
 ): NormalizedAgentPresenterOptions {
   const requestedOddsLimit = typeof options.oddsLimit === "number" && Number.isFinite(options.oddsLimit)
     ? Math.trunc(options.oddsLimit)
@@ -109,11 +114,29 @@ export function normalizeAgentPresenterOptions(
     typeof options.staleAfterMinutes === "number" && Number.isFinite(options.staleAfterMinutes)
       ? Math.trunc(options.staleAfterMinutes)
       : 180;
+  const requestedPressureWindowSize =
+    typeof options.pressureWindowSize === "number" && Number.isFinite(options.pressureWindowSize)
+      ? Math.trunc(options.pressureWindowSize)
+      : 10;
+  const requestedPressureMaxEvidence =
+    typeof options.pressureMaxEvidence === "number" && Number.isFinite(options.pressureMaxEvidence)
+      ? Math.trunc(options.pressureMaxEvidence)
+      : 8;
+  const requestedPressureMaxPayloadAgeMinutes =
+    typeof options.pressureMaxPayloadAgeMinutes === "number" && Number.isFinite(options.pressureMaxPayloadAgeMinutes)
+      ? Math.trunc(options.pressureMaxPayloadAgeMinutes)
+      : null;
 
   return {
     includeState: options.includeState === true,
+    includePressure: options.includePressure === true,
     oddsLimit: Math.min(50, Math.max(1, requestedOddsLimit)),
     staleAfterMinutes: Math.min(10080, Math.max(1, requestedStaleAfterMinutes)),
+    pressureWindowSize: Math.min(50, Math.max(1, requestedPressureWindowSize)),
+    pressureMaxEvidence: Math.min(20, Math.max(1, requestedPressureMaxEvidence)),
+    pressureMaxPayloadAgeMinutes: requestedPressureMaxPayloadAgeMinutes === null
+      ? null
+      : Math.min(10080, Math.max(1, requestedPressureMaxPayloadAgeMinutes)),
     format: options.format === "full" ? "full" : "compact"
   };
 }
@@ -263,7 +286,7 @@ function toMetaStatus(
 
 export function buildAgentPresenterBrief(
   signalCoreOutput: SignalCoreV0Response,
-  options: AgentPresenterOptions = {}
+  options: AgentPresenterOptions | NormalizedAgentPresenterOptions = {}
 ): AgentPresenterResponse {
   const normalized = normalizeAgentPresenterOptions(options);
   const { data } = signalCoreOutput;
@@ -304,6 +327,13 @@ export function buildAgentPresenterBrief(
     response.data.state = data.state;
   }
 
+  if (normalized.includePressure) {
+    const pressureHint = buildPressureHintFromSignals(data.signals);
+    if (pressureHint !== undefined) {
+      response.data.pressure_hint = pressureHint;
+    }
+  }
+
   assertNoForbiddenSignalFields(response);
   return response;
 }
@@ -313,6 +343,14 @@ export async function getAgentPresenterBriefForFixture(
   options: AgentPresenterOptions = {}
 ): Promise<AgentPresenterResponse> {
   const normalized = normalizeAgentPresenterOptions(options);
-  const signalCoreOutput = await getSignalCoreV0ForFixture(fixtureId, normalized);
+  const signalCoreOutput = await getSignalCoreV0ForFixture(fixtureId, {
+    includeState: normalized.includeState,
+    includePressure: normalized.includePressure,
+    oddsLimit: normalized.oddsLimit,
+    staleAfterMinutes: normalized.staleAfterMinutes,
+    pressureWindowSize: normalized.pressureWindowSize,
+    pressureMaxEvidence: normalized.pressureMaxEvidence,
+    pressureMaxPayloadAgeMinutes: normalized.pressureMaxPayloadAgeMinutes ?? undefined
+  });
   return buildAgentPresenterBrief(signalCoreOutput, normalized);
 }
