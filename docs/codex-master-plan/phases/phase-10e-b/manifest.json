@@ -1,7 +1,6 @@
 {
   "phase": "10E-B",
   "pack_version": "phase-10e-b-v1",
-  "baseline_commit": "b7c7622a81fcf08fbfe79092367cc98aff4cde6f",
   "focused_test_count": 68,
   "allowed_target_files": [
     "apps/api/package.json",
@@ -18,5 +17,8 @@
     "apps/api/src/odds-temporal-primitives.test.ts": "3ea4a81a1343b4047ca38bbc1e60594223623cac302d0c2a6982ae6f5e9409f2",
     "apps/api/src/odds-temporal-primitives.ts": "b55fd54ba3c5e8b67aa7f2d2b6a36dafed905511f3b0a92acd3f9aac6d948969",
     "docs/phase-10e-b-odds-mathematical-primitives.md": "f40dc3441cfa86d96bc4892b48cf80eb34f19620f1a545114f40bff79df8c611"
-  }
+  },
+  "production_baseline_commit": "b7c7622a81fcf08fbfe79092367cc98aff4cde6f",
+  "phase_pack_commit": "23006986698bf4854443bd7e9dc0b9936704a54b",
+  "execution_precondition": "phase_pack_commit must be an ancestor of HEAD and no later commit may change an allowed target file"
 }

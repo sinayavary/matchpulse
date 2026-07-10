@@ -1,16 +1,25 @@
 # Active Phase Pack — Phase 10E-B v1
 
-## Baseline
+## Baseline and Execution Precondition
 
-The required repository baseline is:
+Production code baseline:
 
 `b7c7622a81fcf08fbfe79092367cc98aff4cde6f`
 
-Commit message:
+Required phase-pack commit:
 
-`Add MatchPulse architecture and Codex governance`
+`23006986698bf4854443bd7e9dc0b9936704a54b`
 
-Codex must stop with `SPEC_CONFLICT` if `HEAD` does not equal this SHA.
+The phase-pack commit must be an ancestor of the current `HEAD`. Exact `HEAD`
+equality is intentionally not required because this correction and later
+human-approved documentation-only commits may follow the phase-pack commit.
+
+Codex must stop with `SPEC_CONFLICT` when either condition is true:
+
+1. `23006986698bf4854443bd7e9dc0b9936704a54b` is not an ancestor of `HEAD`.
+2. A commit after `23006986698bf4854443bd7e9dc0b9936704a54b` changed any of the six allowed target files.
+
+Uncommitted overlap is handled separately by the workspace-collision checks.
 
 ## Objective
 

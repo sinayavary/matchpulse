@@ -11,19 +11,33 @@ Mandatory authority:
 3. `docs/codex-master-plan/phases/phase-10e-b/README.md`
 4. `docs/codex-master-plan/phases/phase-10e-b/EXPECTED_SHA256.json`
 
-Required baseline:
+Production code baseline:
 
 `b7c7622a81fcf08fbfe79092367cc98aff4cde6f`
+
+Required phase-pack commit:
+
+`23006986698bf4854443bd7e9dc0b9936704a54b`
 
 First run:
 
 ```powershell
 git status --short
 git log -1 --format=%H
+git merge-base --is-ancestor 23006986698bf4854443bd7e9dc0b9936704a54b HEAD
+git diff --quiet 23006986698bf4854443bd7e9dc0b9936704a54b..HEAD -- `
+  apps/api/package.json `
+  apps/api/src/odds-mathematical-primitives.ts `
+  apps/api/src/odds-mathematical-primitives.test.ts `
+  apps/api/src/odds-temporal-primitives.ts `
+  apps/api/src/odds-temporal-primitives.test.ts `
+  docs/phase-10e-b-odds-mathematical-primitives.md
 git diff --quiet -- apps/api/package.json
 ```
 
-Stop with `SPEC_CONFLICT` if HEAD differs from the required baseline.
+Stop with `SPEC_CONFLICT` if the phase-pack commit is not an ancestor of HEAD,
+or if any commit after the phase-pack commit changed an allowed target file.
+Exact HEAD equality is not required.
 
 Stop with `WORKSPACE_COLLISION` if:
 
