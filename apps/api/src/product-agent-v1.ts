@@ -526,9 +526,9 @@ export async function getProductAgentV1ForFixture(
   const signalCoreOutput = await getSignalCoreV0ForFixture(fixtureId, {
     ...options,
     includeState: true,
-    includeOddsReliability: true,
-    includeInternalContext: true,
-    includeEventImpact: true
+    includeOddsReliability: options.includeOddsReliability !== false,
+    includeInternalContext: options.includeEventImpact !== false,
+    includeEventImpact: options.includeEventImpact !== false
   }, dependencies);
   return buildProductAgentV1(
     signalCoreOutput,

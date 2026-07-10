@@ -80,6 +80,7 @@ import {
 } from "./signalcore-contract.js";
 import { registerInternalSignalCoreRoute } from "./server-signalcore-route.js";
 import { registerInternalAgentPresenterRoute } from "./server-agent-presenter-route.js";
+import { registerInternalProductAgentRoute } from "./server-product-agent-route.js";
 import { getDemoBundleForFixture } from "./demo-bundle.js";
 import {
   buildDemoBridgeNotFoundResponse,
@@ -139,6 +140,7 @@ app.get("/api/internal/signalcore/contract", async () => ({
 
 registerInternalSignalCoreRoute(app);
 registerInternalAgentPresenterRoute(app);
+registerInternalProductAgentRoute(app);
 
 app.get("/api/internal/demo/matches/:fixtureId/bundle", async (request) => {
   const { fixtureId } = request.params as { fixtureId: string };
