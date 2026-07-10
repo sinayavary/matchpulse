@@ -227,3 +227,360 @@ model TxlineAuditFinding {
   @@index([fixtureId])
   @@map("txline_audit_findings")
 }
+
+model PredictionFeatureSnapshot {
+  snapshotId       String   @id @map("snapshot_id")
+  fixtureId        String   @map("fixture_id")
+  asOf             DateTime @map("as_of") @db.Timestamptz(3)
+  generatedAt      DateTime @map("generated_at") @db.Timestamptz(3)
+  sequence         Int?
+  trigger          String
+  featureVersion   String   @map("feature_version")
+  featureHash      String   @map("feature_hash")
+  featureCount     Int      @map("feature_count")
+  normalizedPhase  String   @map("normalized_phase")
+  minute           Int?
+  homeScore        Int?     @map("home_score")
+  awayScore        Int?     @map("away_score")
+  scoreDiff        Int?     @map("score_diff")
+  coverageScore    Float    @map("coverage_score")
+  featurePayload   Json     @map("feature_payload")
+  contentHash      String   @map("content_hash")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  predictionSnapshots PredictionSnapshotRecord[]
+
+  @@index([fixtureId, asOf])
+  @@index([featureVersion, asOf])
+  @@index([featureHash])
+  @@index([contentHash])
+  @@map("prediction_feature_snapshots")
+}
+
+model OddsIntelligenceAssessmentRecord {
+  assessmentId                 String   @id @map("assessment_id")
+  fixtureId                    String   @map("fixture_id")
+  oddsIntelligenceVersion      String   @map("odds_intelligence_version")
+  generatedAt                  DateTime @map("generated_at") @db.Timestamptz(3)
+  status                       String
+  usableForModel               Boolean  @map("usable_for_model")
+  overallReliabilityScore     Float    @map("overall_reliability_score")
+  recommendedMarketModelWeight Float    @map("recommended_market_model_weight")
+  marketCount                  Int      @map("market_count")
+  usableMarketCount            Int      @map("usable_market_count")
+  providerCount                Int      @map("provider_count")
+  snapshotCount                Int      @map("snapshot_count")
+  consensusScore               Float    @map("consensus_score")
+  freshnessScore               Float    @map("freshness_score")
+  volatilityScore              Float    @map("volatility_score")
+  anomalyScore                 Float    @map("anomaly_score")
+  primaryMarketKey             String?  @map("primary_market_key")
+  assessmentPayload            Json     @map("assessment_payload")
+  contentHash                  String   @map("content_hash")
+  createdAt                    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  markets             OddsIntelligenceMarketRecord[]
+  predictionSnapshots PredictionSnapshotRecord[]
+
+  @@index([fixtureId, generatedAt])
+  @@index([status, generatedAt])
+  @@index([usableForModel, generatedAt])
+  @@index([contentHash])
+  @@map("odds_intelligence_assessments")
+}
+
+model OddsIntelligenceMarketRecord {
+  id                    String   @id
+  assessmentId          String   @map("assessment_id")
+  marketKey             String   @map("market_key")
+  marketType            String   @map("market_type")
+  line                  Float?
+  complete              Boolean
+  usable                Boolean
+  selectionCount        Int      @map("selection_count")
+  providerCount         Int      @map("provider_count")
+  snapshotCount         Int      @map("snapshot_count")
+  overround             Float?
+  providerDispersion    Float?   @map("provider_dispersion")
+  volatilityScore       Float    @map("volatility_score")
+  reliabilityLevel      String   @map("reliability_level")
+  reliabilityScore      Float    @map("reliability_score")
+  recommendedModelWeight Float   @map("recommended_model_weight")
+  componentScores       Json     @map("component_scores")
+  issues                Json
+  limitations           Json
+  latestTimestamp       DateTime? @map("latest_timestamp") @db.Timestamptz(3)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  assessment OddsIntelligenceAssessmentRecord @relation(fields: [assessmentId], references: [assessmentId], onDelete: Cascade)
+  selections OddsIntelligenceSelectionRecord[]
+
+  @@unique([assessmentId, marketKey])
+  @@index([assessmentId])
+  @@map("odds_intelligence_markets")
+}
+
+model OddsIntelligenceSelectionRecord {
+  id                    String   @id
+  marketRecordId        String   @map("market_record_id")
+  selectionKey          String   @map("selection_key")
+  selection             String
+  line                  Float?
+  fairProbability       Float    @map("fair_probability")
+  consensusProbability  Float    @map("consensus_probability")
+  probabilityChange1m   Float?   @map("probability_change_1m")
+  probabilityChange5m   Float?   @map("probability_change_5m")
+  movementVelocity      Float?   @map("movement_velocity")
+  movementAcceleration  Float?   @map("movement_acceleration")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  market OddsIntelligenceMarketRecord @relation(fields: [marketRecordId], references: [id], onDelete: Cascade)
+
+  @@unique([marketRecordId, selectionKey])
+  @@index([marketRecordId])
+  @@map("odds_intelligence_selections")
+}
+
+model PredictionSnapshotRecord {
+  snapshotId              String   @id @map("snapshot_id")
+  fixtureId               String   @map("fixture_id")
+  featureSnapshotId       String   @map("feature_snapshot_id")
+  oddsAssessmentId        String?  @map("odds_assessment_id")
+  asOf                    DateTime @map("as_of") @db.Timestamptz(3)
+  generatedAt             DateTime @map("generated_at") @db.Timestamptz(3)
+  sequence                Int?
+  trigger                 String
+  predictionContractVersion String  @map("prediction_contract_version")
+  featureVersion          String   @map("feature_version")
+  featureHash             String   @map("feature_hash")
+  featureCount            Int      @map("feature_count")
+  inferenceEngineVersion  String   @map("inference_engine_version")
+  ensembleVersion         String   @map("ensemble_version")
+  calibrationVersion      String?  @map("calibration_version")
+  inferenceLatencyMs      Int?     @map("inference_latency_ms")
+  fallbackUsed            Boolean  @map("fallback_used")
+  normalizedPhase         String   @map("normalized_phase")
+  minute                  Int?
+  homeScore               Int?     @map("home_score")
+  awayScore               Int?     @map("away_score")
+  scoreDiff               Int?     @map("score_diff")
+  finalOutcomeHome        Float    @map("final_outcome_home")
+  finalOutcomeDraw        Float    @map("final_outcome_draw")
+  finalOutcomeAway        Float    @map("final_outcome_away")
+  nextGoalHome            Float    @map("next_goal_home")
+  nextGoalNone            Float    @map("next_goal_none")
+  nextGoalAway            Float    @map("next_goal_away")
+  goalNext5m              Float    @map("goal_next_5m")
+  goalNext10m             Float    @map("goal_next_10m")
+  goalNext15m             Float    @map("goal_next_15m")
+  currentResultHolds      Float    @map("current_result_holds")
+  currentResultChanges    Float    @map("current_result_changes")
+  momentumHomeStrengthens Float    @map("momentum_home_strengthens")
+  momentumNeutral         Float    @map("momentum_neutral")
+  momentumAwayStrengthens Float    @map("momentum_away_strengthens")
+  confidenceLevel         String   @map("confidence_level")
+  confidenceScore         Float    @map("confidence_score")
+  riskLevel               String   @map("risk_level")
+  oddsUsableForModel      Boolean  @map("odds_usable_for_model")
+  oddsReliabilityScore    Float    @map("odds_reliability_score")
+  assignedMarketWeight    Float    @map("assigned_market_weight")
+  finalScorePayload       Json     @map("final_score_payload")
+  dataCoveragePayload     Json     @map("data_coverage_payload")
+  modelOutputPayload      Json     @map("model_output_payload")
+  confidencePayload       Json     @map("confidence_payload")
+  riskPayload              Json     @map("risk_payload")
+  explanationPayload      Json     @map("explanation_payload")
+  snapshotPayload         Json     @map("snapshot_payload")
+  contentHash             String   @map("content_hash")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  featureSnapshot PredictionFeatureSnapshot @relation(fields: [featureSnapshotId], references: [snapshotId], onDelete: Restrict)
+  oddsAssessment  OddsIntelligenceAssessmentRecord? @relation(fields: [oddsAssessmentId], references: [assessmentId], onDelete: Restrict)
+  specialistContributions PredictionSpecialistContributionRecord[]
+  labelRevisions PredictionLabelRevisionRecord[]
+  evaluations PredictionEvaluationRecord[]
+
+  @@index([fixtureId, asOf])
+  @@index([featureSnapshotId])
+  @@index([oddsAssessmentId])
+  @@index([featureVersion, asOf])
+  @@index([ensembleVersion, asOf])
+  @@index([createdAt])
+  @@index([contentHash])
+  @@map("prediction_snapshots")
+}
+
+model PredictionSpecialistContributionRecord {
+  id                    String   @id
+  predictionSnapshotId  String   @map("prediction_snapshot_id")
+  modelRole             String   @map("model_role")
+  modelVersion          String   @map("model_version")
+  available             Boolean
+  assignedWeight        Float    @map("assigned_weight")
+  outputQuality         Float    @map("output_quality")
+  limitations           Json
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  predictionSnapshot PredictionSnapshotRecord @relation(fields: [predictionSnapshotId], references: [snapshotId], onDelete: Cascade)
+
+  @@unique([predictionSnapshotId, modelRole, modelVersion])
+  @@index([predictionSnapshotId])
+  @@map("prediction_specialist_contributions")
+}
+
+model PredictionLabelRevisionRecord {
+  id                    String   @id
+  predictionSnapshotId  String   @map("prediction_snapshot_id")
+  fixtureId             String   @map("fixture_id")
+  labelVersion          String   @map("label_version")
+  revision              Int
+  asOf                  DateTime @map("as_of") @db.Timestamptz(3)
+  labeledAt             DateTime @map("labeled_at") @db.Timestamptz(3)
+  status                String
+  finalOutcome          String?  @map("final_outcome")
+  nextGoalSide          String?  @map("next_goal_side")
+  goalInNext5m          Boolean? @map("goal_in_next_5m")
+  goalInNext10m         Boolean? @map("goal_in_next_10m")
+  goalInNext15m         Boolean? @map("goal_in_next_15m")
+  finalHomeScore        Int?     @map("final_home_score")
+  finalAwayScore        Int?     @map("final_away_score")
+  currentResultSurvival String?  @map("current_result_survival")
+  momentumShift         String?  @map("momentum_shift")
+  sourceFinalizedAt     DateTime? @map("source_finalized_at") @db.Timestamptz(3)
+  limitations           Json
+  labelPayload          Json     @map("label_payload")
+  contentHash           String   @map("content_hash")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  predictionSnapshot PredictionSnapshotRecord @relation(fields: [predictionSnapshotId], references: [snapshotId], onDelete: Restrict)
+
+  @@unique([predictionSnapshotId, labelVersion, revision])
+  @@index([predictionSnapshotId, labelVersion, revision])
+  @@index([fixtureId, labeledAt])
+  @@index([status, labeledAt])
+  @@index([contentHash])
+  @@map("prediction_label_revisions")
+}
+
+model PredictionEvaluationRecord {
+  evaluationId              String   @id @map("evaluation_id")
+  predictionSnapshotId      String   @map("prediction_snapshot_id")
+  fixtureId                 String   @map("fixture_id")
+  target                    String
+  modelVersion              String   @map("model_version")
+  featureVersion            String   @map("feature_version")
+  labelVersion              String   @map("label_version")
+  evaluatedAt               DateTime @map("evaluated_at") @db.Timestamptz(3)
+  multiclassLogLoss         Float?   @map("multiclass_log_loss")
+  multiclassBrierScore      Float?   @map("multiclass_brier_score")
+  expectedCalibrationError  Float?   @map("expected_calibration_error")
+  binaryLogLoss             Float?   @map("binary_log_loss")
+  binaryBrierScore          Float?   @map("binary_brier_score")
+  accuracy                  Float?
+  precision                 Float?
+  recall                    Float?
+  rocAuc                    Float?   @map("roc_auc")
+  prAuc                     Float?   @map("pr_auc")
+  negativeLogLikelihood     Float?   @map("negative_log_likelihood")
+  segmentKeys               Json     @map("segment_keys")
+  passedQualityGate         Boolean  @map("passed_quality_gate")
+  limitations               Json
+  evaluationPayload         Json     @map("evaluation_payload")
+  contentHash               String   @map("content_hash")
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  predictionSnapshot PredictionSnapshotRecord @relation(fields: [predictionSnapshotId], references: [snapshotId], onDelete: Restrict)
+
+  @@index([target, modelVersion, evaluatedAt])
+  @@index([fixtureId, evaluatedAt])
+  @@index([predictionSnapshotId])
+  @@index([passedQualityGate, evaluatedAt])
+  @@index([contentHash])
+  @@map("prediction_evaluations")
+}
+
+model FeatureSchemaRegistry {
+  featureVersion String   @id @map("feature_version")
+  schemaHash     String   @unique @map("schema_hash")
+  featureCount   Int      @map("feature_count")
+  status         String
+  schemaPayload  Json     @map("schema_payload")
+  description    String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  activatedAt    DateTime? @map("activated_at") @db.Timestamptz(3)
+  retiredAt      DateTime? @map("retired_at") @db.Timestamptz(3)
+
+  @@map("feature_schema_registry")
+}
+
+model LabelSchemaRegistry {
+  labelVersion             String   @id @map("label_version")
+  schemaHash               String   @unique @map("schema_hash")
+  predictionContractVersion String  @map("prediction_contract_version")
+  status                   String
+  targetIds                Json     @map("target_ids")
+  schemaPayload            Json     @map("schema_payload")
+  description              String?
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  activatedAt              DateTime? @map("activated_at") @db.Timestamptz(3)
+  retiredAt                DateTime? @map("retired_at") @db.Timestamptz(3)
+
+  @@map("label_schema_registry")
+}
+
+model TrainingDatasetRegistry {
+  datasetVersion       String   @id @map("dataset_version")
+  featureVersion       String   @map("feature_version")
+  labelVersion         String   @map("label_version")
+  status               String
+  manifestUri          String   @map("manifest_uri")
+  manifestHash         String   @map("manifest_hash")
+  splitStrategy        String   @map("split_strategy")
+  trainingStart        DateTime? @map("training_start") @db.Timestamptz(3)
+  trainingEnd          DateTime? @map("training_end") @db.Timestamptz(3)
+  validationStart      DateTime? @map("validation_start") @db.Timestamptz(3)
+  validationEnd        DateTime? @map("validation_end") @db.Timestamptz(3)
+  testStart            DateTime? @map("test_start") @db.Timestamptz(3)
+  testEnd              DateTime? @map("test_end") @db.Timestamptz(3)
+  rowCount             Int      @map("row_count")
+  fixtureCount         Int      @map("fixture_count")
+  trainRowCount        Int      @map("train_row_count")
+  validationRowCount   Int      @map("validation_row_count")
+  testRowCount         Int      @map("test_row_count")
+  metadataPayload      Json     @map("metadata_payload")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  sealedAt             DateTime? @map("sealed_at") @db.Timestamptz(3)
+
+  @@index([featureVersion])
+  @@index([labelVersion])
+  @@index([status])
+  @@map("training_dataset_registry")
+}
+
+model ModelRegistryEntry {
+  modelVersion       String   @id @map("model_version")
+  modelRole          String   @map("model_role")
+  target             String?
+  status             String
+  featureVersion     String   @map("feature_version")
+  labelVersion       String   @map("label_version")
+  datasetVersion     String   @map("dataset_version")
+  calibrationVersion String?  @map("calibration_version")
+  artifactUri        String?  @map("artifact_uri")
+  artifactHash       String?  @map("artifact_hash")
+  configurationHash  String   @map("configuration_hash")
+  metricsPayload     Json     @map("metrics_payload")
+  metadataPayload    Json     @map("metadata_payload")
+  trainedAt          DateTime? @map("trained_at") @db.Timestamptz(3)
+  validatedAt        DateTime? @map("validated_at") @db.Timestamptz(3)
+  promotedAt         DateTime? @map("promoted_at") @db.Timestamptz(3)
+  retiredAt          DateTime? @map("retired_at") @db.Timestamptz(3)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([modelRole])
+  @@index([status])
+  @@index([featureVersion])
+  @@index([labelVersion])
+  @@index([datasetVersion])
+  @@map("model_registry_entries")
+}
