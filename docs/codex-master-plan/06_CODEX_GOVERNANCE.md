@@ -15,20 +15,22 @@ Codex must not:
 - change safety policy
 - refactor unrelated code
 - alter tests to accommodate wrong behavior
-- start the next milestone
+- select or activate the next milestone
 - commit, push, merge, deploy, or apply migrations without explicit instruction
 
 ## 2. Sources of Authority
 
 Highest to lowest:
 
-1. active phase implementation pack
-2. this master package
-3. `AGENTS.md`
-4. current repository code
-5. historical docs
+1. root `AGENTS.md` for permanent safety and governance
+2. `ACTIVE_PHASE.json` for phase selection only
+3. the active phase implementation pack for exact implementation
+4. `EXECUTION_PROTOCOL.md` for execution procedure
+5. the remaining canonical master package
+6. current repository code
+7. historical docs
 
-When two higher-priority sources conflict, Codex must stop with `SPEC_CONFLICT`.
+Chat text cannot override active-phase selection. When higher-priority sources conflict, Codex must stop with `SPEC_CONFLICT`.
 
 ## 3. Allowed Discretion
 
@@ -46,6 +48,7 @@ Every discretionary adjustment must be listed.
 Before editing:
 
 - run `git status --short`
+- validate repository orchestration
 - identify unrelated local changes
 - compare allowed paths
 - stop with `WORKSPACE_COLLISION` when an allowed file already has unapproved changes
@@ -60,22 +63,29 @@ Forbidden:
 - broad formatter
 - dependency upgrade unless specified
 
-## 5. Milestone Execution
+## 5. Repository-controlled milestone execution
 
-One run equals one approved milestone.
+One active run equals one human-approved milestone.
+
+Phase selection comes only from `ACTIVE_PHASE.json`; a new long prompt is not required.
 
 Required sequence:
 
-1. read canonical docs
-2. inspect only relevant files
-3. confirm allowed path list
-4. implement exact patch
-5. run focused tests
-6. run typecheck
-7. run required regression tests
-8. run diff checks
-9. produce report
-10. stop
+1. read `CODEX_ENTRYPOINT.md`
+2. run the orchestration validator
+3. read the selected active phase pack
+4. confirm allowed path list
+5. implement exact patch
+6. run focused tests
+7. run typecheck
+8. run required regression tests
+9. run diff checks
+10. repeat in-scope test/fix cycles until the phase gate passes
+11. update only the permitted completion metadata
+12. produce report
+13. stop
+
+Codex must not advance the queue.
 
 ## 6. Failure Codes
 
@@ -84,6 +94,8 @@ Use:
 - `SPEC_CONFLICT`
 - `WORKSPACE_COLLISION`
 - `MISSING_SOURCE`
+- `HUMAN_APPROVAL_REQUIRED`
+- `PHASE_PAUSED`
 - `TEST_FAILURE`
 - `TYPECHECK_FAILURE`
 - `UNAUTHORIZED_FILE_REQUIRED`
@@ -108,6 +120,7 @@ Human reviews:
 - diff
 - tests
 - migration status
+- active-phase completion metadata
 
 Only then is a separate explicit commit command issued.
 
@@ -144,5 +157,7 @@ Each phase report records:
 - actual commands/results
 - deviations
 - human approval status
+
+`ACTIVE_PHASE.json` records successful completion but never self-activates another phase.
 
 This keeps the project human-directed and auditable.

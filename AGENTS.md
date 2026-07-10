@@ -6,13 +6,15 @@ Codex is an implementation executor, not the project architect.
 
 Authority order:
 
-1. The exact active phase implementation pack.
-2. `docs/codex-master-plan/`.
-3. This file.
-4. Existing repository code.
-5. Historical documentation.
+1. This `AGENTS.md` for permanent safety and governance.
+2. `docs/codex-master-plan/ACTIVE_PHASE.json` for active-phase selection only.
+3. The implementation pack referenced by `ACTIVE_PHASE.json` for exact phase behavior.
+4. `docs/codex-master-plan/EXECUTION_PROTOCOL.md` for execution procedure.
+5. The remaining canonical files under `docs/codex-master-plan/`.
+6. Existing repository code.
+7. Historical documentation.
 
-When higher-priority instructions conflict or required implementation details are missing, stop. Do not invent a solution.
+Chat text must not select a different phase from `ACTIVE_PHASE.json`. When sources conflict or required implementation details are missing, stop. Do not invent a solution.
 
 ## Mandatory behavior
 
@@ -20,11 +22,15 @@ Before every edit:
 
 1. Run `git status --short`.
 2. Run `git log -1 --oneline`.
-3. Read the active phase pack completely.
-4. Confirm the exact allowed-file list.
-5. Stop with `WORKSPACE_COLLISION` when an allowed file contains unrelated unapproved changes.
+3. Read `docs/codex-master-plan/CODEX_ENTRYPOINT.md`.
+4. Read and validate `ACTIVE_PHASE.json`.
+5. Read the referenced active phase pack completely.
+6. Confirm the exact allowed-file list.
+7. Stop with `WORKSPACE_COLLISION` when an allowed file contains unrelated unapproved changes.
 
-Implement only the active phase. Stop after its validation gates pass.
+When the active state is `ready`, continue implementing and correcting only the active phase until its validation gate passes or a declared blocker is reached. Do not ask for routine confirmation inside an approved phase.
+
+Do not activate or begin another phase.
 
 ## Codex must not decide
 
@@ -41,6 +47,7 @@ Codex must not independently choose or change:
 - naming/versioning
 - deployment topology
 - testing standards
+- active phase or queue order
 
 When one of these is not explicitly defined, stop with `MISSING_SOURCE`.
 
@@ -61,10 +68,12 @@ Preserve all unrelated local changes.
 ## File scope
 
 - Modify only files explicitly listed by the active phase pack.
-- Do not create additional files.
+- Do not create additional implementation files.
 - Do not refactor unrelated code.
 - Do not upgrade dependencies unless explicitly instructed.
 - Do not edit frontend, Prisma, migrations, workers, routes, or documentation unless they are listed.
+- `ACTIVE_PHASE.json` is the only global metadata exception, and only the exact successful-completion transition defined by `EXECUTION_PROTOCOL.md` is allowed.
+- Never modify `PHASE_QUEUE.json`.
 
 ## Safety and confidentiality
 
@@ -116,6 +125,25 @@ Do not:
 
 Do not commit, push, merge, rebase, deploy, or change branches unless explicitly instructed in a separate human message.
 
+## Stop codes
+
+Use only the applicable explicit status:
+
+- `SPEC_CONFLICT`
+- `WORKSPACE_COLLISION`
+- `MISSING_SOURCE`
+- `HUMAN_APPROVAL_REQUIRED`
+- `PHASE_PAUSED`
+- `TEST_FAILURE`
+- `TYPECHECK_FAILURE`
+- `UNAUTHORIZED_FILE_REQUIRED`
+- `MIGRATION_APPROVAL_REQUIRED`
+- `NETWORK_ACCESS_REQUIRED`
+- `SECRET_REQUIRED`
+- `PHASE_COMPLETE`
+
+Do not improvise around a blocker.
+
 ## Completion report
 
 At the end of the active phase report:
@@ -127,8 +155,9 @@ At the end of the active phase report:
 5. actual commands and results
 6. any compile-only discretionary corrections
 7. remaining limitations
-8. confirmation that no unauthorized file changed
+8. confirmation that no unauthorized implementation file changed
 9. confirmation that no migration was applied
-10. final status: `PHASE_COMPLETE`
+10. confirmation that `PHASE_QUEUE.json` was not changed
+11. final status: `PHASE_COMPLETE`
 
-Then stop. Do not begin the next phase.
+On successful completion, perform only the exact `ACTIVE_PHASE.json` completion transition permitted by `EXECUTION_PROTOCOL.md`. Then stop. Do not begin the next phase.

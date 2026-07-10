@@ -1,6 +1,6 @@
 # 05 — Implementation Roadmap
 
-Each milestone requires a separate exact implementation pack and human approval. Codex may execute only the active milestone.
+Each milestone requires a separate exact implementation pack and human activation through `ACTIVE_PHASE.json`. Codex executes only the repository-selected active milestone. A new long phase prompt is not required.
 
 ## Gate 0 — Canonical Governance and Compliance
 
@@ -11,6 +11,7 @@ Deliver:
 - stale-doc labeling
 - decision register
 - exact Codex safety rules
+- repository-controlled active-phase orchestration
 - eligibility and data-license checklist
 - repository visibility verification
 - local workspace collision check

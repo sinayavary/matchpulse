@@ -1,0 +1,167 @@
+{
+  "schema_version": "matchpulse-phase-queue-v1",
+  "project": "MatchPulse",
+  "active_phase_id": "10E-C",
+  "updated_at": "2026-07-11T00:00:00.000Z",
+  "items": [
+    {
+      "id": "governance-orchestration-v1",
+      "title": "Canonical governance and repository-controlled Codex execution",
+      "status": "completed",
+      "depends_on": [],
+      "human_gate": false
+    },
+    {
+      "id": "10E-A",
+      "title": "Deterministic odds market normalization",
+      "status": "completed",
+      "depends_on": [],
+      "completion_commit": "39e8dd92144b783fc9582b62b37b37a7ed657d4e",
+      "human_gate": false
+    },
+    {
+      "id": "10E-B",
+      "title": "Odds mathematical primitives",
+      "status": "completed",
+      "depends_on": [
+        "10E-A"
+      ],
+      "completion_commit": "fd5045eb109305242eef1cd847a007e93c28c87a",
+      "human_gate": false
+    },
+    {
+      "id": "10E-C",
+      "title": "Odds reliability and assessment",
+      "status": "awaiting_pack",
+      "depends_on": [
+        "10E-B"
+      ],
+      "human_gate": false
+    },
+    {
+      "id": "gate-1",
+      "title": "Database readiness and approved development migration",
+      "status": "blocked_human_approval",
+      "depends_on": [],
+      "required_before": [
+        "10E-D"
+      ],
+      "human_gate": true
+    },
+    {
+      "id": "10E-D",
+      "title": "Odds DB service and persistence",
+      "status": "planned",
+      "depends_on": [
+        "10E-C",
+        "gate-1"
+      ],
+      "human_gate": true
+    },
+    {
+      "id": "10F",
+      "title": "TxLINE complete client",
+      "status": "planned",
+      "depends_on": [
+        "10E-C"
+      ],
+      "human_gate": false
+    },
+    {
+      "id": "10G",
+      "title": "Streaming ingestion and backfill",
+      "status": "planned",
+      "depends_on": [
+        "10F",
+        "gate-1"
+      ],
+      "human_gate": true
+    },
+    {
+      "id": "10H",
+      "title": "Prediction engine",
+      "status": "planned",
+      "depends_on": [
+        "10E-C"
+      ],
+      "human_gate": false
+    },
+    {
+      "id": "10I",
+      "title": "Runtime prediction orchestrator",
+      "status": "planned",
+      "depends_on": [
+        "10E-D",
+        "10G",
+        "10H"
+      ],
+      "human_gate": false
+    },
+    {
+      "id": "10J",
+      "title": "Labels, evaluation, backtest, and calibration",
+      "status": "planned",
+      "depends_on": [
+        "10I"
+      ],
+      "human_gate": false
+    },
+    {
+      "id": "10K",
+      "title": "Public prediction API",
+      "status": "planned",
+      "depends_on": [
+        "10I"
+      ],
+      "human_gate": true
+    },
+    {
+      "id": "10L",
+      "title": "Final web experience",
+      "status": "planned",
+      "depends_on": [
+        "10K"
+      ],
+      "human_gate": true
+    },
+    {
+      "id": "10M",
+      "title": "Watchlist and Telegram",
+      "status": "planned",
+      "depends_on": [
+        "10I"
+      ],
+      "human_gate": true
+    },
+    {
+      "id": "10N",
+      "title": "TxLINE and Solana verification",
+      "status": "planned",
+      "depends_on": [
+        "10F"
+      ],
+      "human_gate": true
+    },
+    {
+      "id": "10O",
+      "title": "Production hardening",
+      "status": "planned",
+      "depends_on": [
+        "10K",
+        "10L",
+        "10M",
+        "10N"
+      ],
+      "human_gate": true
+    },
+    {
+      "id": "10P",
+      "title": "Demo and submission",
+      "status": "planned",
+      "depends_on": [
+        "10O"
+      ],
+      "human_gate": true
+    }
+  ]
+}

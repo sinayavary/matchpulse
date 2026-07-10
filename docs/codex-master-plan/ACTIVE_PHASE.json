@@ -1,0 +1,19 @@
+{
+  "schema_version": "matchpulse-active-phase-v1",
+  "project": "MatchPulse",
+  "state": "awaiting_pack",
+  "phase_id": "10E-C",
+  "phase_title": "Odds Reliability and Assessment",
+  "pack_path": "docs/codex-master-plan/phases/phase-10e-c",
+  "pack_version": null,
+  "baseline_commit": "fd5045eb109305242eef1cd847a007e93c28c87a",
+  "human_approved": false,
+  "activation_note": "Phase 10E-B is complete. Phase 10E-C is selected next, but its exact implementation pack has not yet been installed or approved.",
+  "execution": {
+    "continue_until_phase_gate": true,
+    "allow_next_phase_transition": false,
+    "allow_completion_state_update": true,
+    "stop_after_phase": true
+  },
+  "last_result": null
+}
