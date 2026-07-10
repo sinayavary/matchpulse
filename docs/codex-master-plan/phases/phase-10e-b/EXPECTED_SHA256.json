@@ -1,0 +1,8 @@
+{
+  "apps/api/package.json": "06a29543681f61aacda02d0637bae15af5607cabd8fa99d5ed416c98b9cad3e6",
+  "apps/api/src/odds-mathematical-primitives.test.ts": "f0b637ed0c69e0476d1abfe51e4379d2403544ff1f6716f9ba51d95ab5ca7d6d",
+  "apps/api/src/odds-mathematical-primitives.ts": "c54ac116a3d01063cbb5de45485638e7a5adbfcd215259ba31bd48b274e608ac",
+  "apps/api/src/odds-temporal-primitives.test.ts": "3ea4a81a1343b4047ca38bbc1e60594223623cac302d0c2a6982ae6f5e9409f2",
+  "apps/api/src/odds-temporal-primitives.ts": "b55fd54ba3c5e8b67aa7f2d2b6a36dafed905511f3b0a92acd3f9aac6d948969",
+  "docs/phase-10e-b-odds-mathematical-primitives.md": "f40dc3441cfa86d96bc4892b48cf80eb34f19620f1a545114f40bff79df8c611"
+}

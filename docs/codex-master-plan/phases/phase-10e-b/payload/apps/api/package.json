@@ -1,0 +1,43 @@
+{
+  "name": "@matchpulse/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
+    "lint": "echo 'api lint placeholder'",
+    "test": "tsx --test src/agent-presenter-v0.test.ts src/demo-bridge.test.ts src/demo-bundle.test.ts src/db-health.test.ts src/db-seed-verification.test.ts src/event-impact-foundation.test.ts src/ingestion-runner.test.ts src/internal-auth.test.ts src/internal-intelligence-context.test.ts src/live-prediction-agent.test.ts src/match-event-context-builder.test.ts src/match-state-builder.test.ts src/product-agent-route-contract.test.ts src/product-agent-v1.test.ts src/server-product-agent-route.test.ts src/product-intelligence-contract.test.ts src/product-runtime-refresh-worker.test.ts src/public-api.test.ts src/public-event-impact-contract.test.ts src/stored-event-runtime-chain.test.ts src/telegram-event-impact-contract.test.ts src/replay-sessions.test.ts src/signalcore-contract.test.ts src/signalcore-v0.test.ts src/txline-event-ingestion.test.ts src/txline-fixture-ingestion.test.ts src/txline-normalizer.test.ts src/txline-odds-discovery-window.test.ts src/txline-odds-discovery.test.ts src/txline-odds-ingestion.test.ts src/txline-replay.test.ts src/txline-runtime-audit.test.ts src/txline-runtime-payload-store.test.ts src/txline-score-ingestion.test.ts src/odds-reliability-foundation.test.ts src/final-product-intelligence.test.ts src/final-prediction-domain.test.ts src/odds-intelligence-contract.test.ts src/prediction-storage-hash.test.ts src/prediction-storage.test.ts src/prediction-registry-storage.test.ts src/odds-market-normalization.test.ts src/odds-mathematical-primitives.test.ts src/odds-temporal-primitives.test.ts",
+    "test:normalizer": "tsx --test src/txline-normalizer.test.ts",
+    "ingest:targets": "tsx src/scripts/ingest-targets.ts",
+    "prisma:generate": "prisma generate --schema ../../prisma/schema.prisma",
+    "prisma:migrate:dev": "prisma migrate dev --schema ../../prisma/schema.prisma",
+    "prisma:seed": "tsx ../../prisma/seed.ts",
+    "txline:create-wallet": "tsx src/scripts/create-dev-wallet.ts",
+    "txline:guest-jwt": "tsx src/scripts/fetch-guest-jwt.ts",
+    "txline:activation-preflight": "tsx src/scripts/activation-preflight.ts",
+    "txline:activate-devnet": "tsx src/scripts/activate-txline-devnet.ts",
+    "txline:activate-token": "tsx src/scripts/activate-token-from-txsig.ts"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@fastify/cors": "^10.0.1",
+    "@matchpulse/shared": "workspace:*",
+    "@matchpulse/txline-client": "workspace:*",
+    "@prisma/client": "^6.0.1",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.0",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.6.1",
+    "fastify": "^5.2.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "prisma": "^6.0.1",
+    "tsx": "^4.19.2",
+    "tweetnacl": "^1.0.3",
+    "typescript": "^5.7.2"
+  }
+}
