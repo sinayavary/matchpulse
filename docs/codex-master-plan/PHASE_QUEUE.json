@@ -32,10 +32,12 @@
     {
       "id": "10E-C",
       "title": "Odds reliability and assessment",
-      "status": "awaiting_pack",
+      "status": "ready",
       "depends_on": [
         "10E-B"
       ],
+      "pack_version": "10E-C-v1",
+      "baseline_commit": "fd5045eb109305242eef1cd847a007e93c28c87a",
       "human_gate": false
     },
     {

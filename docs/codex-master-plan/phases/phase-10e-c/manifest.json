@@ -1,0 +1,34 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "10E-C",
+  "pack_version": "10E-C-v1",
+  "baseline_commit": "fd5045eb109305242eef1cd847a007e93c28c87a",
+  "allowed_target_files": [
+    "apps/api/package.json",
+    "apps/api/src/odds-intelligence-assessment.test.ts",
+    "apps/api/src/odds-intelligence-assessment.ts",
+    "apps/api/src/odds-intelligence-public-mapper.test.ts",
+    "apps/api/src/odds-intelligence-public-mapper.ts",
+    "docs/phase-10e-c-odds-reliability-assessment.md"
+  ],
+  "required_validation_commands": [
+    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/odds-intelligence-assessment.test.ts src/odds-intelligence-public-mapper.test.ts",
+    "pnpm.cmd --filter @matchpulse/api typecheck",
+    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/odds-intelligence-contract.test.ts src/odds-market-normalization.test.ts src/odds-mathematical-primitives.test.ts src/odds-temporal-primitives.test.ts src/odds-intelligence-assessment.test.ts src/odds-intelligence-public-mapper.test.ts",
+    "pnpm.cmd --filter @matchpulse/api test",
+    "git diff --check",
+    "git diff --name-only -- prisma"
+  ],
+  "expected_results": [
+    "focused tests: 72/72 pass",
+    "typecheck: pass",
+    "odds regression tests: 192/192 pass",
+    "full API suite: 870/870 pass",
+    "git diff --check: pass",
+    "Prisma/migration diff: empty",
+    "no network access",
+    "no migration applied"
+  ],
+  "allows_migration": false,
+  "allows_network": false
+}

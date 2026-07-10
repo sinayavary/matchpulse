@@ -1,0 +1,8 @@
+{
+  "apps/api/package.json": "b062a632ff683fa3170752afb2e01ca2bbfa11cc383dd7caa0eff897cf19a512",
+  "apps/api/src/odds-intelligence-assessment.test.ts": "b5798070134fb18d8239e4bdb262e9a06acd2e5b4a7742d5b156a47e77c6e9ca",
+  "apps/api/src/odds-intelligence-assessment.ts": "3519fda4d61a3c30aaf110f37a4136791eaa68e820a9f294a5b36881f67ed1f1",
+  "apps/api/src/odds-intelligence-public-mapper.test.ts": "0bc376c7067e8e08aaeeb8850c47511237ecbaa44fc640c6439419d4aecdf9da",
+  "apps/api/src/odds-intelligence-public-mapper.ts": "11f608b8b9c1a3af2531dbd1581aae8f2e5aa8a30d4e9ab4f228c11d84da805b",
+  "docs/phase-10e-c-odds-reliability-assessment.md": "94fc908d72bf924650772cdc7ecfbd7cf14308064eb3dcfbe4a097cfcb23e462"
+}
