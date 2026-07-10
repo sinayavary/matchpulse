@@ -1,0 +1,19 @@
+{
+  "package_name": "matchpulse_master_package_v1",
+  "baseline_commit": "39e8dd92144b783fc9582b62b37b37a7ed657d4e",
+  "package_type": "architecture_baseline",
+  "files": [
+    "00_REPOSITORY_AUDIT.md",
+    "01_CANONICAL_PRODUCT_GOAL.md",
+    "02_FINAL_SYSTEM_ARCHITECTURE.md",
+    "03_TXLINE_DATA_ARCHITECTURE.md",
+    "04_INTELLIGENCE_AND_PREDICTION_ARCHITECTURE.md",
+    "05_IMPLEMENTATION_ROADMAP.md",
+    "06_CODEX_GOVERNANCE.md",
+    "07_DECISION_REGISTER.md",
+    "08_ACCEPTANCE_TEST_MATRIX.md",
+    "CODEX_MASTER_PROMPT.md",
+    "README.md"
+  ],
+  "note": "Exact phase source-code packs are generated separately. Codex must not implement a phase without its exact pack."
+}
