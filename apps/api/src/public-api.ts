@@ -26,6 +26,12 @@ import {
   mapAgentPresenterEventImpactToPublicSummary,
   type PublicEventImpactSummary
 } from "./public-event-impact-contract.js";
+import {
+  assertFinalProductIntelligencePublicSafe,
+  mapProductAgentToFinalProductIntelligence,
+  type FinalProductIntelligence
+} from "./final-product-intelligence.js";
+import { getProductAgentV1ForFixture } from "./product-agent-v1.js";
 
 export type PublicApiMode = "public";
 export type PublicMetaStatus = "live" | "no_data" | "stale" | "degraded";
@@ -106,12 +112,23 @@ export type PublicStatusResponse = {
     service: "matchpulse-api";
     ok: true;
     public_api_version: "public-v0";
-    demo_available: true;
+    product_ready: true;
   };
   meta: {
     status: "live";
     source: "database";
     mode: PublicApiMode;
+  };
+};
+
+export type PublicFinalProductIntelligenceResponse = {
+  data: FinalProductIntelligence | null;
+  meta: {
+    status: PublicMetaStatus;
+    source: "product-agent";
+    mode: PublicApiMode;
+    public_api_version: "public-v0";
+    message?: string;
   };
 };
 
@@ -224,6 +241,7 @@ export type PublicApiDependencies = {
   getAgentPresenterEventImpactHintForFixture?: (
     fixtureId: string
   ) => Promise<AgentPresenterEventImpactHint | undefined>;
+  getProductAgentV1ForFixture: typeof getProductAgentV1ForFixture;
   now: () => Date;
 };
 
@@ -231,6 +249,7 @@ const defaultDependencies: PublicApiDependencies = {
   getDbClient,
   getDbBackedMatchState,
   getAgentPresenterBriefForFixture,
+  getProductAgentV1ForFixture,
   now: () => new Date()
 };
 
@@ -439,6 +458,31 @@ export function normalizePublicMatchIntelligenceCardQuery(query: {
   return {
     oddsLimit: normalizeLimit(query.oddsLimit, 20, 50),
     staleAfterMinutes: normalizeStaleAfterMinutes(query.staleAfterMinutes, 180)
+  };
+}
+
+export function normalizePublicProductIntelligenceQuery(query: Record<string, unknown>): {
+  oddsLimit: number;
+  staleAfterMinutes: number;
+  includeEventImpact: boolean;
+  includeOddsReliability: boolean;
+} {
+  const allowed = new Set([
+    "oddsLimit",
+    "staleAfterMinutes",
+    "includeEventImpact",
+    "includeOddsReliability"
+  ]);
+  for (const key of Object.keys(query)) {
+    if (!allowed.has(key)) {
+      throw new PublicApiValidationError("Invalid product intelligence query.");
+    }
+  }
+  return {
+    oddsLimit: normalizeLimit(query.oddsLimit, 20, 50),
+    staleAfterMinutes: normalizeStaleAfterMinutes(query.staleAfterMinutes, 180),
+    includeEventImpact: readBoolean(query.includeEventImpact, true),
+    includeOddsReliability: readBoolean(query.includeOddsReliability, true)
   };
 }
 
@@ -653,7 +697,7 @@ export function buildPublicStatusResponse(): PublicStatusResponse {
       service: "matchpulse-api",
       ok: true,
       public_api_version: "public-v0",
-      demo_available: true
+      product_ready: true
     },
     meta: {
       status: "live",
@@ -1440,6 +1484,69 @@ export function registerPublicApiRoutes(
           message: "Public match intelligence card is temporarily unavailable."
         }
       };
+    }
+  });
+
+  app.get("/api/public/matches/:fixtureId/product-intelligence", async (request, reply) => {
+    const { fixtureId } = request.params as { fixtureId: string };
+    try {
+      const query = normalizePublicProductIntelligenceQuery(
+        request.query as Record<string, unknown>
+      );
+      const productAgentOutput = await deps.getProductAgentV1ForFixture(fixtureId, query);
+      const intelligence = mapProductAgentToFinalProductIntelligence(productAgentOutput);
+      assertFinalProductIntelligencePublicSafe(intelligence);
+
+      if (productAgentOutput.meta.status === "no_data" || intelligence.status === "no_data") {
+        reply.code(404);
+        return {
+          data: null,
+          meta: {
+            status: "no_data" as const,
+            source: "product-agent" as const,
+            mode: "public" as const,
+            public_api_version: "public-v0" as const,
+            message: "Product intelligence is not available for this fixture."
+          }
+        } satisfies PublicFinalProductIntelligenceResponse;
+      }
+
+      const response: PublicFinalProductIntelligenceResponse = {
+        data: intelligence,
+        meta: {
+          status: intelligence.status,
+          source: "product-agent",
+          mode: "public",
+          public_api_version: "public-v0"
+        }
+      };
+      assertNoForbiddenPublicKeys(response);
+      return response;
+    } catch (error) {
+      if (error instanceof PublicApiValidationError) {
+        badRequest(reply);
+        return {
+          data: null,
+          meta: {
+            status: "no_data" as const,
+            source: "product-agent" as const,
+            mode: "public" as const,
+            public_api_version: "public-v0" as const,
+            message: "Invalid product intelligence query."
+          }
+        } satisfies PublicFinalProductIntelligenceResponse;
+      }
+      unavailable(reply);
+      return {
+        data: null,
+        meta: {
+          status: "degraded" as const,
+          source: "product-agent" as const,
+          mode: "public" as const,
+          public_api_version: "public-v0" as const,
+          message: "Product intelligence is temporarily unavailable."
+        }
+      } satisfies PublicFinalProductIntelligenceResponse;
     }
   });
 }

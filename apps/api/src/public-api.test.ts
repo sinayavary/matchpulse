@@ -3,6 +3,7 @@ import test from "node:test";
 import Fastify from "fastify";
 import type { AgentPresenterResponse } from "./agent-presenter-v0.js";
 import type { CanonicalMatchState } from "./match-state-builder.js";
+import type { ProductAgentV1Response } from "./product-agent-v1.js";
 import {
   assertNoForbiddenPublicKeys,
   buildPublicBundleResponse,
@@ -174,6 +175,28 @@ function makePresenterOutput(
       mode: "internal"
     }
   };
+}
+
+function makeProductAgentOutput(
+  status: ProductAgentV1Response["meta"]["status"] = "live"
+): ProductAgentV1Response {
+  return {
+    data: {
+      agent_version: "product-agent-v1",
+      fixture_id: "17952170",
+      status: status === "live" ? "ready" : status === "no_data" ? "empty" : status,
+      headline: "Match intelligence is ready for display.",
+      summary: "Fixture, scoreboard, and odds data are available.",
+      readiness: { display_ready: status !== "no_data", has_fixture: true, has_scoreboard: true, has_odds: true, is_stale: status === "stale" },
+      data_quality: { level: status === "no_data" ? "empty" : "complete", issues: [] },
+      freshness: { latest_data_timestamp: "2026-06-04T18:04:23.367Z", freshness_label: status === "stale" ? "stale" : "fresh", note: "Latest persisted data is within the freshness window." },
+      signal_brief: { total: 1, critical: 0, warning: 0, info: 1, top_signals: [] },
+      decision_context: { attention_level: "none", readiness_level: "ready", market_reliability_level: "available", event_pressure_level: "none", operator_guidance: [], limitations: [] },
+      user_facing_notes: ["Fixture identity data is available."],
+      safe_scope_note: "Safe informational match intelligence."
+    },
+    meta: { status, source: "product-agent", mode: "internal" }
+  } as ProductAgentV1Response;
 }
 
 function collectKeys(value: unknown): string[] {
@@ -384,7 +407,7 @@ test("public status route returns the safe public-v0 shape", async () => {
         service: "matchpulse-api",
         ok: true,
         public_api_version: "public-v0",
-        demo_available: true
+        product_ready: true
       },
       meta: {
         status: "live",
@@ -421,6 +444,54 @@ test("public meta stays database/public across public routes", async () => {
 
     await app.close();
   });
+});
+
+test("final product intelligence route maps a safe public response and forwards bounded options", async () => {
+  let received: Record<string, unknown> | undefined;
+  const app = Fastify();
+  registerPublicApiRoutes(app, {
+    getProductAgentV1ForFixture: async (_fixtureId, options) => {
+      received = options as Record<string, unknown>;
+      return makeProductAgentOutput();
+    }
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/api/public/matches/17952170/product-intelligence?oddsLimit=999&staleAfterMinutes=0&includeEventImpact=false&includeOddsReliability=false"
+  });
+  assert.equal(response.statusCode, 200);
+  const body = response.json();
+  assert.equal(body.meta.source, "product-agent");
+  assert.equal(body.meta.mode, "public");
+  for (const key of ["product_version", "fixture_id", "status", "headline", "summary", "readiness", "data_quality", "freshness", "market_data", "match_activity", "signal_counts", "public_notes", "safety_note"]) {
+    assert.ok(key in body.data);
+  }
+  for (const key of ["decision_context", "signal_brief", "top_signals", "signals", "state", "internal_context", "raw_payload", "debug_lineage", "prediction", "probability", "recommended_bet", "wallet", "stake", "payout", "token", "secret"]) {
+    assert.equal(collectKeys(body).includes(key), false, key);
+  }
+  assert.deepEqual(received, { oddsLimit: 50, staleAfterMinutes: 1, includeEventImpact: false, includeOddsReliability: false });
+  await app.close();
+});
+
+test("final product intelligence route handles unknown query, no_data, and failures safely", async () => {
+  const app = Fastify();
+  registerPublicApiRoutes(app, { getProductAgentV1ForFixture: async () => makeProductAgentOutput("no_data") });
+  const invalid = await app.inject({ method: "GET", url: "/api/public/matches/x/product-intelligence?debug=true" });
+  assert.equal(invalid.statusCode, 400);
+  assert.equal(invalid.json().meta.message, "Invalid product intelligence query.");
+  const noData = await app.inject({ method: "GET", url: "/api/public/matches/x/product-intelligence" });
+  assert.equal(noData.statusCode, 404);
+  assert.equal(noData.json().data, null);
+  await app.close();
+
+  const failing = Fastify();
+  registerPublicApiRoutes(failing, { getProductAgentV1ForFixture: async () => { throw new Error("secret internal failure"); } });
+  const failure = await failing.inject({ method: "GET", url: "/api/public/matches/x/product-intelligence" });
+  assert.equal(failure.statusCode, 503);
+  assert.equal(failure.json().meta.message, "Product intelligence is temporarily unavailable.");
+  assert.equal(failure.body.includes("secret internal failure"), false);
+  await failing.close();
 });
 
 test("public matches query normalizes limit default 20", () => {
