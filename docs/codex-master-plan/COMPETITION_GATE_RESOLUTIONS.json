@@ -1,0 +1,67 @@
+{
+  "schema_version": "matchpulse-competition-gates-v1",
+  "project": "MatchPulse",
+  "scope": "full_product_competition",
+  "status": "review_only_until_merged",
+  "autonomy_mode": "aggressive_gated",
+  "gate_resolutions": [
+    {
+      "gate_id": "GATE_DB_DEV",
+      "status": "approved_for_isolated_local_environment",
+      "allows": [
+        "Prisma schema changes declared by an active phase",
+        "migration generation",
+        "migration application to repository-managed local or ephemeral PostgreSQL 16",
+        "migration tests and resettable seeded databases"
+      ],
+      "forbids": ["shared database mutation", "remote database mutation", "production database mutation"]
+    },
+    {
+      "gate_id": "GATE_PUBLIC_CONTRACT",
+      "status": "approved_for_versioned_competition_api",
+      "source": "COMPETITION_PRODUCT_SCOPE.md public-safety requirements",
+      "allows": ["versioned public API implementation", "documented non-breaking additions", "safe degraded states"],
+      "forbids": ["internal weights", "provider payloads", "raw confidence", "credentials", "gambling fields"]
+    },
+    {
+      "gate_id": "GATE_UX_BRAND",
+      "status": "approved",
+      "allows": ["MatchPulse branding", "dark-mode-first UI", "fa/en", "RTL/LTR", "mobile-first", "WCAG-oriented implementation"],
+      "note": "Codex may create simple original icons and CSS tokens; a purchased font, final commercial logo package, or external design team is not required."
+    },
+    {
+      "gate_id": "GATE_NOTIFICATION",
+      "status": "approved_for_implementation_and_local_verification",
+      "allows": ["watchlist", "notification policy", "Telegram webhook adapter", "local fake delivery", "contract tests"],
+      "live_verification": "optional_when_credentials_available"
+    },
+    {
+      "gate_id": "GATE_TXLINE_REAL",
+      "status": "not_required_for_program_complete",
+      "allows": ["complete adapter implementation", "documented host configuration", "fixtures", "contract tests", "offline proof validation"],
+      "live_verification": "optional_when_credentials_available"
+    },
+    {
+      "gate_id": "GATE_SOLANA",
+      "status": "deferred_not_applicable",
+      "required_for_program_complete": false
+    },
+    {
+      "gate_id": "GATE_DEPLOYMENT",
+      "status": "approved_for_local_reproducible_deployment",
+      "allows": ["Dockerfiles", "Docker Compose", "local PostgreSQL", "local cache when required", "health checks", "environment templates", "local smoke tests"],
+      "remote_deployment": "optional_when_credentials_available"
+    },
+    {
+      "gate_id": "GATE_RELEASE",
+      "status": "approved_for_competition_submission_release",
+      "allows": ["semantic version", "release notes", "submission artifact", "local seeded smoke-test evidence", "repository tag preparation"],
+      "forbids": ["claiming an unexecuted remote deployment", "claiming unavailable live integrations were verified"]
+    }
+  ],
+  "auto_publish_policy": {
+    "allowed_risk_classes_after_program_enablement": ["R0", "R1", "R2"],
+    "R3_code_only_local_changes": "allowed only when covered by a resolved gate above and the phase manifest explicitly permits local-only execution",
+    "R4_or_remote_mutation": "not allowed"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "schema_version": "matchpulse-program-blockers-v2",
+  "project": "MatchPulse",
+  "scope": "full_product_competition",
+  "instructions": {
+    "ask_policy": "Do not request enterprise planning, staffing, budget, legal counsel, procurement, paid cloud, domain, penetration-test vendor, or commercial release information.",
+    "secret_policy": "Never request or record secret values. Record variable names and availability only.",
+    "safe_progress": "Continue all source, tests, local database, local integration, web, API, documentation, CI, and deployment-preparation work when external credentials are absent.",
+    "completion_policy": "Missing external credentials may block only live verification of that integration, not PROGRAM_COMPLETE under COMPETITION_PRODUCT_SCOPE.md."
+  },
+  "blockers": [
+    {
+      "id": "txline_live_credentials",
+      "status": "optional_for_live_verification",
+      "blocks": ["live TxLINE network verification only"],
+      "does_not_block": ["TxLINE adapter implementation", "fixtures", "contract tests", "local end-to-end flow", "PROGRAM_COMPLETE"],
+      "expected_variable_names": ["TXLINE_GUEST_JWT", "TXLINE_API_TOKEN"],
+      "fallback_evidence": "NOT_RUN_CREDENTIALS_UNAVAILABLE",
+      "secret": true
+    },
+    {
+      "id": "telegram_live_credentials",
+      "status": "optional_for_live_verification",
+      "blocks": ["sending a real Telegram test message only"],
+      "does_not_block": ["Telegram adapter implementation", "template tests", "webhook contract tests", "local fake delivery", "PROGRAM_COMPLETE"],
+      "expected_variable_names": ["TELEGRAM_BOT_TOKEN", "TELEGRAM_TEST_CHAT_ID"],
+      "fallback_evidence": "NOT_RUN_CREDENTIALS_UNAVAILABLE",
+      "secret": true
+    },
+    {
+      "id": "private_model_service_credentials",
+      "status": "optional_for_live_verification",
+      "blocks": ["live private model-service verification only"],
+      "does_not_block": ["model adapter", "deterministic baseline", "mock inference", "composition engine", "evaluation pipeline", "PROGRAM_COMPLETE"],
+      "expected_variable_names": ["PREDICTION_MODEL_ENDPOINT", "PREDICTION_MODEL_API_KEY"],
+      "fallback_evidence": "BASELINE_AND_MOCK_VERIFIED_LIVE_SERVICE_NOT_RUN",
+      "secret": true
+    },
+    {
+      "id": "remote_deployment_credentials",
+      "status": "optional_for_remote_deployment",
+      "blocks": ["deployment to a third-party remote environment only"],
+      "does_not_block": ["Docker images", "Docker Compose", "deployment manifests", "local smoke tests", "submission package", "PROGRAM_COMPLETE"],
+      "expected_variable_names": [],
+      "fallback_evidence": "LOCAL_DEPLOYMENT_VERIFIED_REMOTE_NOT_RUN",
+      "secret": true
+    }
+  ]
+}

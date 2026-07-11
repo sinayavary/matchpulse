@@ -1,0 +1,89 @@
+{
+  "schema_version": "matchpulse-program-plan-v2",
+  "project": "MatchPulse",
+  "program_id": "matchpulse-competition-product-v1",
+  "program_mode": {
+    "enabled": false,
+    "requires_human_enablement": true,
+    "auto_select_next_phase": true,
+    "auto_prepare_low_risk_phases": true,
+    "auto_publish_low_risk_phases": false,
+    "max_parallel_phases": 1,
+    "stop_on_high_or_critical_security_finding": true,
+    "stop_on_unresolved_p0_or_p1": true
+  },
+  "authority_order": [
+    "AGENTS.md",
+    "docs/codex-master-plan/EXECUTION_PROTOCOL.md",
+    "docs/codex-master-plan/COMPETITION_PRODUCT_SCOPE.md",
+    "docs/codex-master-plan/COMPETITION_GATE_RESOLUTIONS.json",
+    "docs/codex-master-plan/ACTIVE_PHASE.json",
+    "docs/codex-master-plan/PROGRAM_PLAN.json",
+    "active phase manifest",
+    "docs/codex-master-plan/AUTONOMOUS_EXECUTION_CONTRACT.md"
+  ],
+  "defaults": {
+    "network_access": false,
+    "external_services_live": false,
+    "migration_create_or_apply": false,
+    "migration_exception": "Only an active phase manifest may permit migration creation or application against isolated local or ephemeral PostgreSQL.",
+    "shared_or_remote_database_mutation": false,
+    "remote_mutation": false,
+    "force_push": false,
+    "secret_values_in_git": false,
+    "public_internal_details": false,
+    "exact_target_allowlist_required": true,
+    "tests_may_be_weakened": false,
+    "success_requires_evidence": true,
+    "missing_external_credentials": "blocks_live_verification_only",
+    "solana_onchain_required": false
+  },
+  "technical_gates": [
+    {
+      "id": "GATE_DB_LOCAL",
+      "resolution": "approved_when_phase_manifest_explicitly_permits",
+      "requires": ["isolated local or ephemeral PostgreSQL 16", "migration safety checks", "data-integrity tests", "rollback or forward-fix instructions"],
+      "forbids": ["shared database mutation", "remote database mutation"]
+    },
+    {
+      "id": "GATE_PUBLIC_SAFE_API",
+      "resolution": "approved",
+      "requires": ["versioned contract", "secret and internal-field redaction", "forbidden-field tests", "safe degraded states"]
+    },
+    {
+      "id": "GATE_LOCAL_INTEGRATION",
+      "resolution": "approved",
+      "requires": ["offline fixtures", "local fakes", "contract tests", "live access disabled by default"]
+    },
+    {
+      "id": "GATE_LOCAL_RELEASE",
+      "resolution": "approved_when_quality_matrix_passes",
+      "requires": ["Docker/local reproducibility", "seeded end-to-end test", "security checks", "submission documentation"]
+    }
+  ],
+  "phases": [
+    {"id":"10F-C","title":"TxLINE client lifecycle and regression closure","dependencies":[],"gates":[],"deliverables":["bounded retry and refresh","validated REST/SSE transport","offline tests"]},
+    {"id":"10G-A","title":"Stream supervisor foundation","dependencies":["10F-C"],"gates":[],"deliverables":["lifecycle states","heartbeat and reconnect","graceful shutdown"]},
+    {"id":"10G-B","title":"Catch-up, checkpoints and deduplication","dependencies":["10G-A"],"gates":[],"deliverables":["monotonic checkpoints","catch-up","deduplication and gap diagnostics"]},
+    {"id":"10H-A","title":"Prediction composition engine","dependencies":["10F-C"],"gates":[],"review_only":true,"deliverables":["deterministic composition","fallback behavior","private-policy boundary"]},
+    {"id":"10H-B","title":"Versioned feature assembly","dependencies":["10H-A","10G-B"],"gates":[],"deliverables":["canonical features","freshness and coverage","stable content hash"]},
+    {"id":"10H-C","title":"Private model adapter","dependencies":["10H-B"],"gates":["GATE_LOCAL_INTEGRATION"],"deliverables":["runtime adapter","deterministic mock","secret-safe degraded behavior"]},
+    {"id":"10N-A","title":"Offline proof-state validation","dependencies":["10F-C"],"gates":[],"deliverables":["proof contracts","structural validation","public redaction"]},
+    {"id":"10E-D","title":"Odds persistence","dependencies":["10F-C"],"gates":["GATE_DB_LOCAL"],"deliverables":["normalized odds storage","indexes and idempotency","assessment snapshots"]},
+    {"id":"10G-C","title":"Canonical timeline persistence","dependencies":["10G-B"],"gates":["GATE_DB_LOCAL"],"deliverables":["transactional timeline","checkpoint persistence","restart recovery"]},
+    {"id":"10I","title":"Prediction runtime orchestration","dependencies":["10E-D","10G-C","10H-C"],"gates":["GATE_DB_LOCAL"],"deliverables":["trigger orchestration","bounded fixture concurrency","atomic snapshot persistence"]},
+    {"id":"10J-A","title":"Temporal labels","dependencies":["10I"],"gates":["GATE_DB_LOCAL"],"deliverables":["finalized labels","strict temporal ordering","invalid-timeline handling"]},
+    {"id":"10J-B","title":"Evaluation metrics","dependencies":["10J-A"],"gates":[],"deliverables":["log loss and Brier score","calibration error","segmented reports"]},
+    {"id":"10J-C","title":"Replay and calibration","dependencies":["10J-B"],"gates":["GATE_DB_LOCAL"],"deliverables":["walk-forward replay","future-leak prevention","versioned calibration artifacts"]},
+    {"id":"10K","title":"Versioned public-safe API","dependencies":["10I","10J-B","10N-A"],"gates":["GATE_PUBLIC_SAFE_API"],"deliverables":["sanitized API","rate limits","safe degraded states"]},
+    {"id":"10L","title":"Persian/English web application","dependencies":["10K"],"gates":[],"deliverables":["match list and detail","RTL/LTR","accessible responsive states"]},
+    {"id":"10M","title":"Watchlist and Telegram adapter","dependencies":["10K","10L"],"gates":["GATE_LOCAL_INTEGRATION"],"deliverables":["watchlist","dedupe and cooldown","local fake delivery"]},
+    {"id":"10O-A","title":"Security and public-boundary hardening","dependencies":["10K","10M"],"gates":[],"deliverables":["threat model","auth and limits","secret and leakage scans"]},
+    {"id":"10O-B","title":"Reliability and local operations","dependencies":["10O-A"],"gates":["GATE_DB_LOCAL"],"deliverables":["health and readiness","redacted logs and metrics","backup restore and failure tests"]},
+    {"id":"10O-C","title":"Docker/local reproducible deployment","dependencies":["10O-B"],"gates":["GATE_LOCAL_RELEASE"],"deliverables":["Docker Compose","environment templates","seeded local smoke test"]},
+    {"id":"10P","title":"CI and competition submission release","dependencies":["10J-C","10O-C"],"gates":["GATE_LOCAL_RELEASE"],"deliverables":["CI gates","release notes","submission artifact and evidence"]},
+    {"id":"10N-B","title":"Solana/on-chain verification","dependencies":["10N-A"],"gates":[],"status":"deferred_not_required","required_for_program_complete":false,"deliverables":[]}
+  ],
+  "completion_status": "not_started",
+  "program_complete_code": "PROGRAM_COMPLETE"
+}
