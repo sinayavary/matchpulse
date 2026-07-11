@@ -1,103 +1,49 @@
 {
-  "schema_version": "matchpulse-program-blockers-v1",
+  "schema_version": "matchpulse-program-blockers-v2",
   "project": "MatchPulse",
-  "as_of": "2026-07-11",
+  "scope": "full_product_competition",
   "instructions": {
-    "ask_policy": "Do not request all blockers at once. Stop only when the next eligible phase needs one.",
-    "secret_policy": "Never request or record secret values. Record variable names, secret-store location, owner, installation status, and validation status only.",
-    "safe_progress": "Continue through all applicable phases whose dependencies and gates are satisfied."
+    "ask_policy": "Do not request enterprise planning, staffing, budget, legal counsel, procurement, paid cloud, domain, penetration-test vendor, or commercial release information.",
+    "secret_policy": "Never request or record secret values. Record variable names and availability only.",
+    "safe_progress": "Continue all source, tests, local database, local integration, web, API, documentation, CI, and deployment-preparation work when external credentials are absent.",
+    "completion_policy": "Missing external credentials may block only live verification of that integration, not PROGRAM_COMPLETE under COMPETITION_PRODUCT_SCOPE.md."
   },
   "blockers": [
     {
-      "id": "compliance_counsel_approval",
-      "status": "unresolved",
-      "risk": "R4",
-      "blocks": ["real TxLINE access", "paid cloud commitment", "public beta with real provider data", "production deployment", "payment integration", "Solana reconsideration"],
-      "required_fields": ["counsel_or_firm", "review_scope", "approved_jurisdictions", "provider_account_eligibility_result", "sanctions_export_control_result", "approval_record_reference"],
-      "owner_role": "CTO or Legal/Compliance Lead",
-      "secret": false
-    },
-    {
-      "id": "txline_contract_and_entitlements",
-      "status": "unresolved",
-      "risk": "R3",
-      "blocks": ["GATE_TXLINE_REAL", "production competition support", "public display of provider-derived data", "historical retention"],
-      "required_fields": ["contract_reference", "approved_environment", "supported_competition_ids", "sampling_cadence", "rate_limits", "quota", "historical_depth", "display_rights", "retention_rights", "attribution_requirements", "support_contact", "approved_test_window"],
-      "owner_role": "Product Lead and Backend Lead",
-      "secret": false
-    },
-    {
-      "id": "named_program_owners",
-      "status": "unresolved",
-      "risk": "R3",
-      "blocks": ["high-risk gate approval", "incident response", "production release"],
-      "required_fields": ["backend_lead", "ml_lead", "devops_lead", "qa_lead", "security_owner", "privacy_owner", "product_owner", "release_approver", "rollback_owner", "on_call_owner"],
-      "owner_role": "Project Sponsor or CTO",
-      "secret": false
-    },
-    {
-      "id": "cloud_account_and_provider_approval",
-      "status": "unresolved",
-      "risk": "R4",
-      "blocks": ["GATE_DEPLOYMENT", "paid infrastructure", "staging deployment", "production deployment"],
-      "required_fields": ["approved_provider", "account_owner", "billing_owner", "approved_region", "service_allowlist", "budget_limit", "support_plan", "contract_reference", "compliance_approval_reference"],
-      "owner_role": "DevOps Lead and CTO",
-      "secret": false
-    },
-    {
-      "id": "domain_ownership",
-      "status": "unresolved",
-      "risk": "R3",
-      "blocks": ["production TLS", "web launch", "API launch", "Telegram webhook"],
-      "required_fields": ["registered_domain", "registrar", "dns_account_owner", "dns_change_approver", "web_subdomain", "api_subdomain", "telegram_subdomain"],
-      "owner_role": "Product Lead and DevOps Lead",
-      "secret": false
-    },
-    {
-      "id": "secret_store_installation",
-      "status": "unresolved",
-      "risk": "R4",
-      "blocks": ["real external service validation", "staging deployment", "production deployment"],
-      "required_fields": ["secret_store_type", "environment", "variable_names", "owner", "installed", "validated_without_value_disclosure", "rotation_policy"],
-      "expected_variable_names": ["DATABASE_URL", "TXLINE_GUEST_JWT", "TXLINE_API_TOKEN", "PREDICTION_MODEL_ENDPOINT", "PREDICTION_MODEL_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_TEST_CHAT_ID", "SENTRY_DSN"],
-      "owner_role": "DevOps Lead",
+      "id": "txline_live_credentials",
+      "status": "optional_for_live_verification",
+      "blocks": ["live TxLINE network verification only"],
+      "does_not_block": ["TxLINE adapter implementation", "fixtures", "contract tests", "local end-to-end flow", "PROGRAM_COMPLETE"],
+      "expected_variable_names": ["TXLINE_GUEST_JWT", "TXLINE_API_TOKEN"],
+      "fallback_evidence": "NOT_RUN_CREDENTIALS_UNAVAILABLE",
       "secret": true
     },
     {
-      "id": "private_model_runtime",
-      "status": "unresolved",
-      "risk": "R3",
-      "blocks": ["10H-C production adapter", "10I standard inference", "10J-C calibration release", "production quality gate"],
-      "required_fields": ["service_owner", "deployment_environment", "endpoint_variable_name", "authentication_method", "model_aliases", "timeout_budget_ms", "maximum_concurrency", "fallback_behavior", "calibration_artifact_location", "audit_log_policy"],
-      "owner_role": "ML Lead",
+      "id": "telegram_live_credentials",
+      "status": "optional_for_live_verification",
+      "blocks": ["sending a real Telegram test message only"],
+      "does_not_block": ["Telegram adapter implementation", "template tests", "webhook contract tests", "local fake delivery", "PROGRAM_COMPLETE"],
+      "expected_variable_names": ["TELEGRAM_BOT_TOKEN", "TELEGRAM_TEST_CHAT_ID"],
+      "fallback_evidence": "NOT_RUN_CREDENTIALS_UNAVAILABLE",
       "secret": true
     },
     {
-      "id": "penetration_test_evidence",
-      "status": "unresolved",
-      "risk": "R4",
-      "blocks": ["production GA"],
-      "required_fields": ["provider_or_approved_internal_team", "scope", "test_window", "report_reference", "critical_findings", "high_findings", "remediation_status", "retest_status"],
-      "owner_role": "Security Owner",
-      "secret": false
+      "id": "private_model_service_credentials",
+      "status": "optional_for_live_verification",
+      "blocks": ["live private model-service verification only"],
+      "does_not_block": ["model adapter", "deterministic baseline", "mock inference", "composition engine", "evaluation pipeline", "PROGRAM_COMPLETE"],
+      "expected_variable_names": ["PREDICTION_MODEL_ENDPOINT", "PREDICTION_MODEL_API_KEY"],
+      "fallback_evidence": "BASELINE_AND_MOCK_VERIFIED_LIVE_SERVICE_NOT_RUN",
+      "secret": true
     },
     {
-      "id": "privacy_terms_approval",
-      "status": "unresolved",
-      "risk": "R4",
-      "blocks": ["public beta account enrollment", "Telegram enrollment", "production GA"],
-      "required_fields": ["privacy_policy_reference", "terms_reference", "controller_identity", "privacy_contact", "legal_bases", "retention_approval", "deletion_process_approval", "age_policy_approval", "international_transfer_approval"],
-      "owner_role": "Privacy Owner and Legal/Compliance Lead",
-      "secret": false
-    },
-    {
-      "id": "exact_release_authorization",
-      "status": "unresolved",
-      "risk": "R4",
-      "blocks": ["production deployment", "PROGRAM_COMPLETE"],
-      "required_fields": ["release_commit_sha", "release_version", "approved_environment", "ci_evidence", "staging_soak_evidence", "backup_restore_evidence", "rollback_exercise_evidence", "known_limitations", "release_approver", "release_window"],
-      "owner_role": "CTO or designated Release Approver",
-      "secret": false
+      "id": "remote_deployment_credentials",
+      "status": "optional_for_remote_deployment",
+      "blocks": ["deployment to a third-party remote environment only"],
+      "does_not_block": ["Docker images", "Docker Compose", "deployment manifests", "local smoke tests", "submission package", "PROGRAM_COMPLETE"],
+      "expected_variable_names": [],
+      "fallback_evidence": "LOCAL_DEPLOYMENT_VERIFIED_REMOTE_NOT_RUN",
+      "secret": true
     }
   ]
 }
