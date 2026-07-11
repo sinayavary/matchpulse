@@ -1,8 +1,13 @@
 {
-  "docs/phase-10f-a-txline-client-foundation.md": "f9fcfb1f9bb07570f2dd6aca26ffa5a4eb17a4b5666768cd480355ead0003ad4",
-  "packages/txline-client/package.json": "6296fcafd7d461dbdbc32790308424f01625418fd5e330d25bf68969bb249775",
-  "packages/txline-client/src/client.test.ts": "07fd5a1a99b489246ce80e47fe7481f6151f29ee57042c368c747356652d9bea",
-  "packages/txline-client/src/client.ts": "f6d92d095a73e6c9ee320606c9c7639c1720186da65f21042376f767df7fb274",
-  "packages/txline-client/src/index.ts": "eb99efe9380b1af5de504928cf8c4f919df79bf4304883dbf4980f8efbf39706",
-  "packages/txline-client/src/live.ts": "82365a422009a7910c32f6df644b0ae7d6e6dae30fc8bce8b3a27679f679ffdc"
+  "schema_version": "matchpulse-payload-integrity-v2",
+  "verification_mode": "committed_payload_tree",
+  "note": "The committed payload tree on the activated pack commit is the exact source of truth. Automation v2 requires the pack to be tracked and clean before execution.",
+  "files": [
+    "docs/phase-10f-a-txline-client-foundation.md",
+    "packages/txline-client/package.json",
+    "packages/txline-client/src/client.test.ts",
+    "packages/txline-client/src/client.ts",
+    "packages/txline-client/src/index.ts",
+    "packages/txline-client/src/live.ts"
+  ]
 }
