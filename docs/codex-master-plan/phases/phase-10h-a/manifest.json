@@ -2,7 +2,7 @@
   "schema_version": "matchpulse-phase-pack-v1",
   "phase": "10H-A",
   "pack_version": "10H-A-v1",
-  "baseline_commit": "8a75e61d4accf4bb67ee4c12fffaad173e4267fd",
+  "baseline_commit": "b4f1bf28e3ad05d4c796ac52a1383cd918182842",
   "review_only": true,
   "allowed_target_files": [
     "apps/api/src/prediction-engine-v1.ts",

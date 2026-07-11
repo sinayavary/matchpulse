@@ -19,7 +19,7 @@
     {
       "gate_id": "GATE_PUBLIC_CONTRACT",
       "status": "approved_for_versioned_competition_api",
-      "source": "PROGRAM_DECISIONS_RESOLVED.json public_api_policy",
+      "source": "COMPETITION_PRODUCT_SCOPE.md public-safety requirements",
       "allows": ["versioned public API implementation", "documented non-breaking additions", "safe degraded states"],
       "forbids": ["internal weights", "provider payloads", "raw confidence", "credentials", "gambling fields"]
     },

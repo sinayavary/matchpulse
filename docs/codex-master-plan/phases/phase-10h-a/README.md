@@ -4,7 +4,7 @@
 
 This is a review-only prepared source pack. It is not active and must not modify `ACTIVE_PHASE.json` or `PHASE_QUEUE.json` until a separate governance change explicitly approves and activates it.
 
-- Baseline candidate: `8a75e61d4accf4bb67ee4c12fffaad173e4267fd`
+- Baseline candidate: `b4f1bf28e3ad05d4c796ac52a1383cd918182842`
 - Source branch: `agent/matchpulse-continuation-blueprint-v1`
 - Pack: `10H-A-v1`
 - Dependency: Phase 10E-C complete; execution should occur after current Phase 10F-C is completed and published.
