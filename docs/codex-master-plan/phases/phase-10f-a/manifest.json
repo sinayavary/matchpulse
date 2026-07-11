@@ -1,0 +1,36 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "10F-A",
+  "pack_version": "10F-A-v1",
+  "baseline_commit": "acea876b2a26c22e26a7390bf6520e2eb8e41a9d",
+  "allowed_target_files": [
+    "docs/phase-10f-a-txline-client-foundation.md",
+    "packages/txline-client/package.json",
+    "packages/txline-client/src/client.test.ts",
+    "packages/txline-client/src/client.ts",
+    "packages/txline-client/src/index.ts",
+    "packages/txline-client/src/live.ts"
+  ],
+  "required_validation_commands": [
+    "pnpm.cmd --filter @matchpulse/txline-client test",
+    "pnpm.cmd --filter @matchpulse/txline-client typecheck",
+    "pnpm.cmd --filter @matchpulse/txline-client build",
+    "pnpm.cmd --filter @matchpulse/api typecheck",
+    "pnpm.cmd --filter @matchpulse/api test",
+    "git diff --check",
+    "git diff --name-only -- prisma"
+  ],
+  "expected_results": [
+    "TxLINE client focused tests: pass",
+    "TxLINE client typecheck: pass",
+    "TxLINE client build: pass",
+    "API typecheck: pass",
+    "full API suite: pass",
+    "git diff --check: pass",
+    "Prisma/migration diff: empty",
+    "no real network access",
+    "no migration applied"
+  ],
+  "allows_migration": false,
+  "allows_network": false
+}

@@ -1,0 +1,48 @@
+import { TxlineCompleteClient, TxlineClientError } from "./client.js";
+
+export type TxlineLiveErrorKind = TxlineClientError["kind"];
+
+export type TxlineSafeError = {
+  statusCode?: number;
+  endpointPath: string;
+  endpointHost: string;
+  kind: TxlineLiveErrorKind;
+  message: string;
+};
+
+export class TxlineLiveError extends Error {
+  constructor(public readonly safe: TxlineSafeError) {
+    super(safe.message);
+    this.name = "TxlineLiveError";
+  }
+}
+
+function wrap<T>(endpointHost: string, operation: () => Promise<T>): Promise<T> {
+  return operation().catch((error: unknown) => {
+    if (error instanceof TxlineClientError) {
+      throw new TxlineLiveError({
+        statusCode: error.statusCode,
+        endpointPath: error.endpointPath,
+        endpointHost,
+        kind: error.kind,
+        message: error.message,
+      });
+    }
+    throw error;
+  });
+}
+
+export function createTxlineLiveClient(env: NodeJS.ProcessEnv = process.env) {
+  const client = TxlineCompleteClient.fromEnv(env);
+  const endpointHost = new URL(env.TXLINE_API_BASE_URL ?? "https://txline-dev.txodds.com/api").host;
+  return {
+    getFixtureSnapshot: (params: { competitionId: string; startEpochDay: number }) =>
+      wrap(endpointHost, () => client.getFixtureSnapshot(params)),
+    getScoreSnapshot: (params: { fixtureId: string; asOf: number }) =>
+      wrap(endpointHost, () => client.getScoreSnapshot(params)),
+    getOddsSnapshot: (params: { fixtureId: string; asOf: number }) =>
+      wrap(endpointHost, () => client.getOddsSnapshot(params)),
+    stream: (endpointPath: string, params: Record<string, string | number> = {}) =>
+      client.stream(endpointPath, params),
+  };
+}
