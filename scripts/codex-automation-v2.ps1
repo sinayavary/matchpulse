@@ -81,17 +81,23 @@ function Read-State {
   }
 }
 
-function Read-Pack($State) {
+function Read-Pack($State, [string]$RequestedMode) {
   $active = $State.Active
+  $completedForPrepare = $active.state -eq "completed_pending_review" -and $RequestedMode -eq "Prepare"
   switch ($active.state) {
     "awaiting_pack" { Stop-Code "MISSING_SOURCE" "The selected phase pack is absent." }
     "awaiting_human_approval" { Stop-Code "HUMAN_APPROVAL_REQUIRED" "The selected phase is not approved." }
     "paused" { Stop-Code "PHASE_PAUSED" "The selected phase is paused." }
-    "completed_pending_review" { Write-Host "The active phase is complete and awaits review."; exit 0 }
+    "completed_pending_review" {
+      if (-not $completedForPrepare) {
+        Write-Host "The active phase is complete and awaits review."
+        exit 0
+      }
+    }
     "ready" { }
     default { Stop-Code "SPEC_CONFLICT" "Unknown active-phase state '$($active.state)'." }
   }
-  if ($active.human_approved -ne $true -or [string]::IsNullOrWhiteSpace([string]$active.pack_version)) {
+  if (-not $completedForPrepare -and ($active.human_approved -ne $true -or [string]::IsNullOrWhiteSpace([string]$active.pack_version))) {
     Stop-Code "HUMAN_APPROVAL_REQUIRED" "A ready phase requires approval and pack_version."
   }
   $packRel = Path-Normal ([string]$active.pack_path)
@@ -306,7 +312,7 @@ $script:Snapshot = Join-Path $script:Repo ".git\codex-automation-v2-snapshot.jso
 $state = Read-State
 
 if ($Mode -eq "Publish") { Publish $state; exit 0 }
-$pack = Read-Pack $state
+$pack = Read-Pack $state $Mode
 if ($Mode -eq "Prepare") { Prepare $state $pack; exit 0 }
 Validate $state $pack
 
