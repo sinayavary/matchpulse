@@ -1,13 +1,13 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "ready",
+  "state": "completed_pending_review",
   "phase_id": "10F-C",
   "phase_title": "TxLINE Client Lifecycle and Regression Closure",
   "pack_path": "docs/codex-master-plan/phases/phase-10f-c",
   "pack_version": "10F-C-v1",
   "baseline_commit": "c1b2461ec42db2af1d93bfb5af7dcdb714bb2c7e",
-  "human_approved": true,
+  "human_approved": false,
   "activation_note": "The human explicitly approved the exact reviewed Phase 10F-C v1 pack. Codex must execute only this repository-selected subphase and stop after Prepare without publishing or activating a successor.",
   "execution": {
     "continue_until_phase_gate": true,
@@ -15,5 +15,23 @@
     "allow_completion_state_update": true,
     "stop_after_phase": true
   },
-  "last_result": null
+  "last_result": {
+    "status": "PHASE_COMPLETE",
+    "phase_id": "10F-C",
+    "pack_version": "10F-C-v1",
+    "baseline_commit": "c1b2461ec42db2af1d93bfb5af7dcdb714bb2c7e",
+    "completed_at": "2026-07-11T22:19:52.4958645Z",
+    "files_changed": [
+      "docs/codex-prompts/phase-10f-c.md",
+      "docs/phase-10f-c-txline-client-lifecycle.md",
+      "packages/txline-client/package.json",
+      "packages/txline-client/src/index.ts",
+      "packages/txline-client/src/live.ts",
+      "packages/txline-client/src/resilient-client.test.ts",
+      "packages/txline-client/src/resilient-client.ts"
+    ],
+    "validation_summary": "TxLINE tests 23/23 passed; TxLINE typecheck and build passed; API typecheck passed; API tests 870/870 passed; git diff --check passed; Prisma diff empty.",
+    "migration_applied": false,
+    "network_accessed": false
+  }
 }
