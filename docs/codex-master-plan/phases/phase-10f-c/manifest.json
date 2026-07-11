@@ -1,0 +1,40 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "10F-C",
+  "pack_version": "10F-C-v1",
+  "baseline_commit": "c1b2461ec42db2af1d93bfb5af7dcdb714bb2c7e",
+  "allowed_target_files": [
+    "docs/phase-10f-c-txline-stream-supervision.md",
+    "packages/txline-client/package.json",
+    "packages/txline-client/src/client.test.ts",
+    "packages/txline-client/src/client.ts",
+    "packages/txline-client/src/index.ts",
+    "packages/txline-client/src/live.ts",
+    "packages/txline-client/src/supervisor.test.ts",
+    "packages/txline-client/src/supervisor.ts"
+  ],
+  "required_validation_commands": [
+    "pnpm.cmd --filter @matchpulse/txline-client test",
+    "pnpm.cmd --filter @matchpulse/txline-client typecheck",
+    "pnpm.cmd --filter @matchpulse/txline-client build",
+    "pnpm.cmd --filter @matchpulse/api typecheck",
+    "pnpm.cmd --filter @matchpulse/api test",
+    "git diff --check",
+    "git diff --name-only -- prisma"
+  ],
+  "expected_results": [
+    "TxLINE client and supervisor focused tests: pass",
+    "TxLINE client typecheck: pass",
+    "TxLINE client build: pass",
+    "API typecheck: pass",
+    "full API suite: pass",
+    "git diff --check: pass",
+    "Prisma/migration diff: empty",
+    "no real TxLINE, Solana, provider, or database network access",
+    "no migration applied",
+    "no public proof exposure",
+    "no successor phase activation"
+  ],
+  "allows_migration": false,
+  "allows_network": false
+}
