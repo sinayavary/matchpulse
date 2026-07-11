@@ -6,6 +6,15 @@ export type TxlineRequest = { path: string; params?: Record<string, string | num
 export type TxlineRequestExecutor = (request: TxlineRequest) => Promise<unknown>;
 export type TxlineSseEvent = { event: string | null; id: string | null; data: string };
 export type TxlineSseOpener = (url: URL, headers: Readonly<Record<string, string>>) => Promise<AsyncIterable<string>>;
+export type TxlineIntervalParams = {
+  epochDay: number;
+  hourOfDay: number;
+  interval: number;
+  fixtureId?: string;
+};
+export type TxlineScoreStatValidationParams =
+  | { fixtureId: string; seq: number; statKey: number; statKey2?: number; statKeys?: never }
+  | { fixtureId: string; seq: number; statKeys: readonly number[]; statKey?: never; statKey2?: never };
 export type TxlineClientOptions = {
   config: Pick<TxlineConfig, "apiBaseUrl" | "httpTimeoutMs">;
   credentials?: TxlineCredentials;
@@ -145,6 +154,14 @@ export async function* parseTxlineSse(chunks: AsyncIterable<string>): AsyncGener
   }
 }
 
+function intervalPath(domain: "scores" | "odds", params: TxlineIntervalParams): TxlineRequest {
+  const query = params.fixtureId === undefined ? undefined : { fixtureId: params.fixtureId };
+  return {
+    path: `/${domain}/updates/${params.epochDay}/${params.hourOfDay}/${params.interval}`,
+    params: query,
+  };
+}
+
 export class TxlineCompleteClient {
   readonly #config: Pick<TxlineConfig, "apiBaseUrl" | "httpTimeoutMs">;
   readonly #credentials: TxlineCredentials;
@@ -182,12 +199,76 @@ export class TxlineCompleteClient {
     return this.#requestExecutor({ path: "/fixtures/snapshot", params });
   }
 
+  getFixtureUpdates(params: { epochDay: number; hourOfDay: number }): Promise<unknown> {
+    return this.#requestExecutor({ path: `/fixtures/updates/${params.epochDay}/${params.hourOfDay}` });
+  }
+
+  getFixtureValidation(params: { fixtureId: string; timestamp?: number }): Promise<unknown> {
+    return this.#requestExecutor({
+      path: "/fixtures/validation",
+      params: params.timestamp === undefined
+        ? { fixtureId: params.fixtureId }
+        : { fixtureId: params.fixtureId, timestamp: params.timestamp },
+    });
+  }
+
+  getFixtureBatchValidation(params: { epochDay: number; hourOfDay: number }): Promise<unknown> {
+    return this.#requestExecutor({ path: "/fixtures/batch-validation", params });
+  }
+
   getScoreSnapshot(params: { fixtureId: string; asOf: number }): Promise<unknown> {
     return this.#requestExecutor({ path: `/scores/snapshot/${encodeURIComponent(params.fixtureId)}`, params: { asOf: params.asOf } });
   }
 
+  getScoreUpdates(params: { fixtureId: string }): Promise<unknown> {
+    return this.#requestExecutor({ path: `/scores/updates/${encodeURIComponent(params.fixtureId)}` });
+  }
+
+  getScoreHistorical(params: { fixtureId: string }): Promise<unknown> {
+    return this.#requestExecutor({ path: `/scores/historical/${encodeURIComponent(params.fixtureId)}` });
+  }
+
+  getScoreIntervalUpdates(params: TxlineIntervalParams): Promise<unknown> {
+    return this.#requestExecutor(intervalPath("scores", params));
+  }
+
+  getScoreStatValidation(params: TxlineScoreStatValidationParams): Promise<unknown> {
+    if (params.statKeys !== undefined) {
+      return this.#requestExecutor({
+        path: "/scores/stat-validation",
+        params: { fixtureId: params.fixtureId, seq: params.seq, statKeys: params.statKeys.join(",") },
+      });
+    }
+    return this.#requestExecutor({
+      path: "/scores/stat-validation",
+      params: params.statKey2 === undefined
+        ? { fixtureId: params.fixtureId, seq: params.seq, statKey: params.statKey }
+        : { fixtureId: params.fixtureId, seq: params.seq, statKey: params.statKey, statKey2: params.statKey2 },
+    });
+  }
+
   getOddsSnapshot(params: { fixtureId: string; asOf: number }): Promise<unknown> {
     return this.#requestExecutor({ path: `/odds/snapshot/${encodeURIComponent(params.fixtureId)}`, params: { asOf: params.asOf } });
+  }
+
+  getOddsUpdates(params: { fixtureId: string }): Promise<unknown> {
+    return this.#requestExecutor({ path: `/odds/updates/${encodeURIComponent(params.fixtureId)}` });
+  }
+
+  getOddsIntervalUpdates(params: TxlineIntervalParams): Promise<unknown> {
+    return this.#requestExecutor(intervalPath("odds", params));
+  }
+
+  getOddsValidation(params: { messageId: string; ts: number }): Promise<unknown> {
+    return this.#requestExecutor({ path: "/odds/validation", params });
+  }
+
+  streamScores(): AsyncGenerator<TxlineSseEvent> {
+    return this.stream("scores/stream");
+  }
+
+  streamOdds(): AsyncGenerator<TxlineSseEvent> {
+    return this.stream("odds/stream");
   }
 
   async *stream(endpointPath: string, params: Record<string, string | number> = {}): AsyncGenerator<TxlineSseEvent> {
