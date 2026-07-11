@@ -1,0 +1,11 @@
+{
+  "schema_version": "matchpulse-payload-integrity-v2",
+  "verification_mode": "committed_payload_tree",
+  "note": "The committed payload tree on the activated pack commit is the exact source of truth. Automation v2 requires the pack to be tracked and clean before execution.",
+  "files": [
+    "docs/phase-10f-b-txline-provider-bindings.md",
+    "packages/txline-client/src/client.test.ts",
+    "packages/txline-client/src/client.ts",
+    "packages/txline-client/src/live.ts"
+  ]
+}
