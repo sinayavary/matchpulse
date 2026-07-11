@@ -1,12 +1,17 @@
 import { getTxlineConfigFromEnv } from "./config.js";
 import {
-  TxlineCompleteClient,
   TxlineClientError,
   type TxlineIntervalParams,
   type TxlineRequestExecutor,
   type TxlineScoreStatValidationParams,
   type TxlineSseOpener,
 } from "./client.js";
+import {
+  TxlineResilientClient,
+  type TxlineGuestJwtRefresher,
+  type TxlineRetryPolicy,
+  type TxlineSleeper,
+} from "./resilient-client.js";
 
 export type TxlineLiveErrorKind = TxlineClientError["kind"];
 export type TxlineSafeError = {
@@ -19,6 +24,9 @@ export type TxlineSafeError = {
 export type TxlineLiveClientDependencies = {
   request?: TxlineRequestExecutor;
   openSse?: TxlineSseOpener;
+  retryPolicy?: TxlineRetryPolicy;
+  refreshGuestJwt?: TxlineGuestJwtRefresher;
+  sleep?: TxlineSleeper;
 };
 
 export class TxlineLiveError extends Error {
@@ -48,11 +56,14 @@ export function createTxlineLiveClient(
   dependencies: TxlineLiveClientDependencies = {},
 ) {
   const config = getTxlineConfigFromEnv(env);
-  const client = new TxlineCompleteClient({
+  const client = new TxlineResilientClient({
     config,
     credentials: { guestJwt: env.TXLINE_GUEST_JWT, apiToken: env.TXLINE_API_TOKEN },
     request: dependencies.request,
     openSse: dependencies.openSse,
+    retryPolicy: dependencies.retryPolicy,
+    refreshGuestJwt: dependencies.refreshGuestJwt,
+    sleep: dependencies.sleep,
   });
   const endpointHost = new URL(config.apiBaseUrl).host;
   return {
