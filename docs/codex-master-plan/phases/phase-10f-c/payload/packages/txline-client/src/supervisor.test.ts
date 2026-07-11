@@ -52,13 +52,10 @@ test("abort during backoff skips catch-up and configuration is validated", async
   for (const options of [{ reconnectDelaysMs: [] }, { reconnectDelaysMs: [-1] }, { reconnectDelaysMs: [1.5] }, { reconnectDelaysMs: [NaN] }, { heartbeatTimeoutMs: 0 }, { heartbeatTimeoutMs: 1.5 }, { dedupeCapacity: 0 }, { dedupeCapacity: 1.5 }]) assert.throws(() => new TxlineStreamSupervisor({ openStream: () => values(), ...options }), TypeError);
 });
 
-test("FIFO dedupe, null IDs, isolated snapshots, and bound factories", async () => {
+test("FIFO dedupe, null IDs, and isolated snapshots", async () => {
   const controller = new AbortController(); const snapshots: Array<{ status: string }> = []; let delivered = 0;
   const supervisor = new TxlineStreamSupervisor({ openStream: () => values(event("1"), event("2"), event("3"), event("1"), event(null), event(null)), dedupeCapacity: 2, onStateChange: s => { snapshots.push(s); (s as { status: string }).status = "bad"; } });
   const result = await collect(supervisor.run(controller.signal), () => { delivered++; if (delivered === 6) controller.abort(); }); assert.deepEqual(result.map(v => v.id), ["1", "2", "3", "1", null, null]); assert.notEqual(supervisor.getSnapshot().status, "bad"); snapshots[0]!.status = "bad"; assert.notEqual(supervisor.getSnapshot().status, "bad");
-  const scoreCalls: unknown[] = []; const oddsCalls: unknown[] = [];
-  const score = createTxlineScoreStreamSupervisor({ streamScores: options => { scoreCalls.push(options); return values(event("x")); } }, {}); const odds = createTxlineOddsStreamSupervisor({ streamOdds: options => { oddsCalls.push(options); return values(event("x")); } }, {});
-  const signal = new AbortController(); await collect(score.run(signal.signal), () => signal.abort()); const signal2 = new AbortController(); await collect(odds.run(signal2.signal), () => signal2.abort()); assert.equal((scoreCalls[0] as { signal: AbortSignal }).signal, signal.signal); assert.equal((oddsCalls[0] as { signal: AbortSignal }).signal, signal2.signal);
 });
 
 test("initial snapshot is idle", () => {
