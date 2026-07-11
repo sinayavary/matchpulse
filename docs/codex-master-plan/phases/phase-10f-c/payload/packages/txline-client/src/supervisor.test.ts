@@ -1,0 +1,62 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { TxlineStreamSupervisor, TxlineStreamSupervisorError, createTxlineOddsStreamSupervisor, createTxlineScoreStreamSupervisor } from "./supervisor.js";
+import type { TxlineSseEvent } from "./client.js";
+
+const event = (id: string | null, data = "ok", name: string | null = "score"): TxlineSseEvent => ({ id, data, event: name });
+async function* values(...items: TxlineSseEvent[]) { yield* items; }
+async function collect(source: AsyncIterable<TxlineSseEvent>, stop?: () => void) { const found: TxlineSseEvent[] = []; for await (const item of source) { found.push(item); stop?.(); } return found; }
+
+test("initial lifecycle records event timing and stops on abort", async () => {
+  const controller = new AbortController(); const states: string[] = []; let now = 10;
+  const supervisor = new TxlineStreamSupervisor({ openStream: () => values(event("1")), now: () => ++now, onStateChange: s => states.push(s.status) });
+  const result = await collect(supervisor.run(controller.signal), () => controller.abort());
+  assert.deepEqual(result.map(v => v.id), ["1"]); assert.deepEqual(states.slice(0, 2), ["connecting", "connected"]); assert.equal(supervisor.getSnapshot().lastEventReceivedAtMs, 11); assert.equal(supervisor.getSnapshot().status, "stopped");
+});
+
+test("uses an exact bounded reconnect schedule and resets after valid events", async () => {
+  const delays: number[] = []; let opens = 0; const controller = new AbortController();
+  const supervisor = new TxlineStreamSupervisor({ openStream: () => { opens++; if (opens < 4) throw new Error("x"); return values(event("ok")); }, sleep: async delay => { delays.push(delay); }, reconnectDelaysMs: [250, 500, 1000] });
+  await collect(supervisor.run(controller.signal), () => controller.abort()); assert.deepEqual(delays, [250, 500, 1000]);
+});
+
+test("catch-up follows backoff and shares duplicate suppression", async () => {
+  const order: string[] = []; let opens = 0; const controller = new AbortController();
+  const supervisor = new TxlineStreamSupervisor({ openStream: () => { order.push("open"); opens++; if (opens === 1) return values(event("1")); return values(event("2"), event("3")); }, sleep: async () => { order.push("backoff"); }, catchUp: async () => { order.push("catch-up"); return [event("1"), event("2")]; } });
+  const result = await collect(supervisor.run(controller.signal), () => { if (order.includes("catch-up") && opens === 2) controller.abort(); });
+  assert.deepEqual(result.map(v => v.id), ["1", "2", "3"]); assert.deepEqual(order, ["open", "backoff", "catch-up", "open"]);
+});
+
+test("resumes with last ID and clears an empty ID", async () => {
+  const cursors: Array<string | null> = []; let opened = 0; const controller = new AbortController();
+  const supervisor = new TxlineStreamSupervisor({ openStream: context => { cursors.push(context.lastEventId); opened++; return values(opened === 1 ? event("one") : event("")); }, sleep: async () => undefined });
+  await collect(supervisor.run(controller.signal), () => { if (opened > 2) controller.abort(); }); assert.deepEqual(cursors.slice(0, 3), [null, "one", null]);
+});
+
+test("validates heartbeats and reconnects after invalid heartbeat", async () => {
+  let opened = 0; const controller = new AbortController(); const supervisor = new TxlineStreamSupervisor({ openStream: () => values(opened++ === 0 ? event(null, "{\"Ts\":12345}", "heartbeat") : event("done")), sleep: async () => undefined, now: () => 99 });
+  const result = await collect(supervisor.run(controller.signal), () => { if (opened > 1) controller.abort(); }); assert.equal(result[0]?.event, "heartbeat"); assert.equal(supervisor.getSnapshot().lastHeartbeatProviderTs, 12345);
+  const bad = new TxlineStreamSupervisor({ openStream: () => values(event(null, "{\"Ts\":\"bad\"}", "heartbeat")), sleep: async () => undefined, reconnectDelaysMs: [1] });
+  await assert.rejects(async () => { for await (const _ of bad.run()) { /* consume */ } }, (e: unknown) => e instanceof TxlineStreamSupervisorError && e.lastReason === "invalid_heartbeat");
+});
+
+test("timeout aborts the attempt and stream exhaustion is terminal", async () => {
+  const delays: number[] = []; let calls = 0; const supervisor = new TxlineStreamSupervisor({ openStream: () => ({ [Symbol.asyncIterator]: () => ({ next: async () => new Promise<IteratorResult<TxlineSseEvent>>(() => undefined), return: async () => ({ done: true, value: undefined }) }) }), nextWithTimeout: async () => ({ kind: "timeout" }), sleep: async delay => { delays.push(delay); }, reconnectDelaysMs: [1, 2] });
+  await assert.rejects(async () => { for await (const _ of supervisor.run()) { calls++; } }, (e: unknown) => e instanceof TxlineStreamSupervisorError && e.kind === "reconnect_exhausted" && e.reconnectAttempts === 2 && e.lastReason === "heartbeat_timeout"); assert.deepEqual(delays, [1, 2]); assert.equal(calls, 0);
+});
+
+test("abort during backoff skips catch-up and configuration is validated", async () => {
+  const controller = new AbortController(); let catchups = 0; let opens = 0;
+  const supervisor = new TxlineStreamSupervisor({ openStream: () => { opens++; throw new Error("x"); }, sleep: async (_delay, signal) => { controller.abort(); await new Promise<void>((resolve, reject) => signal.addEventListener("abort", () => reject(new DOMException("", "AbortError")), { once: true })); }, catchUp: async () => { catchups++; return []; } });
+  await collect(supervisor.run(controller.signal)); assert.equal(catchups, 0); assert.equal(opens, 1); assert.equal(supervisor.getSnapshot().status, "stopped");
+  for (const options of [{ reconnectDelaysMs: [] }, { reconnectDelaysMs: [-1] }, { reconnectDelaysMs: [1.5] }, { reconnectDelaysMs: [NaN] }, { heartbeatTimeoutMs: 0 }, { heartbeatTimeoutMs: 1.5 }, { dedupeCapacity: 0 }, { dedupeCapacity: 1.5 }]) assert.throws(() => new TxlineStreamSupervisor({ openStream: () => values(), ...options }), TypeError);
+});
+
+test("FIFO dedupe, null IDs, isolated snapshots, and bound factories", async () => {
+  const controller = new AbortController(); const snapshots: Array<{ status: string }> = [];
+  const supervisor = new TxlineStreamSupervisor({ openStream: () => values(event("1"), event("2"), event("3"), event("1"), event(null), event(null)), dedupeCapacity: 2, onStateChange: s => { snapshots.push(s); (s as { status: string }).status = "bad"; } });
+  const result = await collect(supervisor.run(controller.signal), () => { if (supervisor.getSnapshot().lastEventId === null) controller.abort(); }); assert.deepEqual(result.map(v => v.id), ["1", "2", "3", "1", null, null]); assert.notEqual(supervisor.getSnapshot().status, "bad"); snapshots[0]!.status = "bad"; assert.notEqual(supervisor.getSnapshot().status, "bad");
+  const scoreCalls: unknown[] = []; const oddsCalls: unknown[] = [];
+  const score = createTxlineScoreStreamSupervisor({ streamScores: options => { scoreCalls.push(options); return values(event("x")); } }, {}); const odds = createTxlineOddsStreamSupervisor({ streamOdds: options => { oddsCalls.push(options); return values(event("x")); } }, {});
+  const signal = new AbortController(); await collect(score.run(signal.signal), () => signal.abort()); const signal2 = new AbortController(); await collect(odds.run(signal2.signal), () => signal2.abort()); assert.equal((scoreCalls[0] as { signal: AbortSignal }).signal, signal.signal); assert.equal((oddsCalls[0] as { signal: AbortSignal }).signal, signal2.signal);
+});
