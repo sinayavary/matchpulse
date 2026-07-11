@@ -1,46 +1,19 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "completed_pending_review",
-  "phase_id": "10F-B",
-  "phase_title": "TxLINE Provider Bindings and Historical/Proof Requests",
-  "pack_path": "docs/codex-master-plan/phases/phase-10f-b",
-  "pack_version": "10F-B-v1",
-  "baseline_commit": "791ea52e68537ae8d5eadc96f0d0c8cf6f72c2c8",
-  "human_approved": false,
-  "activation_note": "The human explicitly approved the exact reviewed Phase 10F-B v1 pack. Codex must execute only this repository-selected subphase and stop after Prepare without publishing or activating a successor.",
+  "state": "ready",
+  "phase_id": "10F-C",
+  "phase_title": "TxLINE Client Lifecycle and Regression Closure",
+  "pack_path": "docs/codex-master-plan/phases/phase-10f-c",
+  "pack_version": "10F-C-v1",
+  "baseline_commit": "c1b2461ec42db2af1d93bfb5af7dcdb714bb2c7e",
+  "human_approved": true,
+  "activation_note": "The human explicitly approved the exact reviewed Phase 10F-C v1 pack. Codex must execute only this repository-selected subphase and stop after Prepare without publishing or activating a successor.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
     "allow_completion_state_update": true,
     "stop_after_phase": true
   },
-  "last_result": {
-    "status": "PHASE_COMPLETE",
-    "phase_id": "10F-B",
-    "pack_version": "10F-B-v1",
-    "baseline_commit": "791ea52e68537ae8d5eadc96f0d0c8cf6f72c2c8",
-    "completed_at": "2026-07-11T16:00:46.8566160Z",
-    "files_changed": [
-      "docs/phase-10f-b-txline-provider-bindings.md",
-      "packages/txline-client/src/client.test.ts",
-      "packages/txline-client/src/client.ts",
-      "packages/txline-client/src/live.ts"
-    ],
-    "validation_summary": [
-      "Prisma recovery: engine-free Prisma generation using --no-engine",
-      "API preflight typecheck: pass",
-      "TxLINE client tests: 11/11 pass",
-      "TxLINE client typecheck: pass",
-      "TxLINE client build: pass",
-      "API typecheck: pass",
-      "full API suite: 870/870 pass",
-      "git diff --check: pass",
-      "Prisma/migration diff: empty",
-      "no application, provider, or database network access",
-      "no migration applied"
-    ],
-    "migration_applied": false,
-    "network_accessed": false
-  }
+  "last_result": null
 }
