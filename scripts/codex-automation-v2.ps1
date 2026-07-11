@@ -46,6 +46,33 @@ function Read-Program {
   Need $program "program_mode" "PROGRAM_PLAN.json"; Need $program "safe_auto_publication_policy" "PROGRAM_PLAN.json"; Need $program "phases" "PROGRAM_PLAN.json"
   $program
 }
+function Assert-Canonical-Gates($Program,$Resolutions) {
+  Need $Program "technical_gates" "PROGRAM_PLAN.json"; Need $Resolutions "gate_resolutions" "COMPETITION_GATE_RESOLUTIONS.json"
+  $planIds=@($Program.technical_gates|ForEach-Object{Need $_ "id" "technical gate";[string]$_.id})
+  foreach($id in $planIds){if(@($planIds|Where-Object{$_-ceq$id}).Count-ne1){Stop-Code "DUPLICATE_CANONICAL_GATE" "Canonical technical gate '$id' must exist exactly once in PROGRAM_PLAN.json."}}
+  foreach($phase in @($Program.phases)){
+    Need $phase "id" "program phase"; Need $phase "dependencies" "program phase $($phase.id)"; Need $phase "gates" "program phase $($phase.id)"
+    foreach($gate in @($phase.gates)){if(@($planIds|Where-Object{$_-ceq[string]$gate}).Count-ne1){Stop-Code "UNKNOWN_GATE" "Phase $($phase.id) references unknown canonical gate '$gate'."}}
+  }
+  $canonical=@($Resolutions.gate_resolutions|Where-Object{$_.canonical-eq$true})
+  foreach($entry in $canonical){Need $entry "gate_id" "canonical gate resolution";if(@($planIds|Where-Object{$_-ceq[string]$entry.gate_id}).Count-ne1){Stop-Code "UNKNOWN_GATE" "Canonical resolution references unknown gate '$($entry.gate_id)'."}}
+  foreach($id in $planIds){
+    $matches=@($canonical|Where-Object{[string]$_.gate_id-ceq$id})
+    if($matches.Count-ne1){if($matches.Count-gt1){Stop-Code "DUPLICATE_CANONICAL_GATE" "Gate '$id' has duplicate canonical resolutions."};Stop-Code "UNRESOLVED_GATE" "Gate '$id' has no canonical resolution."}
+    if([string]$matches[0].status-cne"approved"){Stop-Code "UNRESOLVED_GATE" "Gate '$id' is not approved; status is '$($matches[0].status)'."}
+  }
+}
+function Assert-Gate-Activation($Phase,$Manifest) {
+  foreach($gate in @($Phase.gates)){
+    if($Manifest.allows_network-ne$false){Stop-Code "PROGRAM_POLICY_REJECTED" "Gate '$gate' does not authorize network or external service access."}
+    foreach($name in @("allows_external_services","allows_remote_database","allows_secrets","allows_remote_deployment")){if($null-ne$Manifest.PSObject.Properties[$name]-and$Manifest.$name-ne$false){Stop-Code "PROGRAM_POLICY_REJECTED" "Gate '$gate' cannot authorize $name."}}
+    if([string]$gate-ceq"GATE_DB_LOCAL"-and$Manifest.allows_migration-eq$true){
+      if($null-eq$Manifest.PSObject.Properties["migration_database_scope"]-or$null-eq$Manifest.PSObject.Properties["migration_safety_checks"]){Stop-Code "MIGRATION_APPROVAL_REQUIRED" "DB-local migration-capable successor lacks required scope or safety declarations."}
+      if([string]$Manifest.migration_database_scope-cne"repository-managed isolated local or ephemeral PostgreSQL 16"){Stop-Code "MIGRATION_APPROVAL_REQUIRED" "DB-local migration scope is not the canonical isolated PostgreSQL 16 scope."}
+      foreach($check in @("schema validation","migration diff","migration test","data-integrity verification","rollback or forward-fix instructions")){if(@($Manifest.migration_safety_checks)-cnotcontains$check){Stop-Code "MIGRATION_APPROVAL_REQUIRED" "DB-local successor is missing migration safety declaration '$check'."}}
+    }
+  }
+}
 function Test-PayloadHashes([string]$PackRel) {
   $expected = Read-Json "$PackRel/EXPECTED_SHA256.json" "payload hashes"
   $entries = if ($null -ne $expected.files) { @($expected.files.PSObject.Properties | ForEach-Object { [pscustomobject]@{ path=$_.Name; sha256=$_.Value } }) } elseif ($expected -is [System.Array]) { @($expected) } else { @($expected.PSObject.Properties | ForEach-Object { [pscustomobject]@{ path=$_.Name; sha256=$_.Value } }) }
@@ -102,8 +129,8 @@ function Status-All { @((Invoke-SafeGit @("status","--porcelain=v1","--untracked
 function Status-For($Paths) { $lines=@(); foreach($path in @($Paths|Sort-Object -Unique)){ $lines += @((Invoke-SafeGit @("status","--porcelain=v1","--untracked-files=all","--",$path)).Lines|Where-Object{$_}) }; @($lines|Sort-Object -Unique) }
 function Status-Unrelated($State,$Pack) { $phase=Status-For @($Pack.Allowed+$State.ActiveRel); @(Status-All|Where-Object{$phase -notcontains $_}|Sort-Object) }
 function Status-Path([string]$line) { if($line.Length-lt 4){Stop-Code "SPEC_CONFLICT" "Invalid git status line."}; $raw=$line.Substring(3); if($raw.Contains(" -> ")){$raw=$raw.Split(@(" -> "),[StringSplitOptions]::None)[-1]}; if($raw.StartsWith('"')){$raw=$raw|ConvertFrom-Json}; Path-Normal $raw }
-function Fingerprint-Unrelated($State,$Pack) { @((Status-Unrelated $State $Pack)|ForEach-Object{ $p=Status-Path $_; $f=Join-Path $script:Repo $p; [pscustomobject]@{status=$_;path=$p;length=$(if(Test-Path $f -PathType Leaf){(Get-Item $f).Length}else{$null});worktree_sha256=$(if(Test-Path $f -PathType Leaf){(Get-FileHash $f -Algorithm SHA256).Hash.ToLowerInvariant()}else{$null});index_object=$(((Invoke-SafeGit @("rev-parse",":$p") -AllowFailure).Lines-join"").Trim())} }|Sort-Object path,status) }
-function Fingerprint-Json($Value) { @($Value)|ConvertTo-Json -Depth 6 -Compress }
+function Fingerprint-Unrelated($State,$Pack) { @((Status-Unrelated $State $Pack)|ForEach-Object{ $status=$_;$p=Status-Path $status;$f=Join-Path $script:Repo $p; [pscustomobject]@{status=$status;path=$p;length=$(if(Test-Path $f -PathType Leaf){(Get-Item $f).Length}else{$null});worktree_sha256=$(if(Test-Path $f -PathType Leaf){(Get-FileHash $f -Algorithm SHA256).Hash.ToLowerInvariant()}else{$null});index_object=$(if($status.StartsWith("??")){$null}else{(((Invoke-SafeGit @("rev-parse",":$p") -AllowFailure).Lines-join"").Trim())})} }|Sort-Object path,status) }
+function Fingerprint-Json($Value) { (@($Value)|ForEach-Object{"$($_.status)`t$($_.path)`t$($_.length)`t$($_.worktree_sha256)`t$($_.index_object)"}) -join "`n" }
 
 function Validate($State,$Pack) {
   Require-Main-And-Fetch; $head=Git-Value @("rev-parse","HEAD"); $origin=Git-Value @("rev-parse","origin/main")
@@ -153,7 +180,7 @@ function Find-Successor($Program,$Queue) {
     foreach($dep in @($phase.dependencies)){if(@($Queue.items|Where-Object{$_.id-eq$dep-and$_.status-eq"completed"}).Count-ne1){$depsOk=$false}}
     if(-not$depsOk){$dependencyBlocked += $phase.id;continue}
     $gatesOk=$true
-    foreach($gate in @($phase.gates)){ $planGate=@($Program.technical_gates|Where-Object{$_.id-eq$gate});$res=@($script:GateRes.gate_resolutions|Where-Object{$_.gate_id-eq$gate});if($planGate.Count-ne1-or$res.Count-ne1-or[string]$planGate[0].resolution-match"unresolved"-or[string]$res[0].status-match"unresolved|pending|blocked"){$gatesOk=$false} }
+    foreach($gate in @($phase.gates)){ $planGate=@($Program.technical_gates|Where-Object{[string]$_.id-ceq[string]$gate});$res=@($script:GateRes.gate_resolutions|Where-Object{$_.canonical-eq$true-and[string]$_.gate_id-ceq[string]$gate});if($planGate.Count-ne1-or$res.Count-ne1-or[string]$res[0].status-cne"approved"){$gatesOk=$false} }
     if(-not$gatesOk){$gateBlocked += $phase.id;continue}
     return $phase
   }
@@ -170,11 +197,11 @@ function ProgramTransition {
   # selection, the committed ACTIVE_PHASE completion is authoritative for the
   # just-published phase while all earlier completion states come from the queue.
   ($committedQueue.items | Where-Object { $_.id -eq $committedActive.phase_id }).status = "completed"
-  $script:GateRes=Read-Json "docs/codex-master-plan/COMPETITION_GATE_RESOLUTIONS.json" "gate resolutions";$next=Find-Successor $program $committedQueue;if($null-eq$next){Write-Host "PROGRAM_COMPLETE";return};Write-Host "DETERMINISTIC_NEXT_PHASE: $($next.id)"
+  $script:GateRes=Read-Json "docs/codex-master-plan/COMPETITION_GATE_RESOLUTIONS.json" "gate resolutions";Assert-Canonical-Gates $program $script:GateRes;$next=Find-Successor $program $committedQueue;if($null-eq$next){Write-Host "PROGRAM_COMPLETE";return};Write-Host "DETERMINISTIC_NEXT_PHASE: $($next.id)"
   $state=Read-State;if($state.Active.phase_id-ne$next.id-or$state.Queue.active_phase_id-ne$next.id){Stop-Code "WRONG_SUCCESSOR" "Prepared transition must select deterministic successor $($next.id)."}
   $old=@($state.Queue.items|Where-Object{$_.id-eq$committedActive.phase_id});if($old.Count-ne1-or$old[0].status-ne"completed"-or$old[0].completion_commit-ne$origin){Stop-Code "SPEC_CONFLICT" "Queue does not record the published phase and completion commit."}
   if($state.Active.state-ne"ready"-or$state.Active.human_approved-ne$true-or$null-ne$state.Active.last_result){Stop-Code "SPEC_CONFLICT" "Successor must be ready, governance-approved, and have null last_result."}
-  $packRel=Path-Normal ([string]$state.Active.pack_path);if(-not(Test-Path (Join-Path $script:Repo "$packRel/manifest.json"))){Stop-Code "MISSING_SUCCESSOR_PACK" "Exact next phase $($next.id) has no complete pack; author it only from repository-authorized architecture sources."};$pack=Read-Pack $state "Validate";Need $pack.Manifest "git_publish" "successor phase manifest";if($state.Active.baseline_commit-ne$origin){Stop-Code "SPEC_CONFLICT" "Successor baseline must equal current origin/main."}
+  $packRel=Path-Normal ([string]$state.Active.pack_path);if(-not(Test-Path (Join-Path $script:Repo "$packRel/manifest.json"))){Stop-Code "MISSING_SUCCESSOR_PACK" "Exact next phase $($next.id) has no complete pack; author it only from repository-authorized architecture sources."};$pack=Read-Pack $state "Validate";Need $pack.Manifest "git_publish" "successor phase manifest";Assert-Gate-Activation $next $pack.Manifest;if($state.Active.baseline_commit-ne$origin){Stop-Code "SPEC_CONFLICT" "Successor baseline must equal current origin/main."}
   $changed=@(Status-All|ForEach-Object{Status-Path $_}|Sort-Object -Unique);$allowed=@($state.ActiveRel,$state.QueueRel);$prefix="$packRel/";foreach($p in $changed){if($p-ne$state.ActiveRel-and$p-ne$state.QueueRel-and-not$p.StartsWith($prefix,[StringComparison]::Ordinal)){Stop-Code "STAGING_SCOPE_VIOLATION" "Unauthorized transition path: $p"};if($p-match "(^|/)(apps|packages|prisma|migrations|node_modules)/|(^|/)(package(-lock)?\.json|pnpm-lock\.yaml|yarn\.lock|\.env($|\.)|\.github/workflows/)" ){Stop-Code "STAGING_SCOPE_VIOLATION" "Forbidden transition path: $p"}}
   if($changed-notcontains$state.ActiveRel-or$changed-notcontains$state.QueueRel){Stop-Code "SPEC_CONFLICT" "Transition state files are incomplete."};Invoke-SafeGit (@("diff","--check","--")+$changed)|Out-Null;foreach($p in $changed){Invoke-SafeGit @("add","--",$p)|Out-Null};$staged=@((Invoke-SafeGit @("diff","--cached","--name-only")).Lines|Where-Object{$_}|ForEach-Object{Path-Normal $_}|Sort-Object -Unique);Same-List $changed $staged "STAGING_SCOPE_VIOLATION" "Transition staging is not exact."
   Invoke-SafeGit @("commit","-m","Activate Phase $($next.id) under continuous program")|Out-Null;if((Git-Value @("rev-parse","HEAD^1"))-ne$origin){Stop-Code "NON_FAST_FORWARD" "Transition parent is not the published origin/main."};Invoke-SafeGit @("push","origin","HEAD:main")|Out-Null;Invoke-SafeGit @("fetch","origin","main")|Out-Null;if((Git-Value @("rev-parse","HEAD"))-ne(Git-Value @("rev-parse","origin/main"))){Stop-Code "REMOTE_VERIFICATION_FAILED" "Transition did not reach origin/main exactly."};Write-Host "AUTOMATION_V2_PROGRAM_TRANSITIONED"

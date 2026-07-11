@@ -5,6 +5,8 @@
 - [x] `PROGRAM_PLAN.json` enables program mode without further human enablement and limits parallel execution to one phase.
 - [x] Phase and program modes preserve exact manifests, allowlists, validation evidence, and immutable safety boundaries.
 - [x] Deterministic successor selection uses listed plan order, completed dependencies, and resolved technical gates.
+- [x] Technical gates use the four exact canonical IDs; aliases are non-authoritative, and unknown, duplicate, or non-approved resolutions fail closed.
+- [x] DB-local migration-capable successor packs declare isolated PostgreSQL 16 scope and every required migration safety check; no gate authorizes external services, remote databases, secrets, or deployment.
 - [x] Phase execution cannot activate its successor; a separate transition follows verified publication.
 - [x] Safe auto-publication conditions are machine-readable and remote actions remain false by default.
 

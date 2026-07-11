@@ -4,10 +4,13 @@ $shell = (Get-Process -Id $PID).Path
 $root = Join-Path ([IO.Path]::GetTempPath()) ("matchpulse-automation-v2-" + [guid]::NewGuid().ToString("N"))
 $script:passed = 0
 $script:failed = 0
+$gitCommand = Get-Command git -CommandType Application -ErrorAction SilentlyContinue
+if ($null -eq $gitCommand) { Write-Error "MISSING_GIT: Git is required to run Automation v2 tests."; exit 1 }
+$git = $gitCommand.Source
 
 function Invoke-TestGit([string]$Repo, [Parameter(ValueFromRemainingArguments=$true)][string[]]$Args) {
   $prior = $ErrorActionPreference; $ErrorActionPreference = "Continue"
-  & git.exe -C $Repo @Args 2>&1 | Out-Null; $code = $LASTEXITCODE
+  & $git -C $Repo @Args 2>&1 | Out-Null; $code = $LASTEXITCODE
   $ErrorActionPreference = $prior
   if ($code -ne 0) { throw "git $($Args -join ' ') failed" }
 }
@@ -35,9 +38,10 @@ function New-Fixture([bool]$ProgramEnabled=$false, [bool]$Safe=$true) {
   Write-Utf8 (Join-Path $repo "seed.txt") "seed`n";Invoke-TestGit $repo add -- seed.txt;Invoke-TestGit $repo commit -m seed
   $baseline=(& git -C $repo rev-parse HEAD).Trim();$pack=New-Pack $repo "A" $baseline $Safe
   Write-Utf8 (Join-Path $repo "docs/codex-master-plan/CODEX_ENTRYPOINT.md") "entry`n"
-  Write-Utf8 (Join-Path $repo "docs/codex-master-plan/COMPETITION_GATE_RESOLUTIONS.json") (Json ([ordered]@{gate_resolutions=@()}))
+  $gateIds=@("GATE_DB_LOCAL","GATE_PUBLIC_SAFE_API","GATE_LOCAL_INTEGRATION","GATE_LOCAL_RELEASE")
+  Write-Utf8 (Join-Path $repo "docs/codex-master-plan/COMPETITION_GATE_RESOLUTIONS.json") (Json ([ordered]@{gate_resolutions=@($gateIds|ForEach-Object{[ordered]@{gate_id=$_;canonical=$true;status="approved"}});legacy_gate_aliases=@([ordered]@{legacy_id="GATE_DB_DEV";canonical_id="GATE_DB_LOCAL";authoritative=$false})}))
   $policy=[ordered]@{all_required_validations_pass=$true;changed_paths_limited_to_active_allowlist_and_permitted_completion_metadata=$true;real_external_service_accessed=$false;shared_or_remote_database_mutated=$false;secret_used_or_exposed=$false;remote_deployment_or_irreversible_operation=$false;origin_main_must_equal_validated_baseline=$true;force_push=$false;fast_forward_safe_required=$true;manifest_must_allow_publish=$true;program_policy_must_be_enabled=$true}
-  $program=[ordered]@{schema_version="matchpulse-program-plan-v2";program_mode=[ordered]@{enabled=$ProgramEnabled;auto_publish_low_risk_phases=$true;max_parallel_phases=1};safe_auto_publication_policy=$policy;technical_gates=@();phases=@([ordered]@{id="A";dependencies=@();gates=@()},[ordered]@{id="B";dependencies=@("A");gates=@()},[ordered]@{id="C";dependencies=@("B");gates=@()})}
+  $program=[ordered]@{schema_version="matchpulse-program-plan-v2";program_mode=[ordered]@{enabled=$ProgramEnabled;auto_publish_low_risk_phases=$true;max_parallel_phases=1};safe_auto_publication_policy=$policy;technical_gates=@($gateIds|ForEach-Object{[ordered]@{id=$_}});phases=@([ordered]@{id="A";dependencies=@();gates=@()},[ordered]@{id="B";dependencies=@("A");gates=@()},[ordered]@{id="C";dependencies=@("B");gates=@()})}
   Write-Utf8 (Join-Path $repo "docs/codex-master-plan/PROGRAM_PLAN.json") (Json $program)
   $active=[ordered]@{schema_version="matchpulse-active-phase-v1";project="MatchPulse";state="ready";phase_id="A";phase_title="Alpha";pack_path=$pack;pack_version="A-v1";baseline_commit=$baseline;human_approved=$true;execution=[ordered]@{allow_automatic_publish_after_prepare=$true};last_result=$null}
   $queue=[ordered]@{schema_version="matchpulse-phase-queue-v1";project="MatchPulse";active_phase_id="A";items=@([ordered]@{id="A";status="ready"},[ordered]@{id="B";status="planned"},[ordered]@{id="C";status="planned"})}
@@ -64,6 +68,14 @@ function Prepare-Transition($f,[string]$Selected="B",[bool]$Pack=$true) {
   $rel="docs/codex-master-plan/phases/phase-$($Selected.ToLowerInvariant())";if($Pack){$rel=New-Pack $f.Repo $Selected $origin}
   $a=[ordered]@{schema_version="matchpulse-active-phase-v1";project="MatchPulse";state="ready";phase_id=$Selected;phase_title=$Selected;pack_path=$rel;pack_version="$Selected-v1";baseline_commit=$origin;human_approved=$true;execution=[ordered]@{allow_automatic_publish_after_prepare=$true};last_result=$null};Write-Utf8 $aPath (Json $a)
 }
+function Set-PhaseGate($f,[string]$Gate,[string]$Status="approved",[bool]$Duplicate=$false) {
+  $p=Join-Path $f.Repo "docs/codex-master-plan/PROGRAM_PLAN.json";$program=Get-Content $p -Raw|ConvertFrom-Json;($program.phases|Where-Object id -eq B).gates=@($Gate);Write-Utf8 $p (Json $program)
+  $r=Join-Path $f.Repo "docs/codex-master-plan/COMPETITION_GATE_RESOLUTIONS.json";$res=Get-Content $r -Raw|ConvertFrom-Json;$match=$res.gate_resolutions|Where-Object gate_id -eq $Gate;if($match){$match.status=$Status;if($Duplicate){$res.gate_resolutions=@($res.gate_resolutions)+@([ordered]@{gate_id=$Gate;canonical=$true;status="approved"})}};Write-Utf8 $r (Json $res)
+  Invoke-TestGit $f.Repo add -- $p $r;Invoke-TestGit $f.Repo commit -m gate;Invoke-TestGit $f.Repo push origin main
+}
+function Set-DbMigrationDeclarations($f) {
+  $p=Join-Path $f.Repo "docs/codex-master-plan/phases/phase-b/manifest.json";$m=Get-Content $p -Raw|ConvertFrom-Json;$m.allows_migration=$true;$m|Add-Member -NotePropertyName migration_database_scope -NotePropertyValue "repository-managed isolated local or ephemeral PostgreSQL 16" -Force;$m|Add-Member -NotePropertyName migration_safety_checks -NotePropertyValue @("schema validation","migration diff","migration test","data-integrity verification","rollback or forward-fix instructions") -Force;Write-Utf8 $p (Json $m)
+}
 
 New-Item -ItemType Directory -Force $root|Out-Null
 try {
@@ -79,12 +91,19 @@ try {
   Test "10 ProgramTransition selects first eligible" { $f=Prepared $true;$null=Run $f.Repo Publish;Prepare-Transition $f;Must-Pass (Run $f.Repo ProgramTransition) "AUTOMATION_V2_PROGRAM_TRANSITIONED" }
   Test "11 caller-selected wrong successor rejected" { $f=Prepared $true;$null=Run $f.Repo Publish;Prepare-Transition $f C;Must-Fail (Run $f.Repo ProgramTransition) "WRONG_SUCCESSOR" }
   Test "12 incomplete dependency is rejected" { $f=Prepared $true;$null=Run $f.Repo Publish;$p=Join-Path $f.Repo "docs/codex-master-plan/PROGRAM_PLAN.json";$x=Get-Content $p -Raw|ConvertFrom-Json;($x.phases|Where-Object id -eq B).dependencies=@("C");Write-Utf8 $p (Json $x);Invoke-TestGit $f.Repo add -- $p;Invoke-TestGit $f.Repo commit -m plan;Invoke-TestGit $f.Repo push origin main;Prepare-Transition $f C;Must-Fail (Run $f.Repo ProgramTransition) "INCOMPLETE_DEPENDENCY" }
-  Test "13 unresolved gate is rejected" { $f=Prepared $true;$null=Run $f.Repo Publish;$p=Join-Path $f.Repo "docs/codex-master-plan/PROGRAM_PLAN.json";$x=Get-Content $p -Raw|ConvertFrom-Json;($x.phases|Where-Object id -eq B).gates=@("G");$x.technical_gates=@([ordered]@{id="G";resolution="unresolved"});Write-Utf8 $p (Json $x);Invoke-TestGit $f.Repo add -- $p;Invoke-TestGit $f.Repo commit -m gate;Invoke-TestGit $f.Repo push origin main;Prepare-Transition $f C;Must-Fail (Run $f.Repo ProgramTransition) "UNRESOLVED_GATE" }
+  Test "13 unresolved gate is rejected" { $f=Prepared $true;$null=Run $f.Repo Publish;Set-PhaseGate $f "GATE_LOCAL_INTEGRATION" "pending";Prepare-Transition $f C;Must-Fail (Run $f.Repo ProgramTransition) "UNRESOLVED_GATE" }
   Test "14 missing successor pack rejected safely" { $f=Prepared $true;$null=Run $f.Repo Publish;Prepare-Transition $f B $false;Must-Fail (Run $f.Repo ProgramTransition) "MISSING_SUCCESSOR_PACK" }
   Test "15 runtime transition file rejected" { $f=Prepared $true;$null=Run $f.Repo Publish;Prepare-Transition $f;Write-Utf8 (Join-Path $f.Repo "apps/api/src/x.ts") x;Must-Fail (Run $f.Repo ProgramTransition) "STAGING_SCOPE_VIOLATION" }
   Test "16 transition commit contains exact paths" { $f=Prepared $true;$null=Run $f.Repo Publish;Prepare-Transition $f;$before=(&git -C $f.Repo rev-parse HEAD).Trim();$null=Run $f.Repo ProgramTransition;$names=@(&git -C $f.Repo diff-tree --no-commit-id --name-only -r HEAD);if($names|Where-Object{$_-notmatch'ACTIVE_PHASE|PHASE_QUEUE|phases/phase-b/'}){throw "unauthorized transition commit"};if((&git -C $f.Repo rev-parse HEAD^).Trim()-ne$before){throw "wrong parent"} }
   Test "17 remote equality verified" { $f=Prepared $true;Must-Pass (Run $f.Repo Publish) "PROGRAM_PUBLISHED";if((&git -C $f.Repo rev-parse HEAD).Trim()-ne(&git -C $f.Repo rev-parse origin/main).Trim()){throw "publish equality"};Prepare-Transition $f;Must-Pass (Run $f.Repo ProgramTransition) "PROGRAM_TRANSITIONED";if((&git -C $f.Repo rev-parse HEAD).Trim()-ne(&git -C $f.Repo rev-parse origin/main).Trim()){throw "transition equality"} }
   Test "18 unrelated work remains unchanged" { $f=New-Fixture;Write-Utf8 (Join-Path $f.Repo unrelated.txt) "keep`n";$hash=(Get-FileHash (Join-Path $f.Repo unrelated.txt)).Hash;$null=Run $f.Repo Validate;Complete $f.Repo;Must-Pass (Run $f.Repo Prepare) "PREPARED";if((Get-FileHash (Join-Path $f.Repo unrelated.txt)).Hash-ne$hash){throw "unrelated content changed"} }
+  Test "19 canonical resolved gate transitions" { $f=Prepared $true;$null=Run $f.Repo Publish;Set-PhaseGate $f "GATE_LOCAL_INTEGRATION";Prepare-Transition $f;Must-Pass (Run $f.Repo ProgramTransition) "AUTOMATION_V2_PROGRAM_TRANSITIONED" }
+  Test "20 unknown gate ID is rejected" { $f=Prepared $true;$null=Run $f.Repo Publish;$p=Join-Path $f.Repo "docs/codex-master-plan/PROGRAM_PLAN.json";$x=Get-Content $p -Raw|ConvertFrom-Json;($x.phases|Where-Object id -eq B).gates=@("GATE_UNKNOWN");Write-Utf8 $p (Json $x);Invoke-TestGit $f.Repo add -- $p;Invoke-TestGit $f.Repo commit -m gate;Invoke-TestGit $f.Repo push origin main;Prepare-Transition $f C;Must-Fail (Run $f.Repo ProgramTransition) "UNKNOWN_GATE" }
+  Test "21 legacy alias is rejected as phase gate" { $f=Prepared $true;$null=Run $f.Repo Publish;$p=Join-Path $f.Repo "docs/codex-master-plan/PROGRAM_PLAN.json";$x=Get-Content $p -Raw|ConvertFrom-Json;($x.phases|Where-Object id -eq B).gates=@("GATE_DB_DEV");Write-Utf8 $p (Json $x);Invoke-TestGit $f.Repo add -- $p;Invoke-TestGit $f.Repo commit -m gate;Invoke-TestGit $f.Repo push origin main;Prepare-Transition $f C;Must-Fail (Run $f.Repo ProgramTransition) "UNKNOWN_GATE" }
+  Test "22 duplicate canonical resolutions are rejected" { $f=Prepared $true;$null=Run $f.Repo Publish;Set-PhaseGate $f "GATE_LOCAL_INTEGRATION" "approved" $true;Prepare-Transition $f;Must-Fail (Run $f.Repo ProgramTransition) "DUPLICATE_CANONICAL_GATE" }
+  Test "23 blocked canonical resolution is rejected" { $f=Prepared $true;$null=Run $f.Repo Publish;Set-PhaseGate $f "GATE_LOCAL_INTEGRATION" "blocked";Prepare-Transition $f C;Must-Fail (Run $f.Repo ProgramTransition) "UNRESOLVED_GATE" }
+  Test "24 DB-local migration pack without safety declarations is rejected" { $f=Prepared $true;$null=Run $f.Repo Publish;Set-PhaseGate $f "GATE_DB_LOCAL";Prepare-Transition $f;$p=Join-Path $f.Repo "docs/codex-master-plan/phases/phase-b/manifest.json";$m=Get-Content $p -Raw|ConvertFrom-Json;$m.allows_migration=$true;Write-Utf8 $p (Json $m);Must-Fail (Run $f.Repo ProgramTransition) "MIGRATION_APPROVAL_REQUIRED" }
+  Test "25 DB-local migration pack with safety declarations transitions" { $f=Prepared $true;$null=Run $f.Repo Publish;Set-PhaseGate $f "GATE_DB_LOCAL";Prepare-Transition $f;Set-DbMigrationDeclarations $f;Must-Pass (Run $f.Repo ProgramTransition) "AUTOMATION_V2_PROGRAM_TRANSITIONED" }
 } finally { Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue }
 Write-Host "AUTOMATION_V2_TESTS: $script:passed passed, $script:failed failed, $($script:passed+$script:failed) total"
 if($script:failed-ne0){exit 1}
