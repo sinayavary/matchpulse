@@ -1,6 +1,6 @@
 param(
   [string]$RepoRoot = "D:\money\matchpulse_repo",
-  [ValidateSet("Validate", "Prepare", "Publish")]
+  [ValidateSet("Validate", "Prepare", "Publish", "ProgramTransition")]
   [string]$Mode = "Validate",
   [switch]$CopyPrompt,
   [switch]$ValidateOnly
