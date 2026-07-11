@@ -3,14 +3,33 @@
   "project": "MatchPulse",
   "program_id": "matchpulse-competition-product-v1",
   "program_mode": {
-    "enabled": false,
-    "requires_human_enablement": true,
+    "enabled": true,
+    "requires_human_enablement": false,
     "auto_select_next_phase": true,
     "auto_prepare_low_risk_phases": true,
-    "auto_publish_low_risk_phases": false,
+    "auto_publish_low_risk_phases": true,
     "max_parallel_phases": 1,
     "stop_on_high_or_critical_security_finding": true,
     "stop_on_unresolved_p0_or_p1": true
+  },
+  "safe_auto_publication_policy": {
+    "all_required_validations_pass": true,
+    "changed_paths_limited_to_active_allowlist_and_permitted_completion_metadata": true,
+    "real_external_service_accessed": false,
+    "shared_or_remote_database_mutated": false,
+    "secret_used_or_exposed": false,
+    "remote_deployment_or_irreversible_operation": false,
+    "origin_main_must_equal_validated_baseline": true,
+    "force_push": false,
+    "fast_forward_safe_required": true,
+    "manifest_must_allow_publish": true,
+    "program_policy_must_be_enabled": true,
+    "migration_conditions": {
+      "manifest_must_explicitly_allow": true,
+      "database_scope": "repository-managed isolated local or ephemeral PostgreSQL 16",
+      "required_checks": ["schema validation", "migration diff", "migration test", "data-integrity verification", "rollback or forward-fix instructions"],
+      "shared_hosted_staging_or_production_mutation": false
+    }
   },
   "authority_order": [
     "AGENTS.md",
@@ -65,7 +84,7 @@
     {"id":"10F-C","title":"TxLINE client lifecycle and regression closure","dependencies":[],"gates":[],"deliverables":["bounded retry and refresh","validated REST/SSE transport","offline tests"]},
     {"id":"10G-A","title":"Stream supervisor foundation","dependencies":["10F-C"],"gates":[],"deliverables":["lifecycle states","heartbeat and reconnect","graceful shutdown"]},
     {"id":"10G-B","title":"Catch-up, checkpoints and deduplication","dependencies":["10G-A"],"gates":[],"deliverables":["monotonic checkpoints","catch-up","deduplication and gap diagnostics"]},
-    {"id":"10H-A","title":"Prediction composition engine","dependencies":["10F-C"],"gates":[],"review_only":true,"deliverables":["deterministic composition","fallback behavior","private-policy boundary"]},
+    {"id":"10H-A","title":"Prediction composition engine","dependencies":["10F-C"],"gates":[],"review_only":false,"deliverables":["deterministic composition","fallback behavior","private-policy boundary"]},
     {"id":"10H-B","title":"Versioned feature assembly","dependencies":["10H-A","10G-B"],"gates":[],"deliverables":["canonical features","freshness and coverage","stable content hash"]},
     {"id":"10H-C","title":"Private model adapter","dependencies":["10H-B"],"gates":["GATE_LOCAL_INTEGRATION"],"deliverables":["runtime adapter","deterministic mock","secret-safe degraded behavior"]},
     {"id":"10N-A","title":"Offline proof-state validation","dependencies":["10F-C"],"gates":[],"deliverables":["proof contracts","structural validation","public redaction"]},
@@ -84,6 +103,6 @@
     {"id":"10P","title":"CI and competition submission release","dependencies":["10J-C","10O-C"],"gates":["GATE_LOCAL_RELEASE"],"deliverables":["CI gates","release notes","submission artifact and evidence"]},
     {"id":"10N-B","title":"Solana/on-chain verification","dependencies":["10N-A"],"gates":[],"status":"deferred_not_required","required_for_program_complete":false,"deliverables":[]}
   ],
-  "completion_status": "not_started",
+  "completion_status": "in_progress",
   "program_complete_code": "PROGRAM_COMPLETE"
 }

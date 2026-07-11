@@ -3,7 +3,7 @@
   "phase": "10H-A",
   "pack_version": "10H-A-v1",
   "baseline_commit": "b4f1bf28e3ad05d4c796ac52a1383cd918182842",
-  "review_only": true,
+  "review_only": false,
   "allowed_target_files": [
     "apps/api/src/prediction-engine-v1.ts",
     "apps/api/src/prediction-engine-v1.test.ts",
@@ -35,7 +35,11 @@
   "allows_network": false,
   "git_publish": {
     "allow_commit": true,
-    "allow_push": false,
+    "allow_push": true,
+    "safe_auto_publish": true,
+    "publication_class": "local-only-migration-free-network-free-secret-free-public-contract-free",
+    "require_program_policy_conditions": true,
+    "require_remote_verification_before_successor_transition": true,
     "require_exact_staged_paths": true,
     "commit_message": "Complete Phase 10H-A prediction composition engine"
   }
