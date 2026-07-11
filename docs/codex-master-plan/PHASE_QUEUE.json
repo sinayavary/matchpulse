@@ -1,8 +1,8 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "10F-B",
-  "updated_at": "2026-07-11T01:20:00.000Z",
+  "active_phase_id": "10F-C",
+  "updated_at": "2026-07-11T20:44:47.000Z",
   "items": [
     {
       "id": "governance-orchestration-v1",
@@ -64,7 +64,7 @@
     {
       "id": "10F-B",
       "title": "TxLINE provider-specific stream bindings and additional data domains",
-      "status": "ready",
+      "status": "completed",
       "depends_on": ["10F-A"],
       "pack_version": "10F-B-v1",
       "baseline_commit": "791ea52e68537ae8d5eadc96f0d0c8cf6f72c2c8",
@@ -73,8 +73,10 @@
     {
       "id": "10F-C",
       "title": "TxLINE complete client integration and regression closure",
-      "status": "planned",
+      "status": "ready",
       "depends_on": ["10F-B"],
+      "pack_version": "10F-C-v1",
+      "baseline_commit": "c1b2461ec42db2af1d93bfb5af7dcdb714bb2c7e",
       "human_gate": false
     },
     {
