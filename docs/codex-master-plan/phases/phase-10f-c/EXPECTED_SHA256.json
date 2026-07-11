@@ -1,0 +1,14 @@
+{
+  "schema_version": "matchpulse-payload-integrity-v2",
+  "verification_mode": "committed_payload_tree",
+  "note": "Review-only prepared pack. Before activation, verify the baseline against the actual origin/main predecessor and commit the pack cleanly. The committed payload tree is the source of truth.",
+  "files": [
+    "packages/txline-client/src/resilient-client.ts",
+    "packages/txline-client/src/resilient-client.test.ts",
+    "packages/txline-client/src/live.ts",
+    "packages/txline-client/src/index.ts",
+    "packages/txline-client/package.json",
+    "docs/phase-10f-c-txline-client-lifecycle.md",
+    "docs/codex-prompts/phase-10f-c.md"
+  ]
+}

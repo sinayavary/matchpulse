@@ -1,0 +1,21 @@
+{
+  "name": "@matchpulse/txline-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run build && node --test dist/client.test.js dist/resilient-client.test.js",
+    "lint": "echo 'txline-client lint placeholder'"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.0",
+    "axios": "^1.12.0",
+    "tweetnacl": "^1.0.3",
+    "zod": "^3.24.1"
+  }
+}

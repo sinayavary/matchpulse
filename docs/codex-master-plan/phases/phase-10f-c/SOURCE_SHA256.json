@@ -1,0 +1,15 @@
+{
+  "schema_version": "matchpulse-source-sha256-v1",
+  "source_branch": "agent/source-10f-c",
+  "source_commit": "922806d4290bd2ca86468d436d330d713202a444",
+  "draft_pr": 8,
+  "files": {
+    "packages/txline-client/src/resilient-client.ts": "a26c117ba0c39d745e7e473c1e270b373e51a8c8d33a2f04b170747f729412d7",
+    "packages/txline-client/src/resilient-client.test.ts": "1e51e1ec41663649faa6ee4de13195097c7752c84444a624c9571fb088df7e7e",
+    "packages/txline-client/src/live.ts": "055898e109336676df915b14c2764914f9d651c3f6010774590d1733b5ffcea0",
+    "packages/txline-client/src/index.ts": "2a76cda282e12b0fee2f98bfe6a9dcb0d090d7eafbd7d1e8b3f0465758590502",
+    "packages/txline-client/package.json": "b1b3c307fec143db1f580ad0b0e0a57e3222f749a232ba040a0bee32661044c9",
+    "docs/phase-10f-c-txline-client-lifecycle.md": "1c3416afa766a13a28807423b2688020e078b6864d2d97bc33ea755b9a38fa64",
+    "docs/codex-prompts/phase-10f-c.md": "3697dbe0adfbf6678fd1a73e96a986c9ecfda966312a8682b4cbfd9f985937ca"
+  }
+}
