@@ -38,7 +38,7 @@ Only:
 
 ## Exact implementation
 
-Copy every file under `payload/` to its matching repository path exactly. Verify hashes against `EXPECTED_SHA256.json` before and after copying. Do not redesign or refactor the payload.
+Copy every file under `payload/` to its matching repository path exactly. `EXPECTED_SHA256.json` uses committed-payload-tree integrity: Automation v2 must confirm the pack is tracked and clean, and the committed payload on the activated pack commit is the exact source of truth. Do not redesign or refactor the payload.
 
 ## Automation v2
 
