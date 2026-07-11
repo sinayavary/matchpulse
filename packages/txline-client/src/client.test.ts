@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { TxlineCompleteClient, TxlineClientError, parseTxlineSse, type TxlineRequest } from "./client.js";
+import { createTxlineLiveClient, TxlineLiveError } from "./live.js";
 
 const config = { apiBaseUrl: "https://txline.example/api", httpTimeoutMs: 2500 };
 async function* chunks(...values: string[]) { for (const value of values) yield value; }
@@ -30,6 +31,12 @@ test("SSE parser handles chunk boundaries, comments, IDs, events, and multiline 
   assert.deepEqual(events, [{ event: "score", id: "7", data: "{\"a\":1}\nnext" }]);
 });
 
+test("SSE parser handles CRLF pairs split across chunks", async () => {
+  const events = [];
+  for await (const event of parseTxlineSse(chunks("event: score\r", "\nid: 9\r", "\ndata: ok\r", "\n\r", "\n"))) events.push(event);
+  assert.deepEqual(events, [{ event: "score", id: "9", data: "ok" }]);
+});
+
 test("SSE parser rejects a truncated final event", async () => {
   await assert.rejects(async () => { for await (const _event of parseTxlineSse(chunks("data: incomplete"))) { /* consume */ } },
     (error: unknown) => error instanceof TxlineClientError && error.kind === "invalid_stream");
@@ -47,6 +54,17 @@ test("stream passes secret headers only to the injected opener", async () => {
   assert.equal(observedUrl, "https://txline.example/stream/matches?competitionId=430");
   assert.deepEqual(observedHeaders, { Authorization: "Bearer guest-secret", "X-Api-Token": "api-secret" });
   assert.deepEqual(events, [{ event: "fixture", id: null, data: "ok" }]);
+});
+
+test("live wrapper reports the network-resolved endpoint host", async () => {
+  const live = createTxlineLiveClient(
+    { TXLINE_NETWORK: "mainnet" },
+    { request: async (request) => { throw new TxlineClientError("network", request.path, "failed"); } },
+  );
+  await assert.rejects(
+    () => live.getFixtureSnapshot({ competitionId: "430", startEpochDay: 20608 }),
+    (error: unknown) => error instanceof TxlineLiveError && error.safe.endpointHost === "txline.txodds.com",
+  );
 });
 
 test("fromEnv does not expose credential values", () => {
