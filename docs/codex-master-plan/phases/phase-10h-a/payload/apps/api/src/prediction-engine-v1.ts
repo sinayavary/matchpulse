@@ -180,10 +180,15 @@ function blendDistribution<T extends readonly string[]>(
 
   for (const specialist of usable) {
     const distribution = specialist.output?.[outputKey] as unknown as NumericDistribution;
+    let distributionTotal = 0;
     for (const key of keys) {
       const value = distribution[key];
       assertUnit(value, `${String(outputKey)}.${key}`);
+      distributionTotal += value;
       result[key] += value * specialist.assigned_weight / weightTotal;
+    }
+    if (Math.abs(distributionTotal - 1) > 1e-9) {
+      throw new Error(`${String(outputKey)} specialist distribution must sum to one.`);
     }
   }
 
@@ -251,6 +256,7 @@ function blendScoreDistribution(
     if (distribution === undefined) continue;
     const normalizedWeight = specialist.assigned_weight / weightTotal;
     assertUnit(distribution.other_probability, "final_score.other_probability");
+    let distributionTotal = distribution.other_probability;
 
     for (const outcome of distribution.outcomes) {
       if (!Number.isInteger(outcome.home_score) || outcome.home_score < 0 ||
@@ -258,6 +264,7 @@ function blendScoreDistribution(
         throw new RangeError("Final-score outcomes require non-negative integer scores.");
       }
       assertUnit(outcome.probability, "final_score.probability");
+      distributionTotal += outcome.probability;
       const key = `${outcome.home_score}:${outcome.away_score}`;
       const current = merged.get(key) ?? {
         home_score: outcome.home_score,
@@ -266,6 +273,9 @@ function blendScoreDistribution(
       };
       current.probability += outcome.probability * normalizedWeight;
       merged.set(key, current);
+    }
+    if (Math.abs(distributionTotal - 1) > 1e-9) {
+      throw new Error("Each final-score specialist distribution must sum to one.");
     }
   }
 
