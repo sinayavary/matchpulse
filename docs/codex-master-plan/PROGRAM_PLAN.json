@@ -1,0 +1,288 @@
+{
+  "schema_version": "matchpulse-program-plan-v1",
+  "project": "MatchPulse",
+  "program_id": "matchpulse-production-completion-v1",
+  "program_mode": {
+    "enabled": false,
+    "requires_human_enablement": true,
+    "auto_select_next_phase": true,
+    "auto_prepare_low_risk_phases": true,
+    "auto_publish_low_risk_phases": false,
+    "max_parallel_phases": 1,
+    "stop_on_high_or_critical_security_finding": true,
+    "stop_on_unresolved_p0_or_p1": true
+  },
+  "authority_order": [
+    "AGENTS.md",
+    "docs/codex-master-plan/EXECUTION_PROTOCOL.md",
+    "docs/codex-master-plan/ACTIVE_PHASE.json",
+    "docs/codex-master-plan/PROGRAM_PLAN.json",
+    "active phase manifest",
+    "docs/codex-master-plan/AUTONOMOUS_EXECUTION_CONTRACT.md",
+    "docs/codex-master-plan/PROGRAM_GOAL.md"
+  ],
+  "default_policies": {
+    "network_access": false,
+    "migration_allowed": false,
+    "production_mutation": false,
+    "force_push": false,
+    "secret_values_in_git": false,
+    "public_provider_details": false,
+    "private_policy_values_in_git": false,
+    "unbounded_retry": false,
+    "unbounded_concurrency": false,
+    "test_weakening": false,
+    "success_requires_evidence": true
+  },
+  "risk_classes": {
+    "R0": "documentation or read-only analysis",
+    "R1": "reversible source and test changes without network, migration, public contract, or security-boundary change",
+    "R2": "internal integration or persistence code prepared without applying a migration or accessing a real service",
+    "R3": "public contract, schema, authentication, notification, real network, paid resource, or data mutation",
+    "R4": "production deployment, release, secret rotation, or irreversible operation"
+  },
+  "gates": [
+    {
+      "id": "GATE_DB_DEV",
+      "description": "Approved development database, connection method, backup, migration and rollback authority",
+      "required_input_ids": ["database_development", "migration_authority"],
+      "hard": true
+    },
+    {
+      "id": "GATE_PUBLIC_CONTRACT",
+      "description": "Approval of the versioned public API and exposed fields",
+      "required_input_ids": ["public_api_policy"],
+      "hard": true
+    },
+    {
+      "id": "GATE_UX_BRAND",
+      "description": "Approval of product identity, design direction, supported languages and accessibility target",
+      "required_input_ids": ["brand_and_ux"],
+      "hard": true
+    },
+    {
+      "id": "GATE_NOTIFICATION",
+      "description": "Approval and credentials for user-controlled notification channels",
+      "required_input_ids": ["notification_policy", "telegram_environment"],
+      "hard": true
+    },
+    {
+      "id": "GATE_TXLINE_REAL",
+      "description": "Approval and credentials for real TxLINE environment access and quotas",
+      "required_input_ids": ["txline_environment"],
+      "hard": true
+    },
+    {
+      "id": "GATE_SOLANA",
+      "description": "Approval of Solana cluster, wallet authority, program identifiers and spending policy",
+      "required_input_ids": ["solana_environment"],
+      "hard": true
+    },
+    {
+      "id": "GATE_DEPLOYMENT",
+      "description": "Approved hosting, DNS, TLS, observability, secret store and deployment authority",
+      "required_input_ids": ["hosting_and_deployment", "domain_and_dns", "observability_environment"],
+      "hard": true
+    },
+    {
+      "id": "GATE_RELEASE",
+      "description": "Approval of exact release commit, environment, known limitations and rollback plan",
+      "required_input_ids": ["release_policy"],
+      "hard": true
+    }
+  ],
+  "phases": [
+    {
+      "id": "10F-C",
+      "title": "TxLINE client lifecycle and regression closure",
+      "status_source": "ACTIVE_PHASE.json",
+      "dependencies": [],
+      "risk": "R1",
+      "required_gates": [],
+      "autonomy": "A1",
+      "deliverables": ["bounded retry", "single refresh", "same-host SSE enforcement", "regression closure"]
+    },
+    {
+      "id": "10G-A",
+      "title": "Stream supervisor foundation",
+      "dependencies": ["10F-C"],
+      "risk": "R1",
+      "required_gates": [],
+      "autonomy": "A1",
+      "deliverables": ["lifecycle state machine", "heartbeat deadline", "bounded reconnect", "graceful shutdown"]
+    },
+    {
+      "id": "10G-B",
+      "title": "Catch-up, checkpoint and deduplication",
+      "dependencies": ["10G-A"],
+      "risk": "R1",
+      "required_gates": [],
+      "autonomy": "A1",
+      "deliverables": ["monotonic checkpoints", "REST catch-up", "stream/catch-up dedupe", "gap diagnostics"]
+    },
+    {
+      "id": "10H-A",
+      "title": "Prediction composition engine",
+      "dependencies": ["10F-C"],
+      "risk": "R1",
+      "required_gates": [],
+      "autonomy": "A1",
+      "deliverables": ["deterministic composition", "market weight cap", "fallback behavior", "snapshot construction"]
+    },
+    {
+      "id": "10H-B",
+      "title": "Versioned feature assembly contracts",
+      "dependencies": ["10H-A", "10G-B"],
+      "risk": "R1",
+      "required_gates": [],
+      "autonomy": "A1",
+      "deliverables": ["canonical features", "coverage and freshness", "stable ordering", "feature hash"]
+    },
+    {
+      "id": "10H-C",
+      "title": "Private policy adapter boundary",
+      "dependencies": ["10H-A", "10H-B"],
+      "risk": "R2",
+      "required_gates": [],
+      "autonomy": "A1",
+      "deliverables": ["inference adapter interface", "secret-safe runtime configuration", "deterministic mock", "degraded behavior"]
+    },
+    {
+      "id": "10N-A",
+      "title": "Offline proof transport and structural validation",
+      "dependencies": ["10F-C"],
+      "risk": "R1",
+      "required_gates": [],
+      "autonomy": "A1",
+      "deliverables": ["proof contracts", "offline structural checks", "verification state mapping", "public proof redaction"]
+    },
+    {
+      "id": "10E-D",
+      "title": "Odds persistence service",
+      "dependencies": ["10F-C"],
+      "risk": "R3",
+      "required_gates": ["GATE_DB_DEV"],
+      "autonomy": "A3",
+      "deliverables": ["normalized persistence", "indexes", "idempotency", "assessment snapshots"]
+    },
+    {
+      "id": "10G-C",
+      "title": "Canonical timeline persistence and restart recovery",
+      "dependencies": ["10G-B"],
+      "risk": "R3",
+      "required_gates": ["GATE_DB_DEV"],
+      "autonomy": "A3",
+      "deliverables": ["transactional timeline persistence", "checkpoint persistence", "restart recovery", "retention policy"]
+    },
+    {
+      "id": "10I",
+      "title": "Runtime prediction orchestrator",
+      "dependencies": ["10E-D", "10G-C", "10H-C"],
+      "risk": "R2",
+      "required_gates": ["GATE_DB_DEV"],
+      "autonomy": "A1",
+      "deliverables": ["trigger orchestration", "fixture-scoped concurrency", "stale-work cancellation", "atomic snapshot persistence"]
+    },
+    {
+      "id": "10J-A",
+      "title": "Temporal labels and finalized outcome derivation",
+      "dependencies": ["10I"],
+      "risk": "R2",
+      "required_gates": ["GATE_DB_DEV"],
+      "autonomy": "A1",
+      "deliverables": ["strict temporal labels", "final outcome labels", "next-goal labels", "invalid timeline handling"]
+    },
+    {
+      "id": "10J-B",
+      "title": "Evaluation metrics and segmented quality gates",
+      "dependencies": ["10J-A"],
+      "risk": "R1",
+      "required_gates": [],
+      "autonomy": "A1",
+      "deliverables": ["log loss", "Brier score", "calibration error", "segmented evaluation"]
+    },
+    {
+      "id": "10J-C",
+      "title": "Replay, walk-forward validation and calibration artifacts",
+      "dependencies": ["10J-B"],
+      "risk": "R2",
+      "required_gates": ["GATE_DB_DEV"],
+      "autonomy": "A1",
+      "deliverables": ["replay runner", "future-leak prevention", "walk-forward reports", "private calibration boundary"]
+    },
+    {
+      "id": "10K",
+      "title": "Versioned public prediction API",
+      "dependencies": ["10I", "10J-B", "10N-A"],
+      "risk": "R3",
+      "required_gates": ["GATE_PUBLIC_CONTRACT"],
+      "autonomy": "A3",
+      "deliverables": ["public response contract", "sanitized explanations", "degraded states", "rate limits"]
+    },
+    {
+      "id": "10L",
+      "title": "Final accessible web experience",
+      "dependencies": ["10K"],
+      "risk": "R3",
+      "required_gates": ["GATE_UX_BRAND"],
+      "autonomy": "A3",
+      "deliverables": ["live match list", "match detail", "scenario visualization", "accessible state coverage"]
+    },
+    {
+      "id": "10M",
+      "title": "Watchlist and approved notifications",
+      "dependencies": ["10K", "10L"],
+      "risk": "R3",
+      "required_gates": ["GATE_NOTIFICATION"],
+      "autonomy": "A3",
+      "deliverables": ["watchlist", "dedupe and cooldown", "sanitized templates", "unsubscribe and failure handling"]
+    },
+    {
+      "id": "10N-B",
+      "title": "Approved on-chain proof verification",
+      "dependencies": ["10N-A"],
+      "risk": "R3",
+      "required_gates": ["GATE_SOLANA", "GATE_TXLINE_REAL"],
+      "autonomy": "A3",
+      "deliverables": ["cluster configuration", "on-chain verification", "bounded RPC behavior", "operator-only wallet boundary"]
+    },
+    {
+      "id": "10O-A",
+      "title": "Security hardening and threat-model closure",
+      "dependencies": ["10K", "10M", "10N-B"],
+      "risk": "R3",
+      "required_gates": ["GATE_DEPLOYMENT"],
+      "autonomy": "A3",
+      "deliverables": ["threat model", "auth and rate limits", "secret inventory", "dependency and container scans"]
+    },
+    {
+      "id": "10O-B",
+      "title": "Observability, reliability and recovery",
+      "dependencies": ["10O-A"],
+      "risk": "R3",
+      "required_gates": ["GATE_DEPLOYMENT"],
+      "autonomy": "A3",
+      "deliverables": ["metrics and tracing", "health and readiness", "backup restore", "load soak and failure injection"]
+    },
+    {
+      "id": "10O-C",
+      "title": "Deployment automation and staging verification",
+      "dependencies": ["10O-B"],
+      "risk": "R4",
+      "required_gates": ["GATE_DEPLOYMENT"],
+      "autonomy": "A4",
+      "deliverables": ["immutable deployment", "staging smoke tests", "rollback exercise", "environment evidence"]
+    },
+    {
+      "id": "10P",
+      "title": "Demo, release and final program evidence",
+      "dependencies": ["10O-C"],
+      "risk": "R4",
+      "required_gates": ["GATE_RELEASE"],
+      "autonomy": "A4",
+      "deliverables": ["seeded demo", "operator runbook", "release tag", "final evidence report"]
+    }
+  ],
+  "completion_status": "not_started",
+  "program_complete_code": "PROGRAM_COMPLETE"
+}
