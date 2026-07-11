@@ -253,3 +253,23 @@ test("the engine does not mutate caller-owned inputs", () => {
   composeFinalPredictionSnapshot(input);
   assert.deepEqual(input, before);
 });
+
+test("invalid specialist probability distributions are rejected", () => {
+  const input = baseInput();
+  input.specialists = input.specialists.map((specialist, index) => (
+    index === 0
+      ? {
+          ...specialist,
+          output: {
+            ...specialist.output,
+            final_outcome: { home: 0.5, draw: 0.4, away: 0.2 },
+          },
+        }
+      : specialist
+  ));
+
+  assert.throws(
+    () => composeFinalPredictionSnapshot(input),
+    /distribution must sum to one/,
+  );
+});
