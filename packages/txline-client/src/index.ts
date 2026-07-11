@@ -1,7 +1,8 @@
 import { getTxlineConfigFromEnv, toTxlineStatusData } from "./config.js";
 import type { TxlineConfig, TxlineDataMode, TxlineNetwork, TxlineStatusData } from "./config.js";
 import { TxlineDataModeSchema, TxlineNetworkSchema } from "./config.js";
-import { TxlineCompleteClient, type TxlineCredentials } from "./client.js";
+import type { TxlineCredentials } from "./client.js";
+import { TxlineResilientClient } from "./resilient-client.js";
 
 export { getTxlineConfigFromEnv, toTxlineStatusData, TxlineNetworkSchema, TxlineDataModeSchema };
 export type { TxlineConfig, TxlineDataMode, TxlineNetwork, TxlineStatusData };
@@ -9,13 +10,22 @@ export { TxlineCompleteClient, TxlineClientError, parseTxlineSse } from "./clien
 export type {
   TxlineClientOptions,
   TxlineCredentials,
+  TxlineIntervalParams,
   TxlineRequest,
   TxlineRequestExecutor,
+  TxlineScoreStatValidationParams,
   TxlineSseEvent,
   TxlineSseOpener,
 } from "./client.js";
+export { TxlineResilientClient } from "./resilient-client.js";
+export type {
+  TxlineGuestJwtRefresher,
+  TxlineResilientClientOptions,
+  TxlineRetryPolicy,
+  TxlineSleeper,
+} from "./resilient-client.js";
 
-export class TxlineClient extends TxlineCompleteClient {
+export class TxlineClient extends TxlineResilientClient {
   constructor(
     config: Pick<TxlineConfig, "apiBaseUrl"> & Partial<Pick<TxlineConfig, "httpTimeoutMs">>,
     credentials: TxlineCredentials = {},
@@ -27,8 +37,8 @@ export class TxlineClient extends TxlineCompleteClient {
   }
 
   static fromEnv(credentials?: TxlineCredentials): TxlineClient;
-  static override fromEnv(env?: NodeJS.ProcessEnv): TxlineClient;
-  static override fromEnv(source: NodeJS.ProcessEnv | TxlineCredentials = process.env): TxlineClient {
+  static fromEnv(env?: NodeJS.ProcessEnv): TxlineClient;
+  static fromEnv(source: NodeJS.ProcessEnv | TxlineCredentials = process.env): TxlineClient {
     const isCredentials =
       Object.prototype.hasOwnProperty.call(source, "guestJwt") ||
       Object.prototype.hasOwnProperty.call(source, "apiToken");
