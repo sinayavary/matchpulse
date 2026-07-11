@@ -161,3 +161,32 @@ test("live stream wrapper sanitizes asynchronous client errors", async () => {
   const live = createTxlineLiveClient({ TXLINE_API_BASE_URL: "https://txline.example/api" }, { openSse: async () => ({ async *[Symbol.asyncIterator]() { throw new TxlineClientError("network", "scores/stream", "secret failure"); } }) });
   await assert.rejects(async () => { for await (const _event of live.streamScores()) { /* consume */ } }, (error: unknown) => error instanceof TxlineLiveError && error.safe.kind === "network" && !JSON.stringify(error.safe).includes("secret"));
 });
+
+test("injected async iterable abort is sanitized during stream iteration", async () => {
+  const client = new TxlineCompleteClient({ config, request: async () => null, openSse: async () => ({ async *[Symbol.asyncIterator]() { throw new DOMException("sensitive raw message", "AbortError"); } }) });
+  await assert.rejects(async () => { for await (const _event of client.streamScores()) { /* consume */ } },
+    (error: unknown) => error instanceof TxlineClientError && error.kind === "aborted" && error.message === "The TxLINE request was cancelled." && !error.message.includes("sensitive raw message"));
+});
+
+test("generic injected iteration errors are safely wrapped", async () => {
+  const client = new TxlineCompleteClient({ config, request: async () => null, openSse: async () => ({ async *[Symbol.asyncIterator]() { throw new Error("provider secret detail"); } }) });
+  await assert.rejects(async () => { for await (const _event of client.streamScores()) { /* consume */ } },
+    (error: unknown) => error instanceof TxlineClientError && error.kind === "unknown" && !error.message.includes("provider secret detail"));
+});
+
+test("live wrapper sanitizes asynchronous abort errors", async () => {
+  const live = createTxlineLiveClient({ TXLINE_API_BASE_URL: "https://txline.example/api" }, { openSse: async () => ({ async *[Symbol.asyncIterator]() { throw new DOMException("sensitive raw message", "AbortError"); } }) });
+  await assert.rejects(async () => { for await (const _event of live.streamScores()) { /* consume */ } },
+    (error: unknown) => error instanceof TxlineLiveError && error.safe.kind === "aborted" && !error.safe.message.includes("sensitive raw message"));
+});
+
+test("default SSE reader is cancelled and released when the consumer stops early", async () => {
+  const originalFetch = globalThis.fetch; let cancelled = 0; let released = 0;
+  const reader = { read: async () => ({ done: false, value: new TextEncoder().encode("data: first\n\ndata: second\n\n") }), cancel: async () => { cancelled++; }, releaseLock: () => { released++; } };
+  globalThis.fetch = async () => ({ ok: true, status: 200, body: { getReader: () => reader } } as unknown as Response);
+  try {
+    const client = new TxlineCompleteClient({ config, request: async () => null });
+    for await (const _event of client.streamScores()) break;
+    assert.equal(cancelled, 1); assert.equal(released, 1);
+  } finally { globalThis.fetch = originalFetch; }
+});

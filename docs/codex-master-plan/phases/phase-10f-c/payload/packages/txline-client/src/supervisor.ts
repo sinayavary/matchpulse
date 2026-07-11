@@ -78,7 +78,7 @@ export class TxlineStreamSupervisor {
   async *run(external?: AbortSignal): AsyncGenerator<TxlineSseEvent> {
     let active: AbortController | undefined; const abort = () => active?.abort(); external?.addEventListener("abort", abort, { once: true });
     let reason: TxlineReconnectReason | null = null;
-    try { while (!external?.aborted) {
+    try { runLoop: while (!external?.aborted) {
       const controller = active = new AbortController();
       this.#transition("connecting"); let iterator: AsyncIterator<TxlineSseEvent> | undefined;
       try { iterator = (await this.#openStream({ signal: controller.signal, lastEventId: this.#state.lastEventId }))[Symbol.asyncIterator](); this.#transition("connected");
@@ -93,8 +93,26 @@ export class TxlineStreamSupervisor {
       this.#transition("backing_off", { reconnectAttempt: attempts + 1, lastFailureReason: reason });
       const nextController = active = new AbortController(); const propagate = () => nextController.abort(); external?.addEventListener("abort", propagate, { once: true });
       try { await this.#sleep(this.#delays[attempts]!, nextController.signal); } catch (error) { if (!isAbort(error)) throw error; } finally { external?.removeEventListener("abort", propagate); }
+      if (external?.aborted || nextController.signal.aborted) break;
+      if (this.#catchUp && reason) {
+        this.#transition("catching_up");
+        try {
+          const catchUpEvents = await this.#catchUp({ signal: nextController.signal, reason, lastEventId: this.#state.lastEventId, lastEventReceivedAtMs: this.#state.lastEventReceivedAtMs });
+          if (external?.aborted || nextController.signal.aborted) break runLoop;
+          for (const event of catchUpEvents) {
+            if (external?.aborted || nextController.signal.aborted) break runLoop;
+            const processed = this.#process(event);
+            this.#state = { ...this.#state, reconnectAttempt: 0, lastFailureReason: null };
+            if (processed) yield processed;
+            if (external?.aborted || nextController.signal.aborted) break runLoop;
+          }
+        } catch (error) {
+          if (external?.aborted || nextController.signal.aborted || isAbort(error)) break runLoop;
+          this.#transition("failed", { lastFailureReason: reason });
+          throw new TxlineStreamSupervisorError("catch_up_failed", this.#state.reconnectAttempt, reason);
+        }
+      }
       if (external?.aborted) break;
-      if (this.#catchUp && reason) { this.#transition("catching_up"); try { for (const event of await this.#catchUp({ signal: nextController.signal, reason, lastEventId: this.#state.lastEventId, lastEventReceivedAtMs: this.#state.lastEventReceivedAtMs })) { const processed = this.#process(event); this.#state = { ...this.#state, reconnectAttempt: 0, lastFailureReason: null }; if (processed) yield processed; } } catch { this.#transition("failed", { lastFailureReason: reason }); throw new TxlineStreamSupervisorError("catch_up_failed", this.#state.reconnectAttempt, reason); } }
     } } finally { external?.removeEventListener("abort", abort); active?.abort(); if (this.#state.status !== "failed") this.#transition("stopped"); }
   }
 }

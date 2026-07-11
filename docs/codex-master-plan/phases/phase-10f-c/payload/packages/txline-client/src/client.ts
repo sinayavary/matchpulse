@@ -105,8 +105,13 @@ async function defaultOpenSse(url: URL, headers: Readonly<Record<string, string>
         const tail = decoder.decode();
         if (tail.length > 0) yield tail;
       } finally {
-        if (!options.signal?.aborted) await reader.cancel().catch(() => undefined);
-        reader.releaseLock();
+        try {
+          await reader.cancel();
+        } catch {
+          // Cleanup failures must not expose transport details.
+        } finally {
+          reader.releaseLock();
+        }
       }
     },
   };
@@ -299,6 +304,11 @@ export class TxlineCompleteClient {
       if (error instanceof TxlineClientError) throw error;
       throw safeError(error, endpointPath);
     }
-    yield* parseTxlineSse(chunks);
+    try {
+      yield* parseTxlineSse(chunks);
+    } catch (error) {
+      if (error instanceof TxlineClientError) throw error;
+      throw safeError(error, endpointPath);
+    }
   }
 }
