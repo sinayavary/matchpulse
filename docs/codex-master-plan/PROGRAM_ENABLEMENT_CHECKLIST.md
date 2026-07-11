@@ -7,6 +7,9 @@ Program mode must remain disabled until this checklist is reviewed against an ex
 - [ ] `PROGRAM_GOAL.md` approved.
 - [ ] `AUTONOMOUS_EXECUTION_CONTRACT.md` approved.
 - [ ] `PROGRAM_PLAN.json` schema-valid and dependency graph reviewed.
+- [ ] `PROGRAM_DECISIONS_RESOLVED.json` schema-valid and reviewed.
+- [ ] `PROGRAM_DECISION_RECORD_2026-07-11.md` reviewed.
+- [ ] `PROGRAM_BLOCKERS.json` schema-valid and reviewed.
 - [ ] `HUMAN_INPUT_REGISTRY.json` reviewed.
 - [ ] `QUALITY_GATE_MATRIX.md` approved.
 - [ ] `TEST_AND_RELEASE_STRATEGY.md` approved.
@@ -14,10 +17,22 @@ Program mode must remain disabled until this checklist is reviewed against an ex
 - [ ] `PHASE_PACK_AUTHORING_STANDARD.md` approved.
 - [ ] `CODEX_END_TO_END_GOAL_PROMPT.md` approved.
 - [ ] Existing `AGENTS.md`, `CODEX_ENTRYPOINT.md`, and `EXECUTION_PROTOCOL.md` are updated in a separate governance phase to recognize program mode without weakening safety.
-- [ ] Program state and evidence schemas are implemented and tested.
+- [ ] Program state, decision, blocker, phase-evidence, and gate-evidence schemas are implemented and tested.
 - [ ] Branch protection and publication method are confirmed.
 
-## 2. Autonomy choice
+## 2. Schema and graph validation
+
+Before enablement, repository validation must prove:
+
+- every program JSON file parses successfully;
+- unknown unsafe fields and states are rejected;
+- every phase, dependency, gate, blocker, and input reference resolves;
+- plan overrides reference existing phases and do not create a cycle;
+- deferred or non-applicable phases are explicit;
+- every applicable phase has risk, autonomy, acceptance, validation, rollback, and evidence requirements;
+- no secret value appears in program files.
+
+## 3. Autonomy choice
 
 Record one:
 
@@ -41,114 +56,178 @@ autonomy_mode: conservative | balanced | aggressive_gated
 
 - Codex may auto-publish R0-R2 only when the phase manifest explicitly permits it and all evidence passes.
 - R3/R4 always stop for human review.
-- No migration, real network, secret use, production mutation, or release is ever self-approved.
+- No migration, real network, secret use, paid account, compliance approval, production mutation, or release is ever self-approved.
 
-## 3. Repository readiness
+The current proposal selects `aggressive_gated`, but initial enablement should keep `auto_publish_risk_classes` empty until expanded CI and at least two low-risk phases complete successfully.
 
-- [ ] Current active phase is completed or explicitly incorporated into program-mode transition.
-- [ ] Open draft source/architecture PRs are reviewed and their role is recorded.
+## 4. Repository readiness
+
+- [ ] Current active phase is completed or explicitly incorporated into the transition.
+- [ ] Draft architecture/source PRs are reviewed and their role recorded.
 - [ ] No conflicting uncommitted local work exists in program-controlled files.
 - [ ] Main is protected from force pushes.
 - [ ] Required CI checks are configured as branch protection where available.
-- [ ] CI covers repository-wide typecheck and required tests; current typecheck-only workflow is expanded before auto-publication.
-- [ ] Secret scanning is enabled.
-- [ ] Dependency scanning is enabled or an approved alternative exists.
+- [ ] CI expands beyond typecheck-only before auto-publication.
+- [ ] Secret, dependency, license, SAST, and container scanning are enabled where applicable.
 - [ ] Test artifacts and phase evidence have a durable location.
 
-## 4. Program-state requirements
+## 5. Required CI before auto-publication
+
+At minimum:
+
+1. lockfile-enforced dependency installation;
+2. Prisma generation without unauthorized migration;
+3. repository typecheck;
+4. affected package builds;
+5. focused unit and invariant tests;
+6. affected contract and integration tests;
+7. full API regression when applicable;
+8. public leakage and forbidden-field scans;
+9. secret, dependency, and license scans;
+10. container build and scan for deployment phases;
+11. `git diff --check`;
+12. migration diff and manifest-flag verification;
+13. machine-readable evidence artifact upload.
+
+## 6. Program-state requirements
 
 Before enabling, implement a machine-readable state file containing:
 
 - program ID and governing commit;
+- decision and blocker file hashes;
 - enabled flag and autonomy mode;
 - current phase;
-- completed phases;
-- blocked phases and blocker codes;
-- approved gates with approver, timestamp, scope and exact commit/environment;
+- completed, deferred, blocked, and non-applicable phases;
+- blocker codes and required responses;
+- approved gates with approver, timestamp, scope, commit, and environment;
 - resolved human input IDs;
 - active resource locks;
-- last successful validation/publish evidence;
+- last validation and publication evidence;
 - final completion status.
 
-State transitions must be schema-validated and committed atomically with their governing change.
+State transitions must be schema-validated and committed atomically.
 
-## 5. Low-risk startup path
+## 7. Resolved-decision review
 
-Recommended first program-mode sequence:
+Explicitly accept or amend:
+
+- Week 28 production plan and budget envelopes;
+- priority and conditional competitions;
+- public API exposed and forbidden fields;
+- database topology and migration authority;
+- documented TxLINE test/production hosts and secret-variable names;
+- private inference boundary and fallback semantics;
+- provisional prediction-quality gates;
+- notification limits and privacy behavior;
+- Solana deferral and prediction-market prohibition;
+- cloud-candidate status and compliance gate;
+- age-16 v1 policy and retention;
+- final release roles and blockers.
+
+A provisional provider, domain, mailbox, owner, environment, or secret location is never considered confirmed solely because it appears in a decision file.
+
+## 8. Hard-gate owners
+
+Assign named accountable parties for:
+
+- Backend Lead
+- ML Lead
+- DevOps Lead
+- QA Lead
+- Security Owner
+- Privacy Owner
+- Product Owner
+- Legal/Compliance Counsel
+- Release Approver
+- Rollback Owner
+- On-call Owner
+
+Role placeholders permit architecture work but not staging mutation, public beta, production deployment, or release.
+
+## 9. Compliance and provider gate
+
+Before real provider data, paid cloud commitment, public beta, or production:
+
+- qualified counsel reviews Iran-facing service eligibility and relevant sanctions/export controls;
+- TxLINE terms, subscription/payment mechanics, public-display rights, retention, attribution, and quota are approved;
+- cloud, DNS, messaging, error-tracking, and payment providers confirm account eligibility;
+- EU privacy, child-consent, deletion, retention, and international-transfer design is approved;
+- approval references are recorded without secret values or confidential legal advice in public Git.
+
+## 10. Low-risk startup path
 
 1. Finish and publish 10F-C under current Automation v2 governance.
-2. Merge the reviewed architecture/program specification.
-3. Add governance support for program mode while keeping it disabled.
-4. Expand CI beyond typecheck to focused and repository-wide test evidence.
-5. Enable conservative or balanced program mode at an exact commit.
-6. Execute R1 phases first: 10G-A, 10G-B, 10H-A, 10H-B, 10N-A.
-7. Prepare 10H-C with mock/private-policy boundary.
-8. Stop at the first database/public/network gate requiring unresolved human input.
+2. Review and merge the architecture/program specification.
+3. Add program-mode governance while keeping it disabled.
+4. Add schema validators and expanded CI.
+5. Run a no-write program selection dry run.
+6. Enable the approved autonomy mode at an exact commit.
+7. Execute applicable R1 foundations first: 10G-A, 10G-B, 10H-A, 10H-B, and 10N-A.
+8. Prepare 10H-C using mock/private-policy boundaries.
+9. Continue until the first exact database, provider, public-contract, privacy, or deployment gate.
 
-## 6. Required human inputs before uninterrupted database-to-release execution
+Phase 10N-B is deferred and is not a v1 completion dependency unless a later separately approved decision changes applicability.
 
-At minimum resolve:
+## 11. Dry-run requirement
 
-- supported competitions and languages;
-- brand/UX direction;
-- public API policy;
-- development and staging database details;
-- migration authority;
-- TxLINE real environment scope and credential variable names;
-- private model policy adapter and quality targets;
-- Telegram policy/environment if notifications are included;
-- Solana environment if on-chain verification is included;
-- hosting, DNS, TLS, secret store and observability stack;
-- security/privacy requirements;
-- release mode and approval policy.
+Before enablement, a no-write dry run must:
 
-Secret values must remain outside Git and chat.
+- read all authority, decision, registry, and blocker files;
+- validate JSON and the applicable dependency graph;
+- identify the current active phase;
+- compute the next five eligible applicable phases;
+- report gates and blockers for each;
+- perform no branch, file, commit, push, network, migration, secret, account, or deployment mutation.
 
-## 7. Enablement record
+## 12. Enablement record
 
-Use an exact reviewed commit and explicit statement:
-
-```yaml
-program_enablement:
-  program_id: matchpulse-production-completion-v1
-  governing_commit: ""
-  enabled: true
-  autonomy_mode: conservative | balanced | aggressive_gated
-  auto_publish_risk_classes: []
-  approved_by: ""
-  approved_at_utc: ""
-  scope: repository_only
-  migration_self_approval: false
-  real_network_self_approval: false
-  production_self_approval: false
-  release_self_approval: false
-  notes: ""
+```json
+{
+  "program_id": "matchpulse-production-completion-v1",
+  "governing_commit": "<exact sha>",
+  "decision_file_sha256": "<sha256>",
+  "blocker_file_sha256": "<sha256>",
+  "enabled": true,
+  "autonomy_mode": "aggressive_gated",
+  "auto_publish_risk_classes": [],
+  "approved_by": "<human identity or approved role>",
+  "approved_at_utc": "<UTC ISO timestamp>",
+  "maximum_parallel_phases": 1,
+  "migration_self_approval": false,
+  "real_network_self_approval": false,
+  "paid_account_self_approval": false,
+  "compliance_self_approval": false,
+  "production_self_approval": false,
+  "release_self_approval": false
+}
 ```
 
-## 8. Mandatory stop guarantees
+## 13. Mandatory stop guarantees
 
-Regardless of autonomy mode, Codex must stop before:
+Regardless of autonomy mode, Codex stops before:
 
-- first unresolved required human input;
-- migration creation/application without exact approval;
+- the first unresolved blocker required by the next phase;
+- shared or production migration without exact approval;
 - real external-service access without exact approval;
 - secret installation or rotation;
 - public-contract breaking change without approval;
+- paid account or provider commitment;
+- public beta with unapproved provider/legal posture;
 - production deployment;
 - final release;
-- any high/critical security issue;
-- suspected data corruption, credential exposure or public internal-data leak.
+- any introduced high/critical security issue;
+- suspected data corruption, credential exposure, or public internal-data leak.
 
-## 9. Enablement Definition of Done
+## 14. Enablement Definition of Done
 
 Program mode is ready only when:
 
 - governance recognizes it;
-- state transitions are machine-validated;
+- program JSON and state transitions are machine-validated;
 - future phase packs follow the authoring standard;
-- CI enforces the chosen auto-publication gate;
+- CI enforces the chosen publication gate;
 - branch and environment protections exist;
 - safe stop behavior is tested;
-- a dry-run selection of the next phase succeeds without modifying files;
-- an A1 test phase completes end-to-end in a non-production environment;
+- a dry-run selection succeeds without mutation;
+- an A1 phase completes end-to-end in a non-production environment;
 - human reviewers approve the resulting evidence.
