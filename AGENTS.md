@@ -9,7 +9,7 @@ Authority order:
 1. This `AGENTS.md` for permanent safety and governance.
 2. `docs/codex-master-plan/ACTIVE_PHASE.json` for active-phase selection only.
 3. The implementation pack referenced by `ACTIVE_PHASE.json` for exact phase behavior.
-4. `docs/codex-master-plan/EXECUTION_PROTOCOL.md` for execution procedure.
+4. `docs/codex-master-plan/EXECUTION_PROTOCOL.md` for execution and Git procedure.
 5. The remaining canonical files under `docs/codex-master-plan/`.
 6. Existing repository code.
 7. Historical documentation.
@@ -26,7 +26,8 @@ Before every edit:
 4. Read and validate `ACTIVE_PHASE.json`.
 5. Read the referenced active phase pack completely.
 6. Confirm the exact allowed-file list.
-7. Stop with `WORKSPACE_COLLISION` when an allowed file contains unrelated unapproved changes.
+7. Run Automation v2 Validate.
+8. Stop with `WORKSPACE_COLLISION` when an allowed file contains unrelated unapproved changes.
 
 When the active state is `ready`, continue implementing and correcting only the active phase until its validation gate passes or a declared blocker is reached. Do not ask for routine confirmation inside an approved phase.
 
@@ -60,20 +61,25 @@ Never run:
 - `git stash`
 - `git checkout --`
 - `git restore` on unrelated work
+- `git rebase`
 - force push
 - broad workspace formatting
+- `git add .`
+- `git add -A`
 
-Preserve all unrelated local changes.
+Preserve all unrelated local changes exactly.
+
+Automation v2 records unrelated modified and untracked state before implementation and verifies it again before creating the phase commit.
 
 ## File scope
 
 - Modify only files explicitly listed by the active phase pack.
-- Do not create additional implementation files.
+- Do not create additional implementation files unless explicitly listed.
 - Do not refactor unrelated code.
 - Do not upgrade dependencies unless explicitly instructed.
 - Do not edit frontend, Prisma, migrations, workers, routes, or documentation unless they are listed.
 - `ACTIVE_PHASE.json` is the only global metadata exception, and only the exact successful-completion transition defined by `EXECUTION_PROTOCOL.md` is allowed.
-- Never modify `PHASE_QUEUE.json`.
+- Never modify `PHASE_QUEUE.json` during phase execution.
 
 ## Safety and confidentiality
 
@@ -121,9 +127,41 @@ Do not:
 - use real TxLINE, Telegram, Solana, or production Neon credentials
 - perform unapproved network smoke tests
 
-## Git
+## Git and Automation v2
 
-Do not commit, push, merge, rebase, deploy, or change branches unless explicitly instructed in a separate human message.
+Automation v2 is the only permitted automated Git path.
+
+### Validate
+
+Codex may run:
+
+```powershell
+.\scripts\codex-automation-v2.ps1 -Mode Validate
+```
+
+Validate may fetch `origin/main` and fast-forward local `main` only through `git merge --ff-only origin/main`. It must refuse local-ahead or diverged history.
+
+### Prepare
+
+After every active-phase validation passes and the exact completion metadata is written, Codex may run:
+
+```powershell
+.\scripts\codex-automation-v2.ps1 -Mode Prepare
+```
+
+Prepare may stage only explicitly changed allowlisted paths plus `ACTIVE_PHASE.json` and create exactly one phase completion commit. This permission is part of an already human-approved active phase. Prepare must not push.
+
+### Publish
+
+Codex must not publish merely because Prepare succeeded. Publish requires a separate explicit human instruction after review:
+
+```powershell
+.\scripts\codex-automation-v2.ps1 -Mode Publish
+```
+
+Publish must fetch again, require exactly one prepared commit directly above `origin/main`, verify its filenames, and push `HEAD:main` without force.
+
+Do not merge pull requests, deploy, apply migrations, or activate another phase unless separately and explicitly instructed.
 
 ## Stop codes
 
@@ -140,7 +178,10 @@ Use only the applicable explicit status:
 - `MIGRATION_APPROVAL_REQUIRED`
 - `NETWORK_ACCESS_REQUIRED`
 - `SECRET_REQUIRED`
-- `PHASE_COMPLETE`
+- `NON_FAST_FORWARD`
+- `UNRELATED_WORK_CHANGED`
+- `STAGING_SCOPE_VIOLATION`
+- `PHASE_COMPLETE_PREPARED`
 
 Do not improvise around a blocker.
 
@@ -150,14 +191,16 @@ At the end of the active phase report:
 
 1. baseline commit
 2. phase ID and pack version
-3. exact files changed
+3. exact files committed
 4. behavior implemented
 5. actual commands and results
 6. any compile-only discretionary corrections
 7. remaining limitations
 8. confirmation that no unauthorized implementation file changed
-9. confirmation that no migration was applied
-10. confirmation that `PHASE_QUEUE.json` was not changed
-11. final status: `PHASE_COMPLETE`
+9. confirmation that unrelated local work remains unchanged and unstaged
+10. confirmation that no migration was applied unless explicitly approved
+11. confirmation that `PHASE_QUEUE.json` was not changed
+12. confirmation that no next phase was activated
+13. final status: `PHASE_COMPLETE_PREPARED`
 
-On successful completion, perform only the exact `ACTIVE_PHASE.json` completion transition permitted by `EXECUTION_PROTOCOL.md`. Then stop. Do not begin the next phase.
+Then stop. Publish only after a separate explicit human instruction.
