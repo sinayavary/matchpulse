@@ -12,11 +12,11 @@ function Stop-Code([string]$Code, [string]$Message) {
   exit 1
 }
 
-function Git([string[]]$Args, [switch]$AllowFailure) {
-  $output = @(& git -C $script:Repo @Args 2>&1)
+function Invoke-SafeGit([string[]]$GitArgs, [switch]$AllowFailure) {
+  $output = @(& git -C $script:Repo @GitArgs 2>&1)
   $code = $LASTEXITCODE
   if (-not $AllowFailure -and $code -ne 0) {
-    Stop-Code "GIT_OPERATION_FAILED" "git $($Args -join ' ') failed: $($output -join ' ')"
+    Stop-Code "GIT_OPERATION_FAILED" "git $($GitArgs -join ' ') failed: $($output -join ' ')"
   }
   [pscustomobject]@{ Code = $code; Lines = $output }
 }
@@ -117,20 +117,22 @@ function Read-Pack($State) {
 }
 
 function Require-Main-And-Fetch {
-  if (((Git @("rev-parse","--is-inside-work-tree")).Lines -join "").Trim() -ne "true") {
+  if (((Invoke-SafeGit @("rev-parse","--is-inside-work-tree")).Lines -join "").Trim() -ne "true") {
     Stop-Code "SPEC_CONFLICT" "RepoRoot is not a Git repository."
   }
-  $branch = ((Git @("branch","--show-current")).Lines -join "").Trim()
+  $branch = ((Invoke-SafeGit @("branch","--show-current")).Lines -join "").Trim()
   if ($branch -ne "main") { Stop-Code "WRONG_BRANCH" "Current branch is '$branch'; expected main." }
-  Git @("fetch","--prune","origin","main") | Out-Null
+  Invoke-SafeGit @("fetch","--prune","origin","main") | Out-Null
 }
 
-function Status-All { @((Git @("status","--porcelain=v1","--untracked-files=all")).Lines | Where-Object { $_ } | Sort-Object) }
+function Status-All {
+  @((Invoke-SafeGit @("status","--porcelain=v1","--untracked-files=all")).Lines | Where-Object { $_ } | Sort-Object)
+}
 
 function Status-For($Paths) {
   $lines = @()
   foreach ($path in @($Paths | Sort-Object -Unique)) {
-    $lines += @((Git @("status","--porcelain=v1","--untracked-files=all","--",$path)).Lines | Where-Object { $_ })
+    $lines += @((Invoke-SafeGit @("status","--porcelain=v1","--untracked-files=all","--",$path)).Lines | Where-Object { $_ })
   }
   @($lines | Sort-Object -Unique)
 }
@@ -141,26 +143,71 @@ function Status-Unrelated($State, $Pack) {
   @($all | Where-Object { $phase -notcontains $_ } | Sort-Object)
 }
 
+function Status-Path([string]$StatusLine) {
+  if ($StatusLine.Length -lt 4) { Stop-Code "SPEC_CONFLICT" "Invalid git status line '$StatusLine'." }
+  $raw = $StatusLine.Substring(3)
+  if ($raw.Contains(" -> ")) { $raw = $raw.Split(@(" -> "), [StringSplitOptions]::None)[-1] }
+  if ($raw.StartsWith('"') -and $raw.EndsWith('"')) {
+    try { $raw = $raw | ConvertFrom-Json }
+    catch { Stop-Code "SPEC_CONFLICT" "Unable to decode git status path '$raw'." }
+  }
+  Path-Normal $raw
+}
+
+function Fingerprint-Unrelated($State, $Pack) {
+  $items = @()
+  foreach ($line in @(Status-Unrelated $State $Pack)) {
+    $path = Status-Path $line
+    $full = Join-Path $script:Repo $path
+    $kind = "missing"
+    $worktreeHash = $null
+    $length = $null
+    if (Test-Path -LiteralPath $full -PathType Leaf) {
+      $kind = "file"
+      $worktreeHash = (Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash.ToLowerInvariant()
+      $length = (Get-Item -LiteralPath $full).Length
+    } elseif (Test-Path -LiteralPath $full -PathType Container) {
+      $kind = "directory"
+    }
+    $indexResult = Invoke-SafeGit @("rev-parse",":$path") -AllowFailure
+    $indexHash = if ($indexResult.Code -eq 0) { (($indexResult.Lines -join "").Trim()) } else { $null }
+    $items += [pscustomobject]@{
+      status = $line
+      path = $path
+      kind = $kind
+      length = $length
+      worktree_sha256 = $worktreeHash
+      index_object = $indexHash
+    }
+  }
+  @($items | Sort-Object path,status)
+}
+
+function Fingerprint-Json($Value) {
+  @($Value) | ConvertTo-Json -Depth 6 -Compress
+}
+
 function Validate($State, $Pack) {
   Require-Main-And-Fetch
-  $head = ((Git @("rev-parse","HEAD")).Lines -join "").Trim()
-  $origin = ((Git @("rev-parse","origin/main")).Lines -join "").Trim()
+  $head = ((Invoke-SafeGit @("rev-parse","HEAD")).Lines -join "").Trim()
+  $origin = ((Invoke-SafeGit @("rev-parse","origin/main")).Lines -join "").Trim()
   if ($head -ne $origin) {
-    $base = ((Git @("merge-base","HEAD","origin/main")).Lines -join "").Trim()
+    $base = ((Invoke-SafeGit @("merge-base","HEAD","origin/main")).Lines -join "").Trim()
     if ($base -ne $head) { Stop-Code "NON_FAST_FORWARD" "Local main is ahead or diverged." }
-    Git @("merge","--ff-only","origin/main") | Out-Null
-    $head = ((Git @("rev-parse","HEAD")).Lines -join "").Trim()
+    Invoke-SafeGit @("merge","--ff-only","origin/main") | Out-Null
+    $head = ((Invoke-SafeGit @("rev-parse","HEAD")).Lines -join "").Trim()
+    $origin = ((Invoke-SafeGit @("rev-parse","origin/main")).Lines -join "").Trim()
   }
-  if ((Git @("merge-base","--is-ancestor",$State.Active.baseline_commit,"HEAD") -AllowFailure).Code -ne 0) {
+  if ((Invoke-SafeGit @("merge-base","--is-ancestor",$State.Active.baseline_commit,"HEAD") -AllowFailure).Code -ne 0) {
     Stop-Code "SPEC_CONFLICT" "Pack baseline is not an ancestor of HEAD."
   }
   foreach ($path in @($State.ActiveRel,$State.QueueRel,$State.EntryRel,$Pack.PackRel)) {
-    if ((Git @("ls-files","--error-unmatch","--",$path) -AllowFailure).Code -ne 0) { Stop-Code "SPEC_CONFLICT" "Untracked governance source: $path" }
+    if ((Invoke-SafeGit @("ls-files","--error-unmatch","--",$path) -AllowFailure).Code -ne 0) { Stop-Code "SPEC_CONFLICT" "Untracked governance source: $path" }
     if ((Status-For @($path)).Count -gt 0) { Stop-Code "WORKSPACE_COLLISION" "Governance source is locally changed: $path" }
   }
   foreach ($path in $Pack.Allowed) {
     if ((Status-For @($path)).Count -gt 0) { Stop-Code "WORKSPACE_COLLISION" "Allowed target is already changed: $path" }
-    if ((Git @("diff","--quiet","$($State.Active.baseline_commit)..HEAD","--",$path) -AllowFailure).Code -ne 0) {
+    if ((Invoke-SafeGit @("diff","--quiet","$($State.Active.baseline_commit)..HEAD","--",$path) -AllowFailure).Code -ne 0) {
       Stop-Code "SPEC_CONFLICT" "Allowed target changed after the pack baseline: $path"
     }
   }
@@ -171,7 +218,7 @@ function Validate($State, $Pack) {
     phase_id = $State.Active.phase_id
     pack_version = $State.Active.pack_version
     allowed_targets = @($Pack.Allowed)
-    unrelated_status = @(Status-Unrelated $State $Pack)
+    unrelated_fingerprints = @(Fingerprint-Unrelated $State $Pack)
     created_at = [DateTime]::UtcNow.ToString("o")
   }
   $snapshot | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $script:Snapshot -Encoding utf8
@@ -188,15 +235,19 @@ function Prepare($State, $Pack) {
     Stop-Code "SPEC_CONFLICT" "Snapshot does not match the active phase."
   }
   Same-List @($snapshot.allowed_targets | Sort-Object) @($Pack.Allowed | Sort-Object) "SPEC_CONFLICT" "Allowlist changed after Validate."
-  $head = ((Git @("rev-parse","HEAD")).Lines -join "").Trim()
-  $origin = ((Git @("rev-parse","origin/main")).Lines -join "").Trim()
+  $head = ((Invoke-SafeGit @("rev-parse","HEAD")).Lines -join "").Trim()
+  $origin = ((Invoke-SafeGit @("rev-parse","origin/main")).Lines -join "").Trim()
   if ($head -ne $snapshot.head -or $origin -ne $snapshot.origin_main -or $head -ne $origin) {
     Stop-Code "NON_FAST_FORWARD" "HEAD or origin/main changed after Validate."
   }
   foreach ($path in @($State.QueueRel,$State.EntryRel,$Pack.PackRel)) {
     if ((Status-For @($path)).Count -gt 0) { Stop-Code "WORKSPACE_COLLISION" "Protected governance source changed: $path" }
   }
-  Same-List @($snapshot.unrelated_status | Sort-Object) @(Status-Unrelated $State $Pack) "UNRELATED_WORK_CHANGED" "Unrelated local work changed during execution."
+  $beforeFingerprint = Fingerprint-Json @($snapshot.unrelated_fingerprints)
+  $afterFingerprint = Fingerprint-Json @(Fingerprint-Unrelated $State $Pack)
+  if ($beforeFingerprint -cne $afterFingerprint) {
+    Stop-Code "UNRELATED_WORK_CHANGED" "Unrelated local work content or index state changed during execution."
+  }
 
   $candidate = @($Pack.Allowed + $State.ActiveRel | Sort-Object -Unique)
   $changed = @()
@@ -217,15 +268,15 @@ function Prepare($State, $Pack) {
   Same-List $declared $actualTargets "SPEC_CONFLICT" "last_result.files_changed does not match the actual phase diff."
 
   $checkArgs = @("diff","--check","--") + $changed
-  Git $checkArgs | Out-Null
-  foreach ($path in $changed) { Git @("add","--",$path) | Out-Null }
-  $staged = @((Git @("diff","--cached","--name-only")).Lines | Where-Object { $_ } | ForEach-Object { Path-Normal ([string]$_) } | Sort-Object -Unique)
+  Invoke-SafeGit $checkArgs | Out-Null
+  foreach ($path in $changed) { Invoke-SafeGit @("add","--",$path) | Out-Null }
+  $staged = @((Invoke-SafeGit @("diff","--cached","--name-only")).Lines | Where-Object { $_ } | ForEach-Object { Path-Normal ([string]$_) } | Sort-Object -Unique)
   Same-List $changed $staged "STAGING_SCOPE_VIOLATION" "Staged files differ from the exact phase diff."
-  Git @("commit","-m","Complete Phase $($State.Active.phase_id) $($State.Active.phase_title.ToLowerInvariant())") | Out-Null
-  $parent = ((Git @("rev-parse","HEAD^1")).Lines -join "").Trim()
+  Invoke-SafeGit @("commit","-m","Complete Phase $($State.Active.phase_id) $($State.Active.phase_title.ToLowerInvariant())") | Out-Null
+  $parent = ((Invoke-SafeGit @("rev-parse","HEAD^1")).Lines -join "").Trim()
   if ($parent -ne $origin) { Stop-Code "NON_FAST_FORWARD" "Prepared commit parent is not origin/main." }
   Write-Host "AUTOMATION_V2_PREPARED"
-  Write-Host "Unrelated local work remains unchanged and unstaged."
+  Write-Host "Unrelated local work remains byte-identical and unstaged."
 }
 
 function Publish($State) {
@@ -233,18 +284,18 @@ function Publish($State) {
   if ($State.Active.state -ne "completed_pending_review" -or $State.Active.last_result.status -ne "PHASE_COMPLETE") {
     Stop-Code "SPEC_CONFLICT" "Publish requires committed completion metadata."
   }
-  if (@((Git @("diff","--cached","--name-only")).Lines | Where-Object { $_ }).Count -gt 0) {
+  if (@((Invoke-SafeGit @("diff","--cached","--name-only")).Lines | Where-Object { $_ }).Count -gt 0) {
     Stop-Code "STAGING_SCOPE_VIOLATION" "Publish requires an empty index."
   }
-  $origin = ((Git @("rev-parse","origin/main")).Lines -join "").Trim()
-  $parent = ((Git @("rev-parse","HEAD^1")).Lines -join "").Trim()
-  $ahead = [int](((Git @("rev-list","--count","origin/main..HEAD")).Lines -join "").Trim())
+  $origin = ((Invoke-SafeGit @("rev-parse","origin/main")).Lines -join "").Trim()
+  $parent = ((Invoke-SafeGit @("rev-parse","HEAD^1")).Lines -join "").Trim()
+  $ahead = [int](((Invoke-SafeGit @("rev-list","--count","origin/main..HEAD")).Lines -join "").Trim())
   if ($parent -ne $origin -or $ahead -ne 1) { Stop-Code "NON_FAST_FORWARD" "Expected exactly one prepared commit above origin/main." }
   $declared = @($State.Active.last_result.files_changed | ForEach-Object { Path-Normal ([string]$_) } | Sort-Object -Unique)
   $expected = @($declared + $State.ActiveRel | Sort-Object -Unique)
-  $actual = @((Git @("diff-tree","--no-commit-id","--name-only","-r","HEAD")).Lines | Where-Object { $_ } | ForEach-Object { Path-Normal ([string]$_) } | Sort-Object -Unique)
+  $actual = @((Invoke-SafeGit @("diff-tree","--no-commit-id","--name-only","-r","HEAD")).Lines | Where-Object { $_ } | ForEach-Object { Path-Normal ([string]$_) } | Sort-Object -Unique)
   Same-List $expected $actual "STAGING_SCOPE_VIOLATION" "Prepared commit contains unauthorized files."
-  Git @("push","origin","HEAD:main") | Out-Null
+  Invoke-SafeGit @("push","origin","HEAD:main") | Out-Null
   Write-Host "AUTOMATION_V2_PUBLISHED"
   Write-Host "Unrelated local work remains preserved."
 }
