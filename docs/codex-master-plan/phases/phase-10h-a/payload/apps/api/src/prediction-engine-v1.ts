@@ -159,12 +159,12 @@ function validateSpecialists(
   return sorted;
 }
 
-function blendDistribution<T extends readonly string[]>(
+function blendDistribution<K extends string>(
   specialists: readonly PredictionSpecialistInput[],
   outputKey: keyof FinalPredictionModelOutput,
-  keys: T,
-  fallback: Record<T[number], number>,
-): Record<T[number], number> {
+  keys: readonly K[],
+  fallback: Record<K, number>,
+): Record<K, number> {
   const usable = specialists.filter((specialist) => (
     specialist.available &&
     specialist.assigned_weight > 0 &&
@@ -176,7 +176,7 @@ function blendDistribution<T extends readonly string[]>(
   }
 
   const weightTotal = usable.reduce((sum, specialist) => sum + specialist.assigned_weight, 0);
-  const result = Object.fromEntries(keys.map((key) => [key, 0])) as Record<T[number], number>;
+  const result = Object.fromEntries(keys.map((key) => [key, 0])) as Record<K, number>;
 
   for (const specialist of usable) {
     const distribution = specialist.output?.[outputKey] as unknown as NumericDistribution;
