@@ -1,108 +1,60 @@
-# MatchPulse Repository-Controlled Execution Protocol
+# MatchPulse Repository-Controlled Execution Protocol — Automation v2
 
 ## 1. Purpose
 
-This protocol removes repeated phase-specific chat prompts. The repository itself selects and defines the active work.
+The repository selects and defines the active phase. Automation v2 adds a guarded Git lifecycle around that phase so Codex can synchronize, implement, validate, create one scoped commit, and—only after a separate explicit human instruction—publish it to `origin/main`.
 
-Codex receives one permanent instruction: read `CODEX_ENTRYPOINT.md` and execute the repository-selected phase.
+Automation v2 never selects or activates the next phase.
 
 ## 2. Human-directed boundary
 
-Codex may continue autonomously only inside one human-approved active phase.
+Codex is an implementation executor, not the architect. It must not independently:
 
-Codex must not:
-
-- select the next phase
-- change queue order
-- approve a phase
-- cross a migration, public-contract, deployment, secret, paid-service, or commit/push gate
-- reinterpret missing architecture or algorithms
-
-This preserves human direction while eliminating repetitive prompt transfer.
+- select the next phase or change queue order
+- approve or activate a phase
+- cross a migration, network, public-contract, deployment, secret, paid-service, or production-data gate
+- reinterpret missing architecture, formulas, thresholds, schemas, or contracts
+- publish a prepared commit unless the human explicitly instructs `Publish`
 
 ## 3. Orchestration files
 
 ### `ACTIVE_PHASE.json`
 
-The only source for current phase selection and authorization.
+The only source for active-phase selection and authorization.
 
 ### `PHASE_QUEUE.json`
 
-Read-only project sequence and dependency record. Codex never edits it.
+Read-only dependency and order record. Codex never edits it during phase execution.
 
 ### Active phase pack
 
-Contains the exact implementation, files, formulas, tests, validation commands, and stop condition.
+Contains the exact implementation, allowlist, tests, validation commands, expected results, and gate declarations.
 
 ### `CODEX_ENTRYPOINT.md`
 
-Permanent reusable instruction.
+Permanent reusable instruction and Automation v2 command sequence.
 
 ### `scripts/prepare-codex-run.ps1`
 
-Validates orchestration state and workspace safety before execution.
+Implements Automation v2 with three explicit modes:
+
+- `Validate`
+- `Prepare`
+- `Publish`
 
 ## 4. Active-phase states
 
-### `awaiting_pack`
+- `awaiting_pack` → `MISSING_SOURCE`
+- `awaiting_human_approval` → `HUMAN_APPROVAL_REQUIRED`
+- `paused` → `PHASE_PAUSED`
+- `completed_pending_review` → no implementation; only a previously prepared commit may be published
+- `ready` → the approved pack may be implemented
 
-The next phase is identified, but its exact pack is absent.
+Only `ready` authorizes implementation.
 
-Result: `MISSING_SOURCE`.
+## 5. Pack manifest contract
 
-### `awaiting_human_approval`
-
-The pack exists, but execution has not been approved.
-
-Result: `HUMAN_APPROVAL_REQUIRED`.
-
-### `ready`
-
-The pack exists, is committed, is approved, and may be executed.
-
-Codex continues until the phase gate passes or a stop code applies.
-
-### `paused`
-
-Execution is intentionally suspended.
-
-Result: `PHASE_PAUSED`.
-
-### `completed_pending_review`
-
-Implementation and validations completed. Human review, staging, commit, and push remain.
-
-Codex must not rerun or activate the next phase.
-
-## 5. Required active-phase fields
-
-`ACTIVE_PHASE.json` must contain:
-
-- `schema_version`
-- `project`
-- `state`
-- `phase_id`
-- `phase_title`
-- `pack_path`
-- `pack_version`
-- `baseline_commit`
-- `human_approved`
-- `activation_note`
-- `execution`
-- `last_result`
-
-For state `ready`:
-
-- `pack_version` must be non-empty
-- `baseline_commit` must be a valid ancestor of `HEAD`
-- `human_approved` must be `true`
-- the pack directory and required pack files must exist and be committed
-- allowed target files must not contain unrelated local changes
-- allowed targets must not have committed changes after the baseline unless the pack explicitly allows them
-
-## 6. Pack manifest contract
-
-Every future active phase manifest must contain:
+Every phase manifest must contain:
 
 ```json
 {
@@ -127,44 +79,47 @@ The pack also contains:
 
 The phase README remains the exact implementation authority.
 
-## 7. Preflight algorithm
+## 6. Automation v2 — Validate
 
-1. Verify repository root.
-2. Parse orchestration JSON.
-3. Verify schema versions and recognized state.
-4. Verify the active phase exists in the queue.
-5. For `ready`, verify human approval.
-6. Load the referenced manifest.
-7. Match phase ID, pack version, and baseline.
-8. Verify baseline commit exists and is an ancestor of `HEAD`.
-9. Verify active orchestration and pack files are tracked and clean.
-10. Verify no allowed target has local changes.
-11. Verify no allowed target changed in committed history after baseline.
-12. Continue only when every check passes.
+Run before editing:
 
-## 8. Continuous phase loop
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\prepare-codex-run.ps1 -Mode Validate
+```
 
-Within a `ready` phase:
+Validate performs these steps:
 
-1. read all pack instructions
-2. verify payload hashes
-3. apply only exact allowed changes
-4. run focused validation
-5. fix only active-phase failures within allowed files
-6. rerun focused validation
-7. run typecheck
-8. run required regression/full suites
-9. run diff and migration/network checks
-10. repeat only within scope until all required checks pass
-11. report and stop
+1. Require local branch `main`.
+2. Run `git fetch --prune origin main`.
+3. Synchronize local `main` only through `git merge --ff-only origin/main`.
+4. Refuse a local-ahead or diverged branch.
+5. Validate orchestration schemas, state, phase identity, pack identity, baseline ancestry, and unique safe allowlist paths.
+6. Require `ACTIVE_PHASE.json`, `PHASE_QUEUE.json`, `CODEX_ENTRYPOINT.md`, and the active pack to be tracked and clean.
+7. Require every allowed implementation target to be clean before execution.
+8. Require allowed targets not to have committed changes after the pack baseline.
+9. Record the exact unrelated working-tree status in `.git/codex-automation-v2-snapshot.json`.
 
-Routine test-fix-test cycles do not require a new human prompt.
+The snapshot is local Git metadata, is never staged, and is used only to prove that unrelated work remains unchanged.
 
-## 9. Successful completion metadata transition
+## 7. Phase execution
 
-Only after all required validations pass, Codex may modify `ACTIVE_PHASE.json` as the global metadata exception.
+After Validate passes, Codex:
 
-It must preserve every existing field except:
+1. reads the full active pack
+2. verifies payload hashes
+3. modifies only `allowed_target_files`
+4. runs every required focused, typecheck, regression, diff, migration, and network check
+5. fixes only active-phase failures and only within the allowlist
+6. performs the exact permitted successful-completion transition in `ACTIVE_PHASE.json`
+7. does not edit `PHASE_QUEUE.json`
+8. does not activate another phase
+
+Routine in-scope test/fix cycles do not require another human prompt.
+
+## 8. Successful completion metadata
+
+Only after all required validations pass, Codex may change `ACTIVE_PHASE.json` as the global metadata exception:
 
 ```text
 state = "completed_pending_review"
@@ -184,35 +139,83 @@ last_result = {
 
 Requirements:
 
-- `status` must be `PHASE_COMPLETE`
-- `phase_id`, `pack_version`, and `baseline_commit` must match the active file
-- `completed_at` must be a valid UTC ISO timestamp
-- `files_changed` must be a sorted unique list containing only allowed target files
-- `validation_summary` must be a concise list of actual results
-- `migration_applied` must be `false` unless an explicitly approved migration phase says otherwise
-- `network_accessed` must be `false` unless an explicitly approved bounded network phase says otherwise
+- `status` is `PHASE_COMPLETE`
+- phase identity fields remain unchanged
+- `completed_at` is a valid UTC ISO timestamp
+- `files_changed` is a sorted unique list containing only changed allowed implementation targets
+- migration/network flags reflect actual approved behavior
+- no next-phase state is installed
 
-Codex must not modify `phase_id`, `pack_path`, queue state, or activate another phase.
+## 9. Automation v2 — Prepare
 
-## 10. Failure behavior
+After successful implementation and validation, run:
+
+```powershell
+.\scripts\prepare-codex-run.ps1 -Mode Prepare
+```
+
+Prepare:
+
+1. fetches `origin/main` again
+2. requires local `HEAD`, fetched `origin/main`, and the Validate snapshot baseline to remain identical
+3. requires protected orchestration sources other than the permitted `ACTIVE_PHASE.json` transition to remain clean
+4. compares all unrelated local status lines with the Validate snapshot and stops if any unrelated work was added, removed, or modified
+5. derives changed phase files only from the manifest allowlist plus `ACTIVE_PHASE.json`
+6. validates the completion metadata against the actual implementation diff
+7. runs `git diff --check` on the exact changed phase paths
+8. stages each approved path through an explicit `git add -- <path>` call
+9. verifies the staged filename set exactly matches the approved changed-file set
+10. creates one phase completion commit whose parent is the fetched `origin/main`
+11. leaves every unrelated modified or untracked file unchanged and unstaged
+
+Forbidden commands remain forbidden: `git add .`, `git add -A`, reset, clean, stash, rebase, unrelated checkout/restore, and force push.
+
+## 10. Human review boundary
+
+After Prepare, Codex stops. The human reviews:
+
+- commit and parent
+- exact changed filenames
+- full diff
+- test evidence
+- migration/network evidence
+- completion metadata
+- confirmation that unrelated local work is still present and unstaged
+
+Automation v2 does not automatically publish after Prepare.
+
+## 11. Automation v2 — Publish
+
+Only after explicit human instruction, run:
+
+```powershell
+.\scripts\prepare-codex-run.ps1 -Mode Publish
+```
+
+Publish:
+
+1. requires branch `main`
+2. fetches `origin/main` again
+3. requires an empty index
+4. requires exactly one local commit ahead of `origin/main`
+5. requires that commit's parent to equal the fetched `origin/main`
+6. requires the commit's filenames to equal `last_result.files_changed` plus `ACTIVE_PHASE.json`
+7. runs `git push origin HEAD:main` without force
+8. refuses the push if `origin/main` moved or history diverged
+9. preserves unrelated unstaged and untracked local work
+
+## 12. Failure behavior
 
 On any failure:
 
-- do not change orchestration state
 - do not broaden file scope
 - do not weaken tests
-- return the applicable stop code with evidence
+- do not alter unrelated local work
+- do not activate another phase
+- do not force push
+- return the applicable explicit stop code with evidence
 - stop
 
-## 11. Human review and next activation
+## 13. Next phase
 
-After `completed_pending_review`, the human:
-
-1. reviews exact changes and test evidence
-2. stages only approved files, including the active metadata transition
-3. commits and pushes
-4. receives the next exact phase pack
-5. commits the pack and the updated `ACTIVE_PHASE.json`
-6. invokes the same permanent entrypoint again
-
-No new long Codex prompt is required.
+After the completion commit is published and reviewed, a separate governance change may install and activate the next exact phase pack on a separate branch. Phase execution itself never edits queue order or self-activates a successor.
