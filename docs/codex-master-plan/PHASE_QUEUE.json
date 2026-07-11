@@ -1,8 +1,8 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "10E-C",
-  "updated_at": "2026-07-11T00:00:00.000Z",
+  "active_phase_id": "10F-A",
+  "updated_at": "2026-07-11T01:20:00.000Z",
   "items": [
     {
       "id": "governance-orchestration-v1",
@@ -23,21 +23,18 @@
       "id": "10E-B",
       "title": "Odds mathematical primitives",
       "status": "completed",
-      "depends_on": [
-        "10E-A"
-      ],
+      "depends_on": ["10E-A"],
       "completion_commit": "fd5045eb109305242eef1cd847a007e93c28c87a",
       "human_gate": false
     },
     {
       "id": "10E-C",
       "title": "Odds reliability and assessment",
-      "status": "ready",
-      "depends_on": [
-        "10E-B"
-      ],
+      "status": "completed",
+      "depends_on": ["10E-B"],
       "pack_version": "10E-C-v1",
       "baseline_commit": "fd5045eb109305242eef1cd847a007e93c28c87a",
+      "completion_commit": "bbdd6f67936ec4c5ece0b9cf158712c74cde3c75",
       "human_gate": false
     },
     {
@@ -45,124 +42,114 @@
       "title": "Database readiness and approved development migration",
       "status": "blocked_human_approval",
       "depends_on": [],
-      "required_before": [
-        "10E-D"
-      ],
+      "required_before": ["10E-D"],
       "human_gate": true
     },
     {
       "id": "10E-D",
       "title": "Odds DB service and persistence",
       "status": "planned",
-      "depends_on": [
-        "10E-C",
-        "gate-1"
-      ],
+      "depends_on": ["10E-C", "gate-1"],
       "human_gate": true
     },
     {
-      "id": "10F",
-      "title": "TxLINE complete client",
+      "id": "10F-A",
+      "title": "TxLINE transport, auth, REST, SSE, and match-data foundation",
+      "status": "ready",
+      "depends_on": ["10E-C"],
+      "pack_version": "10F-A-v1",
+      "baseline_commit": "acea876b2a26c22e26a7390bf6520e2eb8e41a9d",
+      "human_gate": false
+    },
+    {
+      "id": "10F-B",
+      "title": "TxLINE provider-specific stream bindings and additional data domains",
       "status": "planned",
-      "depends_on": [
-        "10E-C"
-      ],
+      "depends_on": ["10F-A"],
+      "human_gate": false
+    },
+    {
+      "id": "10F-C",
+      "title": "TxLINE complete client integration and regression closure",
+      "status": "planned",
+      "depends_on": ["10F-B"],
+      "human_gate": false
+    },
+    {
+      "id": "10F",
+      "title": "TxLINE complete client integration gate",
+      "status": "planned",
+      "depends_on": ["10F-C"],
       "human_gate": false
     },
     {
       "id": "10G",
       "title": "Streaming ingestion and backfill",
       "status": "planned",
-      "depends_on": [
-        "10F",
-        "gate-1"
-      ],
+      "depends_on": ["10F", "gate-1"],
       "human_gate": true
     },
     {
       "id": "10H",
       "title": "Prediction engine",
       "status": "planned",
-      "depends_on": [
-        "10E-C"
-      ],
+      "depends_on": ["10E-C"],
       "human_gate": false
     },
     {
       "id": "10I",
       "title": "Runtime prediction orchestrator",
       "status": "planned",
-      "depends_on": [
-        "10E-D",
-        "10G",
-        "10H"
-      ],
+      "depends_on": ["10E-D", "10G", "10H"],
       "human_gate": false
     },
     {
       "id": "10J",
       "title": "Labels, evaluation, backtest, and calibration",
       "status": "planned",
-      "depends_on": [
-        "10I"
-      ],
+      "depends_on": ["10I"],
       "human_gate": false
     },
     {
       "id": "10K",
       "title": "Public prediction API",
       "status": "planned",
-      "depends_on": [
-        "10I"
-      ],
+      "depends_on": ["10I"],
       "human_gate": true
     },
     {
       "id": "10L",
       "title": "Final web experience",
       "status": "planned",
-      "depends_on": [
-        "10K"
-      ],
+      "depends_on": ["10K"],
       "human_gate": true
     },
     {
       "id": "10M",
       "title": "Watchlist and Telegram",
       "status": "planned",
-      "depends_on": [
-        "10I"
-      ],
+      "depends_on": ["10I"],
       "human_gate": true
     },
     {
       "id": "10N",
       "title": "TxLINE and Solana verification",
       "status": "planned",
-      "depends_on": [
-        "10F"
-      ],
+      "depends_on": ["10F"],
       "human_gate": true
     },
     {
       "id": "10O",
       "title": "Production hardening",
       "status": "planned",
-      "depends_on": [
-        "10K",
-        "10L",
-        "10M",
-        "10N"
-      ],
+      "depends_on": ["10K", "10L", "10M", "10N"],
       "human_gate": true
     },
     {
       "id": "10P",
       "title": "Demo and submission",
       "status": "planned",
-      "depends_on": [
-        "10O"
-      ],
+      "depends_on": ["10O"],
       "human_gate": true
     }
   ]
