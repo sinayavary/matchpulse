@@ -119,18 +119,20 @@ export async function* parseTxlineSse(chunks: AsyncIterable<string>): AsyncGener
 }
 
 export class TxlineCompleteClient {
-  private readonly credentials: TxlineCredentials;
-  private readonly requestExecutor: TxlineRequestExecutor;
-  private readonly openSse: TxlineSseOpener;
+  readonly #config: Pick<TxlineConfig, "apiBaseUrl" | "httpTimeoutMs">;
+  readonly #credentials: TxlineCredentials;
+  readonly #requestExecutor: TxlineRequestExecutor;
+  readonly #openSse: TxlineSseOpener;
 
-  constructor(private readonly options: TxlineClientOptions) {
-    this.credentials = options.credentials ?? {};
+  constructor(options: TxlineClientOptions) {
+    this.#config = options.config;
+    this.#credentials = options.credentials ?? {};
     const http = axios.create({
       baseURL: options.config.apiBaseUrl,
       timeout: options.config.httpTimeoutMs,
-      headers: credentialHeaders(this.credentials),
+      headers: credentialHeaders(this.#credentials),
     });
-    this.requestExecutor = options.request ?? (async ({ path, params }) => {
+    this.#requestExecutor = options.request ?? (async ({ path, params }) => {
       try {
         const response = await http.get(path, { params });
         return response.data as unknown;
@@ -138,7 +140,7 @@ export class TxlineCompleteClient {
         throw safeError(error, path);
       }
     });
-    this.openSse = options.openSse ?? defaultOpenSse;
+    this.#openSse = options.openSse ?? defaultOpenSse;
   }
 
   static fromEnv(env: NodeJS.ProcessEnv = process.env): TxlineCompleteClient {
@@ -150,23 +152,23 @@ export class TxlineCompleteClient {
   }
 
   getFixtureSnapshot(params: { competitionId: string; startEpochDay: number }): Promise<unknown> {
-    return this.requestExecutor({ path: "/fixtures/snapshot", params });
+    return this.#requestExecutor({ path: "/fixtures/snapshot", params });
   }
 
   getScoreSnapshot(params: { fixtureId: string; asOf: number }): Promise<unknown> {
-    return this.requestExecutor({ path: `/scores/snapshot/${encodeURIComponent(params.fixtureId)}`, params: { asOf: params.asOf } });
+    return this.#requestExecutor({ path: `/scores/snapshot/${encodeURIComponent(params.fixtureId)}`, params: { asOf: params.asOf } });
   }
 
   getOddsSnapshot(params: { fixtureId: string; asOf: number }): Promise<unknown> {
-    return this.requestExecutor({ path: `/odds/snapshot/${encodeURIComponent(params.fixtureId)}`, params: { asOf: params.asOf } });
+    return this.#requestExecutor({ path: `/odds/snapshot/${encodeURIComponent(params.fixtureId)}`, params: { asOf: params.asOf } });
   }
 
   async *stream(endpointPath: string, params: Record<string, string | number> = {}): AsyncGenerator<TxlineSseEvent> {
-    const url = new URL(endpointPath, `${this.options.config.apiBaseUrl.replace(/\/$/, "")}/`);
+    const url = new URL(endpointPath, `${this.#config.apiBaseUrl.replace(/\/$/, "")}/`);
     for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
     let chunks: AsyncIterable<string>;
     try {
-      chunks = await this.openSse(url, credentialHeaders(this.credentials));
+      chunks = await this.#openSse(url, credentialHeaders(this.#credentials));
     } catch (error) {
       if (error instanceof TxlineClientError) throw error;
       throw safeError(error, endpointPath);
