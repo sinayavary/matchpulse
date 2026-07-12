@@ -9,6 +9,37 @@ MatchPulse is split into two sequential delivery tracks from the current reposit
 
 The Competition Release Track is inserted after `BUILD-INFRA-A` and before the original `10H-A` production prediction phase.
 
+## Locked competition scope
+
+The Competition Release scope is frozen at this document revision. Until `COMP-C` is completed, reviewed, and published, no phase, implementation pack, pull request, or execution may add a new product surface, prediction family, route family, persistence requirement, provider dependency, background supervisor, model-training pipeline, notification channel, verification system, browsing flow, history feature, or operational-hardening task.
+
+The only permitted competition delivery sequence is:
+
+```text
+COMP-A → COMP-B → COMP-C → Competition Release Complete
+```
+
+The only required user-facing competition outputs are:
+
+- final outcome probabilities: home / draw / away;
+- next goal probabilities: home / none / away;
+- goal probability in the next 5, 10, and 15 minutes;
+- bounded final score distribution plus remaining probability;
+- current-result survival/change probability;
+- momentum-shift probabilities;
+- confidence level, score, and reasons;
+- risk level and reasons;
+- explanation summary, main factors, and limitations;
+- data quality, freshness, and model-profile label;
+- mandatory public-safe odds/market analysis;
+- informational analytics safety notes.
+
+Competition delivery is limited to one permanent versioned public prediction DTO, one protected internal prediction route, one versioned public prediction route, one bounded evaluator web experience, and one deterministic replay fallback. Existing public match routes remain unchanged.
+
+No optional enhancement may block or delay these outputs. Any desirable addition not explicitly listed above is deferred to the Future Production Track. Refactoring is allowed only when required for the exact competition output, safety, tests, build correctness, or compatibility. It must not change existing unrelated behavior.
+
+The competition output contract, route semantics, public safety boundary, model profile name, and human-readable odds-analysis requirement are locked. Changes require an explicit new human governance decision after `COMP-C`; implementation convenience alone is not sufficient.
+
 ## Current continuation point
 
 - `BUILD-INFRA-A` implementation commit: `e33a8f4d8949ee219261350b1bd05836bc3c8878`
@@ -35,9 +66,7 @@ PredictionProfile
         ↓
 FinalPredictionSnapshot
         ↓
-public-safe prediction mapper
-        +
-existing public market-intelligence mapper
+public-safe mapper
         ↓
 API / web / replay
 ```
@@ -183,7 +212,7 @@ The future `10L` phase extends this surface with richer browsing, history, repla
 
 1. `COMP-A` — Competition complete prediction baseline kernel.
 2. `COMP-B` — Competition runtime service, mandatory public market analysis, and versioned public-safe API.
-3. `COMP-C` — Competition web experience, odds-analysis presentation, replay fallback, and submission gate.
+3. `COMP-C` — Competition web experience, human-readable odds analysis, replay fallback, and submission gate.
 
 Completion of `COMP-C` is the competition delivery milestone.
 
@@ -204,9 +233,9 @@ The following artifacts are permanent across both tracks:
 
 - TxLINE client and normalization foundations;
 - odds intelligence and reliability contracts;
-- existing `PublicMarketIntelligence` and public mapper;
 - canonical state and event context;
 - `FinalPredictionSnapshot` target vocabulary;
+- `PublicMarketIntelligence` odds-analysis boundary;
 - prediction safety rules;
 - public/internal separation;
 - recursive forbidden-field protection;
@@ -220,15 +249,12 @@ Future work may strengthen implementations but must not require competition code
 The competition track is complete only when:
 
 - every prediction family listed above is returned;
-- the public response includes mandatory human-readable odds analysis;
-- odds analysis exposes reliability, freshness, coverage, agreement, volatility, notable movements, summary, limitations, and last update;
-- odds analysis and prediction are visually and semantically distinguished;
-- identical input produces identical prediction output;
+- mandatory public-safe odds analysis is returned and rendered independently from prediction;
+- identical input produces identical output;
 - every distribution is valid and normalized;
 - missing/stale data degrades safely;
 - a live/stored-data path works;
 - a deterministic replay path works without live provider availability;
-- replay contains meaningful odds-analysis states and at least one visible market movement;
 - public output passes recursive leakage scans;
 - no betting recommendation field exists;
 - API and web show limitations clearly;
