@@ -1,8 +1,8 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "BUILD-INFRA-A",
-  "updated_at": "2026-07-12T21:36:00Z",
+  "active_phase_id": "COMP-A",
+  "updated_at": "2026-07-12T22:12:52Z",
   "items": [
     {
       "id": "governance-orchestration-v1",
@@ -97,7 +97,7 @@
     {
       "id": "BUILD-INFRA-A",
       "title": "Workspace package build and API output boundary",
-      "status": "completed_pending_review",
+      "status": "completed",
       "depends_on": ["10F-C"],
       "pack_version": "BUILD-INFRA-A-v1",
       "baseline_commit": "865489f386cc1073532f8889365470b57eb9b852",
@@ -107,9 +107,10 @@
     {
       "id": "COMP-A",
       "title": "Competition complete prediction baseline kernel",
-      "status": "planned",
+      "status": "ready",
       "depends_on": ["BUILD-INFRA-A"],
       "pack_version": "COMP-A-v1",
+      "baseline_commit": "13c2e80ec40da1443048cd61bb020a501f4b9d22",
       "human_gate": false
     },
     {
