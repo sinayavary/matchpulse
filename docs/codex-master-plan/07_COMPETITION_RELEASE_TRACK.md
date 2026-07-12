@@ -35,7 +35,9 @@ PredictionProfile
         ↓
 FinalPredictionSnapshot
         ↓
-public-safe mapper
+public-safe prediction mapper
+        +
+existing public market-intelligence mapper
         ↓
 API / web / replay
 ```
@@ -44,7 +46,7 @@ The competition model is therefore not throwaway code. It is the first implement
 
 ## Competition output contract
 
-The Competition Release must produce every required user-facing prediction family:
+The Competition Release must produce every required user-facing prediction and intelligence family:
 
 1. final outcome probabilities: home / draw / away;
 2. next goal probabilities: home / none / away;
@@ -55,7 +57,25 @@ The Competition Release must produce every required user-facing prediction famil
 7. confidence level, confidence score, and confidence reasons;
 8. risk level and risk reasons;
 9. concise explanation, main factors, and limitations;
-10. data coverage, freshness, and model profile metadata through public-safe fields only.
+10. data coverage, freshness, and model profile metadata through public-safe fields only;
+11. a mandatory user-facing odds/market analysis built from the existing `PublicMarketIntelligence` boundary.
+
+The public odds analysis must include:
+
+- market-data availability;
+- public reliability level;
+- freshness;
+- provider coverage category;
+- provider agreement category;
+- market volatility category;
+- market, usable-market, and provider counts;
+- up to three notable market movements with market label, selection label, direction, strength, and human-readable summary;
+- overall market summary;
+- public limitations;
+- last update timestamp;
+- the existing market-intelligence safety note.
+
+The user-facing odds analysis must describe market quality and movement independently from the model prediction. It must remain clear that market intelligence is an input signal and is not equivalent to MatchPulse's final prediction.
 
 All probability distributions must remain normalized and deterministic for identical inputs.
 
@@ -100,7 +120,7 @@ These roles map to the permanent production specialist roles. The future product
 - Missing events do not fabricate event pressure.
 - Finished matches collapse relevant probabilities to deterministic terminal values.
 - Pre-match and unknown-phase inputs use explicit conservative fallbacks.
-- Exact internal coefficients, weights, and thresholds never appear in public responses.
+- Exact internal coefficients, weights, thresholds, fair probabilities, and consensus probabilities never appear in public responses.
 - Confidence describes data/model support, not guaranteed correctness.
 
 ## Runtime strategy for the competition track
@@ -111,6 +131,7 @@ It uses:
 
 - request-time or bounded refresh prediction generation;
 - existing stored canonical state and odds/event foundations;
+- the existing public odds-intelligence mapper for mandatory user-facing market analysis;
 - existing TxLINE client foundations where already wired;
 - deterministic replay fallback for evaluator availability;
 - optional short-lived in-memory caching only;
@@ -122,13 +143,16 @@ The Future Production Track later adds streaming, ordered persistence, duplicate
 
 ## API strategy
 
-The competition release introduces a versioned public-safe prediction DTO. It must contain the complete prediction families but must exclude:
+The competition release introduces a versioned public-safe prediction DTO. It must contain the complete prediction families and a mandatory `market_analysis` object conforming to the existing `PublicMarketIntelligence` public boundary.
+
+It must exclude:
 
 - specialist weights;
 - provider identities;
 - raw observations;
 - feature hashes and private feature references;
 - exact odds component scores;
+- exact fair or consensus probabilities;
 - formulas and thresholds;
 - training data;
 - debug lineage;
@@ -142,6 +166,8 @@ The competition web surface is a bounded evaluator experience, not the final `10
 
 - match identity and current state;
 - all prediction families;
+- a dedicated human-readable odds-analysis panel;
+- market reliability, freshness, coverage, agreement, volatility, notable movements, summary, and limitations;
 - confidence, risk, explanation, data quality, and freshness;
 - replay fallback;
 - responsive competition presentation;
@@ -156,8 +182,8 @@ The future `10L` phase extends this surface with richer browsing, history, repla
 ### Competition Release Track
 
 1. `COMP-A` — Competition complete prediction baseline kernel.
-2. `COMP-B` — Competition runtime service and versioned public-safe API.
-3. `COMP-C` — Competition web experience, replay fallback, and submission gate.
+2. `COMP-B` — Competition runtime service, mandatory public market analysis, and versioned public-safe API.
+3. `COMP-C` — Competition web experience, odds-analysis presentation, replay fallback, and submission gate.
 
 Completion of `COMP-C` is the competition delivery milestone.
 
@@ -178,6 +204,7 @@ The following artifacts are permanent across both tracks:
 
 - TxLINE client and normalization foundations;
 - odds intelligence and reliability contracts;
+- existing `PublicMarketIntelligence` and public mapper;
 - canonical state and event context;
 - `FinalPredictionSnapshot` target vocabulary;
 - prediction safety rules;
@@ -193,11 +220,15 @@ Future work may strengthen implementations but must not require competition code
 The competition track is complete only when:
 
 - every prediction family listed above is returned;
-- identical input produces identical output;
+- the public response includes mandatory human-readable odds analysis;
+- odds analysis exposes reliability, freshness, coverage, agreement, volatility, notable movements, summary, limitations, and last update;
+- odds analysis and prediction are visually and semantically distinguished;
+- identical input produces identical prediction output;
 - every distribution is valid and normalized;
 - missing/stale data degrades safely;
 - a live/stored-data path works;
 - a deterministic replay path works without live provider availability;
+- replay contains meaningful odds-analysis states and at least one visible market movement;
 - public output passes recursive leakage scans;
 - no betting recommendation field exists;
 - API and web show limitations clearly;
