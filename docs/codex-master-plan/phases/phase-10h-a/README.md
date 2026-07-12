@@ -1,13 +1,13 @@
 # Phase 10H-A v1 — Prediction Composition Engine
 
-## Review status
+## Activation status
 
-This is a review-only prepared source pack. It is not active and must not modify `ACTIVE_PHASE.json` or `PHASE_QUEUE.json` until a separate governance change explicitly approves and activates it.
+This reviewed exact source pack is active and human-approved through the continuous-program bootstrap. Its five payload files are the execution source; do not separately merge or copy PR #14.
 
 - Baseline candidate: `b4f1bf28e3ad05d4c796ac52a1383cd918182842`
 - Source branch: `agent/matchpulse-continuation-blueprint-v1`
 - Pack: `10H-A-v1`
-- Dependency: Phase 10E-C complete; execution should occur after current Phase 10F-C is completed and published.
+- Dependency: Phase 10F-C completed and published at `b4f1bf28e3ad05d4c796ac52a1383cd918182842`.
 
 ## Objective
 
@@ -42,4 +42,4 @@ Expected: focused tests pass, API typecheck/build pass, full API regression pass
 
 ## Completion
 
-After explicit repository-controlled activation and all gates pass, update only the permitted completion metadata and run Automation v2 `Prepare`. Stop before `Publish` with `PHASE_COMPLETE_PREPARED`.
+After all gates pass, update only permitted completion metadata and run Automation v2 `Prepare`. Because this phase is local-only, migration-free, network-free, secret-free, and public-contract-free, enabled program mode may Publish automatically when every program and manifest publication condition passes. Verify the remote publication before any separate program transition activates a successor.

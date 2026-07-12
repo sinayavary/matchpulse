@@ -1,160 +1,36 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "10F-C",
-  "updated_at": "2026-07-11T20:44:47.000Z",
+  "active_phase_id": "10H-A",
+  "updated_at": "2026-07-12T00:00:00.000Z",
+  "max_parallel_phases": 1,
   "items": [
-    {
-      "id": "governance-orchestration-v1",
-      "title": "Canonical governance and repository-controlled Codex execution",
-      "status": "completed",
-      "depends_on": [],
-      "human_gate": false
-    },
-    {
-      "id": "10E-A",
-      "title": "Deterministic odds market normalization",
-      "status": "completed",
-      "depends_on": [],
-      "completion_commit": "39e8dd92144b783fc9582b62b37b37a7ed657d4e",
-      "human_gate": false
-    },
-    {
-      "id": "10E-B",
-      "title": "Odds mathematical primitives",
-      "status": "completed",
-      "depends_on": ["10E-A"],
-      "completion_commit": "fd5045eb109305242eef1cd847a007e93c28c87a",
-      "human_gate": false
-    },
-    {
-      "id": "10E-C",
-      "title": "Odds reliability and assessment",
-      "status": "completed",
-      "depends_on": ["10E-B"],
-      "pack_version": "10E-C-v1",
-      "baseline_commit": "fd5045eb109305242eef1cd847a007e93c28c87a",
-      "completion_commit": "bbdd6f67936ec4c5ece0b9cf158712c74cde3c75",
-      "human_gate": false
-    },
-    {
-      "id": "gate-1",
-      "title": "Database readiness and approved development migration",
-      "status": "blocked_human_approval",
-      "depends_on": [],
-      "required_before": ["10E-D"],
-      "human_gate": true
-    },
-    {
-      "id": "10E-D",
-      "title": "Odds DB service and persistence",
-      "status": "planned",
-      "depends_on": ["10E-C", "gate-1"],
-      "human_gate": true
-    },
-    {
-      "id": "10F-A",
-      "title": "TxLINE transport, auth, REST, SSE, and match-data foundation",
-      "status": "completed",
-      "depends_on": ["10E-C"],
-      "pack_version": "10F-A-v1",
-      "baseline_commit": "acea876b2a26c22e26a7390bf6520e2eb8e41a9d",
-      "human_gate": false
-    },
-    {
-      "id": "10F-B",
-      "title": "TxLINE provider-specific stream bindings and additional data domains",
-      "status": "completed",
-      "depends_on": ["10F-A"],
-      "pack_version": "10F-B-v1",
-      "baseline_commit": "791ea52e68537ae8d5eadc96f0d0c8cf6f72c2c8",
-      "human_gate": false
-    },
-    {
-      "id": "10F-C",
-      "title": "TxLINE complete client integration and regression closure",
-      "status": "ready",
-      "depends_on": ["10F-B"],
-      "pack_version": "10F-C-v1",
-      "baseline_commit": "c1b2461ec42db2af1d93bfb5af7dcdb714bb2c7e",
-      "human_gate": false
-    },
-    {
-      "id": "10F",
-      "title": "TxLINE complete client integration gate",
-      "status": "planned",
-      "depends_on": ["10F-C"],
-      "human_gate": false
-    },
-    {
-      "id": "10G",
-      "title": "Streaming ingestion and backfill",
-      "status": "planned",
-      "depends_on": ["10F", "gate-1"],
-      "human_gate": true
-    },
-    {
-      "id": "10H",
-      "title": "Prediction engine",
-      "status": "planned",
-      "depends_on": ["10E-C"],
-      "human_gate": false
-    },
-    {
-      "id": "10I",
-      "title": "Runtime prediction orchestrator",
-      "status": "planned",
-      "depends_on": ["10E-D", "10G", "10H"],
-      "human_gate": false
-    },
-    {
-      "id": "10J",
-      "title": "Labels, evaluation, backtest, and calibration",
-      "status": "planned",
-      "depends_on": ["10I"],
-      "human_gate": false
-    },
-    {
-      "id": "10K",
-      "title": "Public prediction API",
-      "status": "planned",
-      "depends_on": ["10I"],
-      "human_gate": true
-    },
-    {
-      "id": "10L",
-      "title": "Final web experience",
-      "status": "planned",
-      "depends_on": ["10K"],
-      "human_gate": true
-    },
-    {
-      "id": "10M",
-      "title": "Watchlist and Telegram",
-      "status": "planned",
-      "depends_on": ["10I"],
-      "human_gate": true
-    },
-    {
-      "id": "10N",
-      "title": "TxLINE and Solana verification",
-      "status": "planned",
-      "depends_on": ["10F"],
-      "human_gate": true
-    },
-    {
-      "id": "10O",
-      "title": "Production hardening",
-      "status": "planned",
-      "depends_on": ["10K", "10L", "10M", "10N"],
-      "human_gate": true
-    },
-    {
-      "id": "10P",
-      "title": "Demo and submission",
-      "status": "planned",
-      "depends_on": ["10O"],
-      "human_gate": true
-    }
+    {"id":"governance-orchestration-v1","title":"Canonical governance and repository-controlled Codex execution","status":"completed","depends_on":[],"human_gate":false},
+    {"id":"10E-A","title":"Deterministic odds market normalization","status":"completed","depends_on":[],"completion_commit":"39e8dd92144b783fc9582b62b37b37a7ed657d4e","human_gate":false},
+    {"id":"10E-B","title":"Odds mathematical primitives","status":"completed","depends_on":["10E-A"],"completion_commit":"fd5045eb109305242eef1cd847a007e93c28c87a","human_gate":false},
+    {"id":"10E-C","title":"Odds reliability and assessment","status":"completed","depends_on":["10E-B"],"completion_commit":"bbdd6f67936ec4c5ece0b9cf158712c74cde3c75","human_gate":false},
+    {"id":"10F-A","title":"TxLINE transport, auth, REST, SSE, and match-data foundation","status":"completed","depends_on":["10E-C"],"human_gate":false},
+    {"id":"10F-B","title":"TxLINE provider-specific stream bindings and additional data domains","status":"completed","depends_on":["10F-A"],"human_gate":false},
+    {"id":"10F-C","title":"TxLINE client lifecycle and regression closure","status":"completed","depends_on":[],"completion_commit":"b4f1bf28e3ad05d4c796ac52a1383cd918182842","human_gate":false},
+    {"id":"10G-A","title":"Stream supervisor foundation","status":"planned","depends_on":["10F-C"],"human_gate":false},
+    {"id":"10G-B","title":"Catch-up, checkpoints and deduplication","status":"planned","depends_on":["10G-A"],"human_gate":false},
+    {"id":"10H-A","title":"Prediction Composition Engine","status":"ready","depends_on":["10F-C"],"pack_version":"10H-A-v1","baseline_commit":"b4f1bf28e3ad05d4c796ac52a1383cd918182842","human_gate":false},
+    {"id":"10H-B","title":"Versioned feature assembly","status":"planned","depends_on":["10H-A","10G-B"],"human_gate":false},
+    {"id":"10H-C","title":"Private model adapter","status":"planned","depends_on":["10H-B"],"human_gate":false},
+    {"id":"10N-A","title":"Offline proof-state validation","status":"planned","depends_on":["10F-C"],"human_gate":false},
+    {"id":"10E-D","title":"Odds persistence","status":"planned","depends_on":["10F-C"],"human_gate":false},
+    {"id":"10G-C","title":"Canonical timeline persistence","status":"planned","depends_on":["10G-B"],"human_gate":false},
+    {"id":"10I","title":"Prediction runtime orchestration","status":"planned","depends_on":["10E-D","10G-C","10H-C"],"human_gate":false},
+    {"id":"10J-A","title":"Temporal labels","status":"planned","depends_on":["10I"],"human_gate":false},
+    {"id":"10J-B","title":"Evaluation metrics","status":"planned","depends_on":["10J-A"],"human_gate":false},
+    {"id":"10J-C","title":"Replay and calibration","status":"planned","depends_on":["10J-B"],"human_gate":false},
+    {"id":"10K","title":"Versioned public-safe API","status":"planned","depends_on":["10I","10J-B","10N-A"],"human_gate":false},
+    {"id":"10L","title":"Persian/English web application","status":"planned","depends_on":["10K"],"human_gate":false},
+    {"id":"10M","title":"Watchlist and Telegram adapter","status":"planned","depends_on":["10K","10L"],"human_gate":false},
+    {"id":"10O-A","title":"Security and public-boundary hardening","status":"planned","depends_on":["10K","10M"],"human_gate":false},
+    {"id":"10O-B","title":"Reliability and local operations","status":"planned","depends_on":["10O-A"],"human_gate":false},
+    {"id":"10O-C","title":"Docker/local reproducible deployment","status":"planned","depends_on":["10O-B"],"human_gate":false},
+    {"id":"10P","title":"CI and competition submission release","status":"planned","depends_on":["10J-C","10O-C"],"human_gate":false},
+    {"id":"10N-B","title":"Solana/on-chain verification","status":"deferred_not_required","depends_on":["10N-A"],"human_gate":false,"required_for_program_complete":false}
   ]
 }

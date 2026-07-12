@@ -1,48 +1,32 @@
 # MatchPulse Technical Enablement Checklist
 
-Program mode may be enabled only after these technical checks are satisfied. Enabling it is a separate governance action.
+## Enabled authority and state
 
-## Authority and state
+- [x] `PROGRAM_PLAN.json` enables program mode without further human enablement and limits parallel execution to one phase.
+- [x] Phase and program modes preserve exact manifests, allowlists, validation evidence, and immutable safety boundaries.
+- [x] Deterministic successor selection uses listed plan order, completed dependencies, and resolved technical gates.
+- [x] Technical gates use the four exact canonical IDs; aliases are non-authoritative, and unknown, duplicate, or non-approved resolutions fail closed.
+- [x] DB-local migration-capable successor packs declare isolated PostgreSQL 16 scope and every required migration safety check; no gate authorizes external services, remote databases, secrets, or deployment.
+- [x] Phase execution cannot activate its successor; a separate transition follows verified publication.
+- [x] Safe auto-publication conditions are machine-readable and remote actions remain false by default.
 
-- [ ] Primary competition-product authority files parse or render correctly and contain no contradictions.
-- [ ] `PROGRAM_PLAN.json` has `program_mode.enabled: false` before the explicit enablement commit and `max_parallel_phases: 1`.
-- [ ] The active phase, queue, dependencies, baselines, allowlists and payload hashes are valid.
-- [ ] Phase 10H-A remains review-only and is not selected or activated.
+## Active phase
 
-## Repository and toolchain
+- [x] Phase 10F-C is completed at `b4f1bf28e3ad05d4c796ac52a1383cd918182842`.
+- [x] Phase 10H-A v1 is the sole active ready phase and is human-approved.
+- [x] Its reviewed five-file payload and hashes are unchanged.
+- [x] Its manifest permits automatic publication only after all program and manifest safety conditions pass.
 
-- [ ] Offline frozen dependency installation succeeds.
-- [ ] Prisma client generation succeeds without applying a migration.
-- [ ] Repository typecheck, required builds and tests pass.
-- [ ] All retained JSON files parse.
-- [ ] Automation and phase-pack schema checks pass.
+## Safety
 
-## Local data safety
+- [x] Real external-service access, secrets, shared or remote database mutation, remote deployment, paid resources, force push, and irreversible remote actions remain prohibited.
+- [x] Local migration authority requires explicit manifest permission, isolated local or ephemeral PostgreSQL 16, and all migration safety checks.
+- [x] Public redaction, data integrity, determinism, security stops, and no-gambling rules cannot be weakened.
+- [x] Missing credentials block live verification only; Solana/on-chain work is deferred and not required.
 
-- [ ] PostgreSQL 16 runs locally or ephemerally with an isolated repository-owned database.
-- [ ] A phase may create or apply a local migration only when its manifest explicitly permits it.
-- [ ] Shared and remote database mutation is denied.
-- [ ] Migration prechecks, rollback/forward-fix instructions and data-integrity tests are present where applicable.
+## Bootstrap verification
 
-## External adapters
-
-- [ ] TxLINE, Telegram and private-model adapters have deterministic fixtures, local fakes and contract tests.
-- [ ] Live access is disabled by default and requires explicit authorization plus configured credentials.
-- [ ] Missing credentials are recorded as live verification not run and do not block other work.
-- [ ] Timeouts, retry limits, concurrency limits and exact host allowlists are declared.
-
-## Security and public boundary
-
-- [ ] Secret scanning and public-leakage checks pass.
-- [ ] Public contracts are versioned and exclude raw provider data, identities, private weights, coefficients, thresholds, proof blobs and debug lineage.
-- [ ] Authentication, input limits, safe errors, log redaction, rate limits and dependency checks are covered where applicable.
-- [ ] No gambling or ordinary-user wallet functionality is introduced.
-
-## Product and release evidence
-
-- [ ] Backend, persistence, ingestion, prediction, evaluation, API, bilingual web, watchlist and Telegram phases are represented.
-- [ ] Docker/local startup, seeds, health/readiness and a seeded end-to-end scenario are defined.
-- [ ] CI covers typecheck, tests, build, schema, security and public-redaction gates.
-- [ ] Release notes, limitations, startup instructions and competition submission artifacts are defined.
-- [ ] Solana/on-chain work is marked deferred and not required.
-- [ ] Remote mutation and remote deployment remain separately authorized actions.
+- [x] All retained JSON parses; plan/queue identity, references, acyclicity, active identity, and payload hashes are checked.
+- [x] Payloads apply cleanly against the bootstrap parent.
+- [x] Offline frozen install, Prisma generation, repository typecheck, and diff checks pass.
+- [x] Changed paths are exactly the approved governance scope; runtime, Prisma, migrations, lockfiles, payloads, secrets, and environment files are unchanged.
