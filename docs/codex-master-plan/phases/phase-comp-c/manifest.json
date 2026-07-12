@@ -18,7 +18,7 @@
     "docs/competition-release-submission.md"
   ],
   "required_validation_commands": [
-    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/competition-replay-fixtures.test.ts src/server-competition-replay-route.test.ts src/competition-prediction-public-mapper.test.ts src/server-competition-prediction-route.test.ts",
+    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/odds-intelligence-public-mapper.test.ts src/competition-replay-fixtures.test.ts src/server-competition-replay-route.test.ts src/competition-prediction-public-mapper.test.ts src/server-competition-prediction-route.test.ts",
     "pnpm.cmd --filter @matchpulse/api typecheck",
     "pnpm.cmd --filter @matchpulse/api build",
     "pnpm.cmd --filter @matchpulse/api test",
@@ -29,8 +29,13 @@
   ],
   "expected_results": [
     "all required competition prediction families render",
+    "mandatory human-readable odds-analysis section renders",
+    "odds analysis shows reliability, freshness, coverage, agreement, volatility, counts, notable movements, summary, limitations, and last update",
+    "prediction and odds analysis are visually and semantically distinct",
+    "replay demonstrates market movement and reliability or freshness change",
     "live/stored and deterministic replay modes are distinguishable",
     "loading, stale, partial, no-data, and error states are safe",
+    "unavailable odds remain visible with a human-readable explanation",
     "no protected field enters browser props",
     "no betting or financial recommendation language exists",
     "no wallet or payment is required",
