@@ -1,0 +1,59 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "COMP-C",
+  "pack_version": "COMP-C-v1",
+  "baseline_commit": "e33a8f4d8949ee219261350b1bd05836bc3c8878",
+  "review_only": true,
+  "allowed_target_files": [
+    "apps/api/src/competition-replay-fixtures.ts",
+    "apps/api/src/competition-replay-fixtures.test.ts",
+    "apps/api/src/server-competition-replay-route.ts",
+    "apps/api/src/server-competition-replay-route.test.ts",
+    "apps/api/src/server.ts",
+    "apps/api/package.json",
+    "apps/web/app/competition/page.tsx",
+    "apps/web/components/competition/CompetitionPredictionPanel.tsx",
+    "apps/web/lib/competition-api.ts",
+    "apps/web/app/page.tsx",
+    "docs/competition-release-submission.md"
+  ],
+  "required_validation_commands": [
+    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/odds-intelligence-public-mapper.test.ts src/competition-replay-fixtures.test.ts src/server-competition-replay-route.test.ts src/competition-prediction-public-mapper.test.ts src/server-competition-prediction-route.test.ts",
+    "pnpm.cmd --filter @matchpulse/api typecheck",
+    "pnpm.cmd --filter @matchpulse/api build",
+    "pnpm.cmd --filter @matchpulse/api test",
+    "pnpm.cmd --filter @matchpulse/web typecheck",
+    "pnpm.cmd --filter @matchpulse/web build",
+    "git diff --check",
+    "git diff --name-only -- prisma"
+  ],
+  "expected_results": [
+    "all required competition prediction families render",
+    "mandatory human-readable odds-analysis section renders",
+    "odds analysis shows reliability, freshness, coverage, agreement, volatility, counts, notable movements, summary, limitations, and last update",
+    "prediction and odds analysis are visually and semantically distinct",
+    "replay demonstrates market movement and reliability or freshness change",
+    "live/stored and deterministic replay modes are distinguishable",
+    "loading, stale, partial, no-data, and error states are safe",
+    "unavailable odds remain visible with a human-readable explanation",
+    "no protected field enters browser props",
+    "no betting or financial recommendation language exists",
+    "no wallet or payment is required",
+    "API typecheck and production build pass",
+    "full API regression passes",
+    "web typecheck and production build pass",
+    "Prisma/migration diff is empty",
+    "no real network access during validation",
+    "no migration applied",
+    "exact frontend collision check passes before activation",
+    "no successor activation"
+  ],
+  "allows_migration": false,
+  "allows_network": false,
+  "git_publish": {
+    "allow_commit": true,
+    "allow_push": false,
+    "require_exact_staged_paths": true,
+    "commit_message": "Complete COMP-C competition release experience"
+  }
+}

@@ -2,7 +2,7 @@
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
   "active_phase_id": "BUILD-INFRA-A",
-  "updated_at": "2026-07-12T19:12:04Z",
+  "updated_at": "2026-07-12T21:36:00Z",
   "items": [
     {
       "id": "governance-orchestration-v1",
@@ -97,26 +97,49 @@
     {
       "id": "BUILD-INFRA-A",
       "title": "Workspace package build and API output boundary",
-      "status": "ready",
+      "status": "completed_pending_review",
       "depends_on": ["10F-C"],
       "pack_version": "BUILD-INFRA-A-v1",
       "baseline_commit": "865489f386cc1073532f8889365470b57eb9b852",
+      "completion_commit": "e33a8f4d8949ee219261350b1bd05836bc3c8878",
       "human_gate": false
     },
     {
-      "id": "10H-A",
-      "title": "Prediction composition engine",
+      "id": "COMP-A",
+      "title": "Competition complete prediction baseline kernel",
       "status": "planned",
-      "depends_on": ["10F-C", "BUILD-INFRA-A"],
-      "pack_version": "10H-A-v1",
-      "baseline_commit": "b4f1bf28e3ad05d4c796ac52a1383cd918182842",
+      "depends_on": ["BUILD-INFRA-A"],
+      "pack_version": "COMP-A-v1",
+      "human_gate": false
+    },
+    {
+      "id": "COMP-B",
+      "title": "Competition prediction runtime and versioned public-safe API",
+      "status": "planned",
+      "depends_on": ["COMP-A"],
+      "pack_version": "COMP-B-v1",
+      "human_gate": true
+    },
+    {
+      "id": "COMP-C",
+      "title": "Competition web experience, replay fallback, and submission gate",
+      "status": "planned",
+      "depends_on": ["COMP-B"],
+      "pack_version": "COMP-C-v1",
+      "human_gate": true
+    },
+    {
+      "id": "10H-A",
+      "title": "Production prediction composition engine",
+      "status": "planned",
+      "depends_on": ["COMP-C"],
       "human_gate": false
     },
     {
       "id": "10H",
-      "title": "Prediction engine",
+      "title": "Production prediction engine",
       "status": "planned",
-      "depends_on": ["10E-C"],
+      "depends_on": ["10H-A"],
       "human_gate": false
     },
     {
@@ -135,14 +158,14 @@
     },
     {
       "id": "10K",
-      "title": "Public prediction API",
+      "title": "Production public prediction API",
       "status": "planned",
       "depends_on": ["10I"],
       "human_gate": true
     },
     {
       "id": "10L",
-      "title": "Final web experience",
+      "title": "Final production web experience",
       "status": "planned",
       "depends_on": ["10K"],
       "human_gate": true
@@ -170,7 +193,7 @@
     },
     {
       "id": "10P",
-      "title": "Demo and submission",
+      "title": "Production demo and final delivery",
       "status": "planned",
       "depends_on": ["10O"],
       "human_gate": true
