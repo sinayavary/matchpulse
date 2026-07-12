@@ -1,8 +1,8 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "10H-A",
-  "updated_at": "2026-07-12T14:59:19.4721484Z",
+  "active_phase_id": "BUILD-INFRA-A",
+  "updated_at": "2026-07-12T19:12:04Z",
   "items": [
     {
       "id": "governance-orchestration-v1",
@@ -95,10 +95,19 @@
       "human_gate": true
     },
     {
-      "id": "10H-A",
-      "title": "Prediction composition engine",
+      "id": "BUILD-INFRA-A",
+      "title": "Workspace package build and API output boundary",
       "status": "ready",
       "depends_on": ["10F-C"],
+      "pack_version": "BUILD-INFRA-A-v1",
+      "baseline_commit": "865489f386cc1073532f8889365470b57eb9b852",
+      "human_gate": false
+    },
+    {
+      "id": "10H-A",
+      "title": "Prediction composition engine",
+      "status": "planned",
+      "depends_on": ["10F-C", "BUILD-INFRA-A"],
       "pack_version": "10H-A-v1",
       "baseline_commit": "b4f1bf28e3ad05d4c796ac52a1383cd918182842",
       "human_gate": false
