@@ -2,16 +2,19 @@
 
 ## Review status
 
-This is a review-only phase definition. It must not become active until `BUILD-INFRA-A` is human-reviewed and the exact implementation payload and hashes are generated against the then-current `main` commit.
+This is a review-only phase definition. It must not become active until the exact implementation payload and hashes are generated against the locked competition baseline.
 
-- Baseline candidate: `e33a8f4d8949ee219261350b1bd05836bc3c8878`
+- Baseline candidate: `13c2e80ec40da1443048cd61bb020a501f4b9d22`
 - Track: Competition Release
 - Pack version: `COMP-A-v1`
 - Successor: `COMP-B`
+- Scope: locked; no optional capability may be added
 
 ## Objective
 
 Implement the first permanent prediction-engine profile, `competition_baseline_v1`, behind the existing `FinalPredictionSnapshot` boundary.
+
+To minimize time and avoid duplicate work, COMP-A must reuse the already reviewed `prediction-engine-v1` composition kernel from the prepared `10H-A` source payload. COMP-A must not create a second competing composition engine. It adds only the bounded competition specialist profile required to feed the permanent composition boundary.
 
 The model is deliberately bounded and deterministic, but it must return all required prediction families:
 
@@ -29,16 +32,27 @@ This is not a placeholder contract and must not return balanced defaults when us
 
 ## Architecture
 
-Create a competition model profile whose specialists map directly to future production roles:
+Use one permanent composition path:
 
-- state specialist;
-- market specialist;
-- event specialist;
-- goal-hazard specialist;
-- scoreline specialist;
-- complete fallback specialist.
+```text
+normalized competition input
+  ↓
+competition_baseline_v1 specialists
+  - state
+  - market
+  - event
+  - goal hazard
+  - scoreline
+  - complete fallback
+  ↓
+prediction-engine-v1 composition kernel
+  ↓
+FinalPredictionSnapshot
+```
 
-The engine must consume normalized, bounded inputs. It must not read Prisma, call TxLINE, register routes, mutate caller-owned input, or expose internal coefficients.
+The competition profile specialists map directly to future production roles. Future production phases may replace individual specialist implementations without changing the composition kernel, snapshot contract, service, API, or web caller.
+
+The pure engine must consume normalized, bounded inputs. It must not read Prisma, call TxLINE, register routes, mutate caller-owned input, expose internal coefficients, or introduce another prediction contract.
 
 ## Required behavior
 
@@ -78,12 +92,12 @@ The engine must consume normalized, bounded inputs. It must not read Prisma, cal
 ### Momentum shift
 
 - Normalize home-strengthens/neutral/away-strengthens to exactly one.
-- Use only approved state, pressure, event-impact, and market direction inputs.
+- Use only approved state, pressure, event-impact, and market-direction inputs.
 - Missing event evidence must not fabricate pressure.
 
 ### Confidence and risk
 
-- Confidence is derived from coverage, freshness, reliability, and model agreement support.
+- Confidence is derived from coverage, freshness, reliability, and model-agreement support.
 - Confidence must not be described as guaranteed accuracy.
 - Missing minute, stale data, missing odds/events, disagreement, and fallback use must be represented in risk reasons.
 
@@ -96,25 +110,32 @@ The engine must consume normalized, bounded inputs. It must not read Prisma, cal
 ## Compatibility rules
 
 - Do not replace or fork `FinalPredictionSnapshot`.
+- Do not create a parallel competition prediction contract.
+- Do not create a second composition engine when `prediction-engine-v1` can be reused.
 - Do not change public routes.
 - Do not add a database migration.
 - Do not remove `live-prediction-agent.ts`; COMP-B may adapt or deprecate it behind the permanent boundary.
-- Future `10H-A` must be able to replace individual competition specialists without changing callers.
+- Future production work must strengthen specialists without requiring caller rewrites.
 
-## Planned implementation targets
+## Exact implementation scope
 
+Only these implementation targets are allowed:
+
+- `apps/api/src/prediction-engine-v1.ts`
+- `apps/api/src/prediction-engine-v1.test.ts`
 - `apps/api/src/competition-model-profile.ts`
 - `apps/api/src/competition-model-profile.test.ts`
-- `apps/api/src/competition-prediction-engine-v1.ts`
-- `apps/api/src/competition-prediction-engine-v1.test.ts`
 - `apps/api/package.json`
 - `docs/phase-comp-a-competition-prediction-baseline.md`
+
+No route, service, worker, frontend, Prisma, migration, public mapper, persistence, network, or notification file may change in COMP-A.
 
 ## Validation gate
 
 The activated phase pack must prove:
 
-- all prediction target tests pass;
+- the reused composition-kernel tests pass;
+- all competition prediction targets are produced;
 - all probability invariants pass;
 - terminal, pre-match, partial-data, stale-data, missing-odds, missing-events, and high-disagreement fixtures are covered;
 - deterministic snapshot tests pass;
