@@ -2,7 +2,7 @@
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
   "active_phase_id": "BUILD-INFRA-A",
-  "updated_at": "2026-07-12T21:30:00Z",
+  "updated_at": "2026-07-12T21:36:00Z",
   "items": [
     {
       "id": "governance-orchestration-v1",
@@ -110,7 +110,6 @@
       "status": "planned",
       "depends_on": ["BUILD-INFRA-A"],
       "pack_version": "COMP-A-v1",
-      "baseline_commit": "e33a8f4d8949ee219261350b1bd05836bc3c8878",
       "human_gate": false
     },
     {
@@ -134,7 +133,6 @@
       "title": "Production prediction composition engine",
       "status": "planned",
       "depends_on": ["COMP-C"],
-      "pack_version": "10H-A-v1",
       "human_gate": false
     },
     {
