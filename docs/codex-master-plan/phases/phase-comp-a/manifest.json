@@ -5,13 +5,23 @@
   "baseline_commit": "13c2e80ec40da1443048cd61bb020a501f4b9d22",
   "review_only": true,
   "allowed_target_files": [
-    "apps/api/src/prediction-engine-v1.ts",
-    "apps/api/src/prediction-engine-v1.test.ts",
-    "apps/api/src/competition-model-profile.ts",
-    "apps/api/src/competition-model-profile.test.ts",
     "apps/api/package.json",
+    "apps/api/src/competition-model-profile.test.ts",
+    "apps/api/src/competition-model-profile.ts",
+    "apps/api/src/prediction-engine-v1.test.ts",
+    "apps/api/src/prediction-engine-v1.ts",
     "docs/phase-comp-a-competition-prediction-baseline.md"
   ],
+  "reused_payload_sources": {
+    "apps/api/src/prediction-engine-v1.test.ts": {
+      "source_path": "docs/codex-master-plan/phases/phase-10h-a/payload/apps/api/src/prediction-engine-v1.test.ts",
+      "sha256": "cc1ad4428852c7d78c1a2213349981dec2b48e6de99622cc356e009db2889e6e"
+    },
+    "apps/api/src/prediction-engine-v1.ts": {
+      "source_path": "docs/codex-master-plan/phases/phase-10h-a/payload/apps/api/src/prediction-engine-v1.ts",
+      "sha256": "5a8e589f87ea7384fc7c3c97f03a4d0f3e4ef57c9f196831a3c811ad4c6c318b"
+    }
+  },
   "required_validation_commands": [
     "pnpm.cmd --filter @matchpulse/api exec tsx --test src/final-prediction-domain.test.ts src/prediction-engine-v1.test.ts src/competition-model-profile.test.ts",
     "pnpm.cmd --filter @matchpulse/api typecheck",
