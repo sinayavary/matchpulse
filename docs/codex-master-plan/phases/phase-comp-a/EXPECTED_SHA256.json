@@ -1,6 +1,6 @@
 {
   "schema_version": "matchpulse-payload-integrity-v2",
-  "verification_mode": "sha256",
+  "verification_mode": "sha256-canonical-lf-v1",
   "files": {
     "apps/api/package.json": "aa38216c853d74df7a2b4c6631004a610f3116aac6f527716559d88c36ff715d",
     "apps/api/src/competition-model-profile.test.ts": "0077063848f3ec8c28729c96da08c8dfa5e483dbfa538d1977ca46d2121c19cb",
