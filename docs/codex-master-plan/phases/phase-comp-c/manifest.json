@@ -2,7 +2,7 @@
   "schema_version": "matchpulse-phase-pack-v1",
   "phase": "COMP-C",
   "pack_version": "COMP-C-v1",
-  "baseline_commit": "TBD_AFTER_COMP_B_PUBLICATION",
+  "baseline_commit": "e33a8f4d8949ee219261350b1bd05836bc3c8878",
   "review_only": true,
   "allowed_target_files": [
     "apps/api/src/competition-replay-fixtures.ts",
