@@ -18,7 +18,7 @@
     "docs/phase-comp-b-competition-runtime-api.md"
   ],
   "required_validation_commands": [
-    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/competition-model-profile.test.ts src/competition-prediction-engine-v1.test.ts src/competition-prediction-service.test.ts src/competition-prediction-public-mapper.test.ts src/competition-prediction-route-contract.test.ts src/server-competition-prediction-route.test.ts",
+    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/competition-model-profile.test.ts src/competition-prediction-engine-v1.test.ts src/odds-intelligence-public-mapper.test.ts src/competition-prediction-service.test.ts src/competition-prediction-public-mapper.test.ts src/competition-prediction-route-contract.test.ts src/server-competition-prediction-route.test.ts",
     "pnpm.cmd --filter @matchpulse/api typecheck",
     "pnpm.cmd --filter @matchpulse/api build",
     "pnpm.cmd --filter @matchpulse/api test",
@@ -27,6 +27,10 @@
   ],
   "expected_results": [
     "all required prediction families are present",
+    "mandatory public market_analysis is present in every bounded response",
+    "market_analysis exposes reliability, freshness, coverage, agreement, volatility, counts, notable movements, summary, limitations, and last update",
+    "prediction and public odds analysis remain separately labeled",
+    "exact fair probabilities, consensus probabilities, provider identities, component scores, and internal market weights are absent",
     "internal competition prediction route is authenticated",
     "versioned public-safe prediction route is available",
     "public mapper recursively removes protected internals",
