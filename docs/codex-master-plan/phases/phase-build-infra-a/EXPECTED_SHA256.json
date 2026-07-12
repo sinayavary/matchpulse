@@ -1,0 +1,12 @@
+{
+  "schema_version": "matchpulse-payload-integrity-v2",
+  "verification_mode": "sha256",
+  "files": {
+    "apps/api/package.json": "5f36765a001f8cce645764eded3ec9086b311afa961517fb328437b823e8e5ba",
+    "apps/api/tsconfig.build.json": "2e34d8a946f6833757b0d4c2b5c054b0b7d9bf0fc8e2bc3cb5aaab230f05d83a",
+    "packages/shared/package.json": "a72bc647fa630f5f1fe7531315434c99b4671517c71674353a0a54a1205be7c1",
+    "packages/shared/tsconfig.json": "368e88ad4ab8797b820bcf5e4bcef165f4cfc5ee0e79ee6c1d117ac9837859d2",
+    "packages/txline-client/package.json": "7e82ed0d097c0a890167c2a08545333435650ab005b725b666ca56ff417a89a2",
+    "packages/txline-client/tsconfig.json": "368e88ad4ab8797b820bcf5e4bcef165f4cfc5ee0e79ee6c1d117ac9837859d2"
+  }
+}
