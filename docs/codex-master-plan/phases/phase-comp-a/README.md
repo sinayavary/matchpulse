@@ -64,7 +64,39 @@ Copy these two unchanged reviewed files from the canonical Phase 10H-A payload:
 - `../phase-10h-a/payload/apps/api/src/prediction-engine-v1.ts` → `apps/api/src/prediction-engine-v1.ts`
 - `../phase-10h-a/payload/apps/api/src/prediction-engine-v1.test.ts` → `apps/api/src/prediction-engine-v1.test.ts`
 
-Before implementation and again before Prepare, verify the SHA-256 of all six target files against `EXPECTED_SHA256.json`. A mismatch is `SPEC_CONFLICT`; do not regenerate, reformat, or repair payload bytes ad hoc.
+Before implementation and again before Prepare, verify the SHA-256 of all six target files against `EXPECTED_SHA256.json`. The expected values use `sha256-canonical-lf-v1`: valid UTF-8 content with every CRLF or lone CR normalized to LF for verification only. This makes the integrity gate independent of Git checkout line-ending conversion while preserving the canonical repository payload. A mismatch after canonical LF normalization is `SPEC_CONFLICT`; do not regenerate, reformat, or repair payload content ad hoc.
+
+### Canonical SHA-256 verification
+
+Use this verifier for every source payload before copying and every copied target before Prepare:
+
+```powershell
+function Get-CanonicalLfSha256 {
+  param([Parameter(Mandatory = $true)][string]$LiteralPath)
+
+  $resolved = (Resolve-Path -LiteralPath $LiteralPath).Path
+  $bytes = [System.IO.File]::ReadAllBytes($resolved)
+  $strictUtf8 = [System.Text.UTF8Encoding]::new($false, $true)
+
+  try {
+    $text = $strictUtf8.GetString($bytes)
+  } catch {
+    throw "SPEC_CONFLICT: payload is not valid UTF-8: $LiteralPath"
+  }
+
+  $canonicalText = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+  $canonicalBytes = [System.Text.UTF8Encoding]::new($false).GetBytes($canonicalText)
+  $sha256 = [System.Security.Cryptography.SHA256]::Create()
+
+  try {
+    return (($sha256.ComputeHash($canonicalBytes) | ForEach-Object { $_.ToString("x2") }) -join "")
+  } finally {
+    $sha256.Dispose()
+  }
+}
+```
+
+The verifier must not rewrite any file. Raw `Get-FileHash` output from a CRLF checkout is not comparable to this pack's canonical LF map. The canonical hash values themselves remain unchanged.
 
 ## Required behavior
 
