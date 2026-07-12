@@ -2,18 +2,28 @@
   "schema_version": "matchpulse-phase-pack-v1",
   "phase": "COMP-A",
   "pack_version": "COMP-A-v1",
-  "baseline_commit": "e33a8f4d8949ee219261350b1bd05836bc3c8878",
+  "baseline_commit": "13c2e80ec40da1443048cd61bb020a501f4b9d22",
   "review_only": true,
   "allowed_target_files": [
-    "apps/api/src/competition-model-profile.ts",
-    "apps/api/src/competition-model-profile.test.ts",
-    "apps/api/src/competition-prediction-engine-v1.ts",
-    "apps/api/src/competition-prediction-engine-v1.test.ts",
     "apps/api/package.json",
+    "apps/api/src/competition-model-profile.test.ts",
+    "apps/api/src/competition-model-profile.ts",
+    "apps/api/src/prediction-engine-v1.test.ts",
+    "apps/api/src/prediction-engine-v1.ts",
     "docs/phase-comp-a-competition-prediction-baseline.md"
   ],
+  "reused_payload_sources": {
+    "apps/api/src/prediction-engine-v1.test.ts": {
+      "source_path": "docs/codex-master-plan/phases/phase-10h-a/payload/apps/api/src/prediction-engine-v1.test.ts",
+      "sha256": "cc1ad4428852c7d78c1a2213349981dec2b48e6de99622cc356e009db2889e6e"
+    },
+    "apps/api/src/prediction-engine-v1.ts": {
+      "source_path": "docs/codex-master-plan/phases/phase-10h-a/payload/apps/api/src/prediction-engine-v1.ts",
+      "sha256": "5a8e589f87ea7384fc7c3c97f03a4d0f3e4ef57c9f196831a3c811ad4c6c318b"
+    }
+  },
   "required_validation_commands": [
-    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/final-prediction-domain.test.ts src/competition-model-profile.test.ts src/competition-prediction-engine-v1.test.ts",
+    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/final-prediction-domain.test.ts src/prediction-engine-v1.test.ts src/competition-model-profile.test.ts",
     "pnpm.cmd --filter @matchpulse/api typecheck",
     "pnpm.cmd --filter @matchpulse/api build",
     "pnpm.cmd --filter @matchpulse/api test",
@@ -21,6 +31,7 @@
     "git diff --name-only -- prisma"
   ],
   "expected_results": [
+    "the permanent prediction composition kernel is reused rather than duplicated",
     "all required prediction families are produced",
     "all distributions are normalized and bounded",
     "goal horizons are monotonic",
@@ -34,7 +45,7 @@
     "Prisma/migration diff is empty",
     "no real network access",
     "no migration applied",
-    "no route, worker, frontend, or public contract change",
+    "no route, service, worker, frontend, persistence, or public contract change",
     "no successor activation"
   ],
   "allows_migration": false,

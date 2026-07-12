@@ -1,0 +1,12 @@
+{
+  "schema_version": "matchpulse-payload-integrity-v2",
+  "verification_mode": "sha256",
+  "files": {
+    "apps/api/package.json": "aa38216c853d74df7a2b4c6631004a610f3116aac6f527716559d88c36ff715d",
+    "apps/api/src/competition-model-profile.test.ts": "0077063848f3ec8c28729c96da08c8dfa5e483dbfa538d1977ca46d2121c19cb",
+    "apps/api/src/competition-model-profile.ts": "625bb6085dfc26e146b7ac39fe7eee39adba11c7364f4f1c11d135c2bf0fcdd2",
+    "apps/api/src/prediction-engine-v1.test.ts": "cc1ad4428852c7d78c1a2213349981dec2b48e6de99622cc356e009db2889e6e",
+    "apps/api/src/prediction-engine-v1.ts": "5a8e589f87ea7384fc7c3c97f03a4d0f3e4ef57c9f196831a3c811ad4c6c318b",
+    "docs/phase-comp-a-competition-prediction-baseline.md": "81ae883e96cb6862eef24cf243366639d878fb2e17f60a9351639044a769a7db"
+  }
+}

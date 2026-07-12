@@ -2,134 +2,136 @@
 
 ## Review status
 
-This is a review-only phase definition. It must not become active until `BUILD-INFRA-A` is human-reviewed and the exact implementation payload and hashes are generated against the then-current `main` commit.
+This is a review-only exact implementation pack. It must not become active until the payload, SHA-256 map, baseline ancestry, allowed targets, and validation plan are reviewed against the locked competition baseline.
 
-- Baseline candidate: `e33a8f4d8949ee219261350b1bd05836bc3c8878`
+- Baseline: `13c2e80ec40da1443048cd61bb020a501f4b9d22`
 - Track: Competition Release
 - Pack version: `COMP-A-v1`
 - Successor: `COMP-B`
+- Scope: locked; no optional capability may be added
 
 ## Objective
 
-Implement the first permanent prediction-engine profile, `competition_baseline_v1`, behind the existing `FinalPredictionSnapshot` boundary.
-
-The model is deliberately bounded and deterministic, but it must return all required prediction families:
+Implement `competition_baseline_v1` behind the existing `FinalPredictionSnapshot` boundary. The profile is deliberately bounded and deterministic, but it returns every competition prediction family:
 
 - final result 1X2;
-- next goal side;
-- goal in next 5/10/15 minutes;
-- final score distribution;
+- next-goal side;
+- goal probability in the next 5, 10, and 15 minutes;
+- final-score distribution;
 - current-result survival/change;
 - momentum shift;
 - confidence;
 - risk;
 - explanation and limitations.
 
-This is not a placeholder contract and must not return balanced defaults when usable score, time, odds, or event evidence is present.
+This is not a placeholder contract. Usable score, time, odds, and event evidence must change the output from conservative fallback values.
 
-## Architecture
+## One permanent composition path
 
-Create a competition model profile whose specialists map directly to future production roles:
+COMP-A must reuse the reviewed `prediction-engine-v1` payload already stored in the repository. It must not create a second composition engine or another prediction contract.
 
-- state specialist;
-- market specialist;
-- event specialist;
-- goal-hazard specialist;
-- scoreline specialist;
-- complete fallback specialist.
+```text
+normalized competition input
+  ↓
+competition_baseline_v1 specialists
+  - state / pre-match prior
+  - bounded market
+  - event pressure
+  - goal hazard
+  - scoreline
+  - complete fallback
+  ↓
+prediction-engine-v1
+  ↓
+FinalPredictionSnapshot
+```
 
-The engine must consume normalized, bounded inputs. It must not read Prisma, call TxLINE, register routes, mutate caller-owned input, or expose internal coefficients.
+Future production phases may replace individual specialists without changing the composition engine, snapshot contract, service, public API, replay adapter, or web caller.
+
+## Exact payload application
+
+Apply only the six target files listed in `manifest.json`.
+
+Copy these four files from this COMP-A pack:
+
+- `payload/apps/api/package.json` → `apps/api/package.json`
+- `payload/apps/api/src/competition-model-profile.ts` → `apps/api/src/competition-model-profile.ts`
+- `payload/apps/api/src/competition-model-profile.test.ts` → `apps/api/src/competition-model-profile.test.ts`
+- `payload/docs/phase-comp-a-competition-prediction-baseline.md` → `docs/phase-comp-a-competition-prediction-baseline.md`
+
+Copy these two unchanged reviewed files from the canonical Phase 10H-A payload:
+
+- `../phase-10h-a/payload/apps/api/src/prediction-engine-v1.ts` → `apps/api/src/prediction-engine-v1.ts`
+- `../phase-10h-a/payload/apps/api/src/prediction-engine-v1.test.ts` → `apps/api/src/prediction-engine-v1.test.ts`
+
+Before implementation and again before Prepare, verify the SHA-256 of all six target files against `EXPECTED_SHA256.json`. A mismatch is `SPEC_CONFLICT`; do not regenerate, reformat, or repair payload bytes ad hoc.
 
 ## Required behavior
 
-### Final outcome
+### State and terminal behavior
 
-- Normalize to exactly one.
-- Use reliable market evidence only within the existing approved market-weight cap.
 - Apply bounded score/minute/phase evidence.
-- Use conservative fallback when market/state inputs are missing.
-- Finished matches become terminal deterministic outcomes.
+- Finished matches become deterministic terminal outputs.
+- Final-score candidates never go below the current score.
+- Missing score or minute activates explicit conservative support and limitations.
 
-### Next goal
+### Market and event behavior
 
-- Normalize home/none/away to exactly one.
-- Use remaining time, score state, event pressure, and usable market direction.
-- `none` must increase as remaining time decreases when no stronger evidence exists.
+- Use market distributions only when the normalized assessment is usable.
+- Market contribution must not exceed the approved odds-intelligence cap and is additionally bounded by the competition profile.
+- Unusable or missing odds receive zero market weight.
+- Missing event evidence must not fabricate pressure or impact.
 
-### Goal horizons
+### Prediction invariants
 
-- Produce bounded probabilities for 5, 10, and 15 minutes.
+- Normalize final outcome, next goal, result survival, and momentum distributions.
 - Enforce `next_5m <= next_10m <= next_15m`.
-- Finished matches return zero for all future goal horizons.
+- Normalize the bounded scoreline set plus `other_probability`.
+- Identical canonical input must produce identical output and snapshot identity.
+- Caller-owned input must remain unchanged.
 
-### Final score distribution
+### Confidence, risk, and explanation
 
-- Produce a bounded top scoreline set and `other_probability`.
-- Preserve current score as the minimum reachable score.
-- Normalize the complete distribution after truncation.
-- Finished matches return the actual final score with probability one.
+- Confidence reflects coverage, freshness, reliability, and agreement support, not guaranteed accuracy.
+- The baseline must identify itself as intentionally limited and not production calibrated.
+- Missing minute, stale data, missing odds/events, disagreement, and fallback use must appear in bounded risk reasons where applicable.
 
-### Current result survival
+## Boundaries
 
-- Normalize hold/change to exactly one.
-- Finished matches return hold = one.
-- Missing scoreboard produces conservative low-support output and explicit limitations.
+The pure profile must not:
 
-### Momentum shift
+- read Prisma or a database;
+- call TxLINE or any external service;
+- register a route, service, worker, or scheduler;
+- add persistence or a migration;
+- change a public DTO;
+- modify frontend code;
+- expose provider identity, raw observations, formulas, coefficients, exact private weights, or financial/betting recommendation fields.
 
-- Normalize home-strengthens/neutral/away-strengthens to exactly one.
-- Use only approved state, pressure, event-impact, and market direction inputs.
-- Missing event evidence must not fabricate pressure.
-
-### Confidence and risk
-
-- Confidence is derived from coverage, freshness, reliability, and model agreement support.
-- Confidence must not be described as guaranteed accuracy.
-- Missing minute, stale data, missing odds/events, disagreement, and fallback use must be represented in risk reasons.
-
-### Determinism and safety
-
-- Identical canonical input yields an identical snapshot identity and output.
-- No random source, wall-clock read, network, database, or mutable singleton is allowed in the pure engine.
-- No provider identity, formula, exact internal weight, raw observation, betting recommendation, or expected-value field is emitted.
-
-## Compatibility rules
-
-- Do not replace or fork `FinalPredictionSnapshot`.
-- Do not change public routes.
-- Do not add a database migration.
-- Do not remove `live-prediction-agent.ts`; COMP-B may adapt or deprecate it behind the permanent boundary.
-- Future `10H-A` must be able to replace individual competition specialists without changing callers.
-
-## Planned implementation targets
-
-- `apps/api/src/competition-model-profile.ts`
-- `apps/api/src/competition-model-profile.test.ts`
-- `apps/api/src/competition-prediction-engine-v1.ts`
-- `apps/api/src/competition-prediction-engine-v1.test.ts`
-- `apps/api/package.json`
-- `docs/phase-comp-a-competition-prediction-baseline.md`
+COMP-A does not expose the human-readable odds panel. The existing odds intelligence becomes a mandatory public `market_analysis` object in COMP-B and is rendered independently from prediction in COMP-C.
 
 ## Validation gate
 
-The activated phase pack must prove:
+Run exactly the commands in `manifest.json`. The phase is complete only when evidence proves:
 
-- all prediction target tests pass;
-- all probability invariants pass;
-- terminal, pre-match, partial-data, stale-data, missing-odds, missing-events, and high-disagreement fixtures are covered;
-- deterministic snapshot tests pass;
-- recursive forbidden-field checks pass;
+- focused prediction-domain, reused-engine, and competition-profile tests pass;
+- every prediction target is produced;
+- probability, monotonicity, scoreline, terminal, fallback, determinism, and immutability cases pass;
+- partial, stale, missing-odds, missing-events, and disagreement cases degrade safely;
 - API typecheck and production build pass;
-- full API regression passes;
+- the full API regression suite passes;
+- `git diff --check` passes;
 - Prisma/migration diff is empty;
-- no network access occurs;
-- only exact allowlisted files change.
+- no real network or database operation occurs;
+- only exact allowlisted targets change.
+
+A limited isolated test run of the new profile covered seven focused scenarios successfully while authoring this pack. This is supporting review evidence only; it does not replace the required repository typecheck, production build, or full regression commands.
 
 ## Completion
 
-After successful execution:
+After every validation passes:
 
-1. update only allowed `ACTIVE_PHASE.json` completion metadata;
+1. update only the permitted `ACTIVE_PHASE.json` completion metadata;
 2. run Automation v2 `Prepare`;
 3. stop before `Publish`;
 4. report `PHASE_COMPLETE_PREPARED`;
