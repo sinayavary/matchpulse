@@ -1,8 +1,8 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "10F-C",
-  "updated_at": "2026-07-11T20:44:47.000Z",
+  "active_phase_id": "10H-A",
+  "updated_at": "2026-07-12T14:59:19.4721484Z",
   "items": [
     {
       "id": "governance-orchestration-v1",
@@ -73,10 +73,11 @@
     {
       "id": "10F-C",
       "title": "TxLINE complete client integration and regression closure",
-      "status": "ready",
+      "status": "completed",
       "depends_on": ["10F-B"],
       "pack_version": "10F-C-v1",
       "baseline_commit": "c1b2461ec42db2af1d93bfb5af7dcdb714bb2c7e",
+      "completion_commit": "b4f1bf28e3ad05d4c796ac52a1383cd918182842",
       "human_gate": false
     },
     {
@@ -92,6 +93,15 @@
       "status": "planned",
       "depends_on": ["10F", "gate-1"],
       "human_gate": true
+    },
+    {
+      "id": "10H-A",
+      "title": "Prediction composition engine",
+      "status": "ready",
+      "depends_on": ["10F-C"],
+      "pack_version": "10H-A-v1",
+      "baseline_commit": "b4f1bf28e3ad05d4c796ac52a1383cd918182842",
+      "human_gate": false
     },
     {
       "id": "10H",
