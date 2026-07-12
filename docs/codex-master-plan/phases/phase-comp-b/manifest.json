@@ -2,7 +2,7 @@
   "schema_version": "matchpulse-phase-pack-v1",
   "phase": "COMP-B",
   "pack_version": "COMP-B-v1",
-  "baseline_commit": "TBD_AFTER_COMP_A_PUBLICATION",
+  "baseline_commit": "e33a8f4d8949ee219261350b1bd05836bc3c8878",
   "review_only": true,
   "allowed_target_files": [
     "apps/api/src/competition-prediction-service.ts",
@@ -26,9 +26,9 @@
     "git diff --name-only -- prisma"
   ],
   "expected_results": [
+    "all required prediction families are present",
     "internal competition prediction route is authenticated",
     "versioned public-safe prediction route is available",
-    "all required prediction families are present",
     "public mapper recursively removes protected internals",
     "partial, stale, no-data, finished, and replay paths are bounded",
     "unknown query parameters are rejected",
