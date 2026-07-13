@@ -14,6 +14,12 @@ import {
   getCompetitionPredictionForFixture,
   type CompetitionPredictionRuntimeResult,
 } from "./competition-prediction-service.js";
+import {
+  COMPETITION_REPLAY_FIXTURE_ID,
+  getCompetitionReplayCheckpoint,
+  listCompetitionReplayCheckpoints,
+} from "./competition-replay-fixtures.js";
+import { assertPublicCompetitionPredictionSafe } from "./competition-prediction-public-mapper.js";
 
 export type CompetitionPredictionRouteDependencies = {
   getCompetitionPredictionForFixture?: (
@@ -147,6 +153,123 @@ export function registerCompetitionPredictionRoutes(
           "Competition prediction is temporarily unavailable.",
           fixtureId,
         );
+      }
+    },
+  );
+
+
+  app.get(
+    "/api/public/v1/competition/replay",
+    async (request, reply) => {
+      try {
+        normalizeCompetitionPredictionRouteQuery(
+          request.query as Record<string, unknown>,
+        );
+        return {
+          data: listCompetitionReplayCheckpoints(),
+          meta: {
+            status: "replay" as const,
+            source: "competition-replay" as const,
+            mode: "replay" as const,
+          },
+        };
+      } catch (error) {
+        reply.code(invalidQuery(error) ? 400 : 503);
+        return {
+          data: [],
+          meta: {
+            status: "degraded" as const,
+            source: "competition-replay" as const,
+            mode: "replay" as const,
+            message: invalidQuery(error)
+              ? "Invalid Competition Replay route query."
+              : "Competition replay is temporarily unavailable.",
+          },
+        };
+      }
+    },
+  );
+
+  app.get(
+    "/api/public/v1/competition/replay/:checkpointId",
+    async (request, reply) => {
+      const { checkpointId } = request.params as { checkpointId: string };
+      try {
+        normalizeCompetitionPredictionRouteQuery(
+          request.query as Record<string, unknown>,
+        );
+        const checkpoint = getCompetitionReplayCheckpoint(checkpointId);
+        if (checkpoint === null) {
+          reply.code(404);
+          const response = {
+            data: null,
+            market_analysis: buildPublicMarketIntelligence({
+              market_intelligence_version: "public-market-intelligence-v1",
+              fixture_id: COMPETITION_REPLAY_FIXTURE_ID,
+              generated_at: new Date().toISOString(),
+              availability: "unavailable" as const,
+              reliability: "unavailable" as const,
+              freshness: "unknown" as const,
+              provider_coverage: "none" as const,
+              provider_agreement: "unknown" as const,
+              volatility: "none" as const,
+              market_count: 0,
+              usable_market_count: 0,
+              provider_count: 0,
+              notable_movements: [],
+              summary: "The requested competition replay checkpoint is unavailable.",
+              limitations: ["Choose one of the published replay checkpoints."],
+              last_update: null,
+              safety_note: PUBLIC_MARKET_SAFETY_NOTE,
+            }),
+            meta: {
+              status: "no_data" as const,
+              source: "competition-prediction" as const,
+              mode: "replay" as const,
+              message: "Competition replay checkpoint was not found.",
+            },
+          };
+          assertPublicCompetitionPredictionSafe(response);
+          return response;
+        }
+        return checkpoint.response;
+      } catch (error) {
+        if (invalidQuery(error)) {
+          reply.code(400);
+          const response = {
+            ...failure(
+              "public",
+              "degraded",
+              "Invalid Competition Replay route query.",
+              COMPETITION_REPLAY_FIXTURE_ID,
+            ),
+            meta: {
+              status: "degraded" as const,
+              source: "competition-prediction" as const,
+              mode: "replay" as const,
+              message: "Invalid Competition Replay route query.",
+            },
+          };
+          assertPublicCompetitionPredictionSafe(response);
+          return response;
+        }
+        reply.code(503);
+        const response = {
+          ...failure(
+            "public",
+            "degraded",
+            "Competition replay is temporarily unavailable.",
+            COMPETITION_REPLAY_FIXTURE_ID,
+          ),
+          meta: {
+            status: "degraded" as const,
+            source: "competition-prediction" as const,
+            mode: "replay" as const,
+            message: "Competition replay is temporarily unavailable.",
+          },
+        };
+        assertPublicCompetitionPredictionSafe(response);
+        return response;
       }
     },
   );
