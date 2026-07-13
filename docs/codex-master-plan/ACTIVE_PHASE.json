@@ -1,36 +1,19 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "completed_pending_review",
-  "phase_id": "COMP-A",
-  "phase_title": "Competition Complete Prediction Baseline Kernel",
-  "pack_path": "docs/codex-master-plan/phases/phase-comp-a",
-  "pack_version": "COMP-A-v1",
-  "baseline_commit": "13c2e80ec40da1443048cd61bb020a501f4b9d22",
-  "human_approved": false,
-  "activation_note": "The human explicitly approved the exact reviewed COMP-A-v1 pack. Codex must execute only COMP-A, apply only the exact six-file allowlist, perform no migration, database operation, or real network access, stop after Automation v2 Prepare, and must not activate or execute COMP-B in the same run.",
+  "state": "ready",
+  "phase_id": "COMP-B",
+  "phase_title": "Competition Prediction Runtime and Versioned Public-Safe API",
+  "pack_path": "docs/codex-master-plan/phases/phase-comp-b-v2",
+  "pack_version": "COMP-B-v2",
+  "baseline_commit": "c973504e73734d557834db4fb5c5198daccaf95e",
+  "human_approved": true,
+  "activation_note": "The human explicitly approved activation of the exact reviewed and installed COMP-B-v2 pack. Codex must execute only COMP-B, verify and apply only the canonical thirteen-patch payload producing exactly the eleven-file allowlist, perform no migration, database mutation, or real application network access, stop after Automation v2 Prepare, and must not activate or execute COMP-C in the same run.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
     "allow_completion_state_update": true,
     "stop_after_phase": true
   },
-  "last_result": {
-    "status": "PHASE_COMPLETE",
-    "phase_id": "COMP-A",
-    "pack_version": "COMP-A-v1",
-    "baseline_commit": "13c2e80ec40da1443048cd61bb020a501f4b9d22",
-    "completed_at": "2026-07-13T10:54:40.1560241Z",
-    "files_changed": [
-      "apps/api/package.json",
-      "apps/api/src/competition-model-profile.test.ts",
-      "apps/api/src/competition-model-profile.ts",
-      "apps/api/src/prediction-engine-v1.test.ts",
-      "apps/api/src/prediction-engine-v1.ts",
-      "docs/phase-comp-a-competition-prediction-baseline.md"
-    ],
-    "validation_summary": "Focused prediction tests 115/115 passed; API typecheck passed; API production build passed; API regression suite 885/885 passed; git diff --check passed; Prisma schema/migration diff empty. pnpm and dependencies were prepared before validation entirely offline with no lifecycle scripts or tracked-file changes; the PATH bridge used only the existing package-local .bin; all validations ran with Corepack/package-manager network disabled; no application, database, migration, or production network access occurred.",
-    "migration_applied": false,
-    "network_accessed": false
-  }
+  "last_result": null
 }
