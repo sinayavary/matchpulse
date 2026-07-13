@@ -1,0 +1,152 @@
+diff --git a/apps/api/src/competition-prediction-route-contract.ts b/apps/api/src/competition-prediction-route-contract.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..f94b57410fb1d238ee3c2d7950ad06ad08ea121d
+--- /dev/null
++++ b/apps/api/src/competition-prediction-route-contract.ts
+@@ -0,0 +1,146 @@
++import {
++  assertFinalPredictionSnapshotValid,
++  type FinalPredictionSnapshot,
++} from "./final-prediction-domain.js";
++import {
++  assertPublicMarketIntelligenceSafe,
++  type PublicMarketIntelligence,
++} from "./odds-intelligence-contract.js";
++import {
++  assertPublicCompetitionPredictionSafe,
++  mapCompetitionPredictionRuntimeResultToPublic,
++  type PublicCompetitionPredictionResponse,
++} from "./competition-prediction-public-mapper.js";
++import {
++  type CompetitionPredictionRuntimeResult,
++  type CompetitionPredictionRuntimeStatus,
++} from "./competition-prediction-service.js";
++
++export type CompetitionPredictionInternalRouteResponse = {
++  data: FinalPredictionSnapshot | null;
++  market_analysis: PublicMarketIntelligence;
++  meta: {
++    status: CompetitionPredictionRuntimeStatus;
++    source: "competition-prediction";
++    mode: "internal" | "replay";
++    message?: string;
++  };
++};
++
++export type CompetitionPredictionRouteFailure = {
++  data: null;
++  market_analysis?: PublicMarketIntelligence;
++  meta: {
++    status: "degraded" | "no_data";
++    source: "competition-prediction";
++    mode: "internal" | "public";
++    message: string;
++  };
++};
++
++const INTERNAL_FORBIDDEN_KEYS = new Set([
++  "raw",
++  "raw_payload",
++  "raw_observations",
++  "provider_payload",
++  "source_payload",
++  "private_key",
++  "seed_phrase",
++  "jwt",
++  "api_token",
++  "api_key",
++  "database_url",
++  "secret",
++  "stack",
++  "debug",
++  "debug_lineage",
++]);
++
++function inspectInternalKeys(value: unknown, path = "", seen = new Set<object>()): void {
++  if (value === null || typeof value !== "object" || seen.has(value)) return;
++  seen.add(value);
++  if (Array.isArray(value)) {
++    value.forEach((item, index) => inspectInternalKeys(item, `${path}[${index}]`, seen));
++    return;
++  }
++  for (const [key, nested] of Object.entries(value)) {
++    if (INTERNAL_FORBIDDEN_KEYS.has(key.toLowerCase())) {
++      throw new TypeError(`Forbidden internal competition prediction field: ${path ? `${path}.` : ""}${key}`);
++    }
++    inspectInternalKeys(nested, path ? `${path}.${key}` : key, seen);
++  }
++}
++
++export function normalizeCompetitionPredictionRouteQuery(
++  query: Record<string, unknown>,
++): Record<string, never> {
++  const keys = Object.keys(query);
++  if (keys.length > 0) {
++    throw new TypeError("Unknown Competition Prediction route query parameter.");
++  }
++  return {};
++}
++
++export function assertCompetitionPredictionInternalRoutePayloadSafe(
++  payload: unknown,
++): void {
++  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
++    throw new TypeError("Internal Competition Prediction response must be an object.");
++  }
++  const response = payload as CompetitionPredictionInternalRouteResponse;
++  if (response.data !== null) {
++    assertFinalPredictionSnapshotValid(response.data);
++  }
++  assertPublicMarketIntelligenceSafe(response.market_analysis);
++  if (
++    response.data !== null &&
++    response.data.identity.fixture_id !== response.market_analysis.fixture_id
++  ) {
++    throw new TypeError("Prediction and market-analysis fixture IDs must match.");
++  }
++  inspectInternalKeys(payload);
++}
++
++export function assertCompetitionPredictionPublicRoutePayloadSafe(
++  payload: unknown,
++): void {
++  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
++    throw new TypeError("Public Competition Prediction response must be an object.");
++  }
++  const response = payload as PublicCompetitionPredictionResponse;
++  assertPublicCompetitionPredictionSafe(response);
++  assertPublicMarketIntelligenceSafe(response.market_analysis);
++  if (
++    response.data !== null &&
++    response.data.fixture_id !== response.market_analysis.fixture_id
++  ) {
++    throw new TypeError("Prediction and market-analysis fixture IDs must match.");
++  }
++}
++
++export function toCompetitionPredictionInternalRouteResponse(
++  result: CompetitionPredictionRuntimeResult,
++): CompetitionPredictionInternalRouteResponse {
++  const response: CompetitionPredictionInternalRouteResponse = {
++    data: result.snapshot === null ? null : structuredClone(result.snapshot),
++    market_analysis: structuredClone(result.market_analysis),
++    meta: {
++      status: result.status,
++      source: "competition-prediction",
++      mode: result.mode === "replay" ? "replay" : "internal",
++      ...(result.snapshot === null
++        ? { message: "Competition prediction data is currently unavailable." }
++        : {}),
++    },
++  };
++  assertCompetitionPredictionInternalRoutePayloadSafe(response);
++  return response;
++}
++
++export function toCompetitionPredictionPublicRouteResponse(
++  result: CompetitionPredictionRuntimeResult,
++): PublicCompetitionPredictionResponse {
++  const response = mapCompetitionPredictionRuntimeResultToPublic(result);
++  assertCompetitionPredictionPublicRoutePayloadSafe(response);
++  return response;
++}
