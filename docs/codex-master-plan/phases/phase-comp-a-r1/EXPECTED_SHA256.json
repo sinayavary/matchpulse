@@ -1,0 +1,7 @@
+{
+  "schema_version": "matchpulse-payload-integrity-v3",
+  "verification_mode": "sha256-canonical-lf-v1",
+  "files": {
+    "payload/comp-a-r1.patch": "fb373d371438f36923c9206be1725d104e83089073609f78b59607b86a4b32a7"
+  }
+}
