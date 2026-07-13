@@ -1,41 +1,19 @@
 {
-    "schema_version":  "matchpulse-active-phase-v1",
-    "project":  "MatchPulse",
-    "state":  "completed_pending_review",
-    "phase_id":  "COMP-B",
-    "phase_title":  "Competition Prediction Runtime and Versioned Public-Safe API",
-    "pack_path":  "docs/codex-master-plan/phases/phase-comp-b-v2",
-    "pack_version":  "COMP-B-v2",
-    "baseline_commit":  "0df8ff23e23501c4b67108821d331f937d74887d",
-    "human_approved":  false,
-    "activation_note":  "The human explicitly approved activation of the exact reviewed and installed COMP-B-v2 pack. Codex must execute only COMP-B, verify and apply only the canonical thirteen-patch payload producing exactly the eleven-file allowlist, perform no migration, database mutation, or real application network access, stop after Automation v2 Prepare, and must not activate or execute COMP-C in the same run.",
-    "execution":  {
-                      "continue_until_phase_gate":  true,
-                      "allow_next_phase_transition":  false,
-                      "allow_completion_state_update":  true,
-                      "stop_after_phase":  true
-                  },
-    "last_result":  {
-                        "status":  "PHASE_COMPLETE",
-                        "phase_id":  "COMP-B",
-                        "pack_version":  "COMP-B-v2",
-                        "baseline_commit":  "0df8ff23e23501c4b67108821d331f937d74887d",
-                        "completed_at":  "2026-07-13T13:35:13.0697336Z",
-                        "files_changed":  [
-                                              "apps/api/package.json",
-                                              "apps/api/src/competition-prediction-public-mapper.test.ts",
-                                              "apps/api/src/competition-prediction-public-mapper.ts",
-                                              "apps/api/src/competition-prediction-route-contract.test.ts",
-                                              "apps/api/src/competition-prediction-route-contract.ts",
-                                              "apps/api/src/competition-prediction-service.test.ts",
-                                              "apps/api/src/competition-prediction-service.ts",
-                                              "apps/api/src/server.ts",
-                                              "apps/api/src/server-competition-prediction-route.test.ts",
-                                              "apps/api/src/server-competition-prediction-route.ts",
-                                              "docs/phase-comp-b-competition-runtime-api.md"
-                                          ],
-                        "validation_summary":  "All COMP-B-v2 manifest validation commands passed: focused prediction tests, API typecheck, API production build, full API regression, git diff check, and empty Prisma/migration diff. No migration, database mutation, real application network access, Publish, or COMP-C activation occurred.",
-                        "migration_applied":  false,
-                        "network_accessed":  false
-                    }
+  "schema_version": "matchpulse-active-phase-v1",
+  "project": "MatchPulse",
+  "state": "ready",
+  "phase_id": "COMP-C",
+  "phase_title": "Competition Web Experience, Replay Fallback, and Submission Gate",
+  "pack_path": "docs/codex-master-plan/phases/phase-comp-c-v2",
+  "pack_version": "COMP-C-v2",
+  "baseline_commit": "a3641a092a91e934bf5e3cf7d0b32bf3bc8109a0",
+  "human_approved": true,
+  "activation_note": "The human explicitly approved activation of the exact reviewed and installed COMP-C-v2 pack. This governance activation commit must not execute the payload. A subsequent Codex run must execute only COMP-C, verify and decode only the canonical five-chunk payload producing exactly the eleven-file allowlist, perform no migration, database mutation, or real application network access, stop after Automation v2 Prepare, and must not activate or execute 10H-A or any successor in the same run.",
+  "execution": {
+    "continue_until_phase_gate": true,
+    "allow_next_phase_transition": false,
+    "allow_completion_state_update": true,
+    "stop_after_phase": true
+  },
+  "last_result": null
 }
