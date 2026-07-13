@@ -32,7 +32,7 @@
     "all specialist outputs retain their declared global weights for every target",
     "missing specialist target outputs contribute fallback mass without target-local renormalization",
     "effective market influence stays within the assigned approved cap",
-    "only the explicit market specialist consumes market probability distributions",
+    "only the explicit market specialist contributes market probability distributions to model-output targets",
     "finished probabilities remain terminal while stale or incomplete evidence degrades confidence and risk",
     "caller limitation text is not copied verbatim into the public-shaped explanation",
     "focused prediction tests pass",
