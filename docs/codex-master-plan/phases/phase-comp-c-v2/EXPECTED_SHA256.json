@@ -1,0 +1,10 @@
+{
+  "schema_version": "matchpulse-payload-integrity-v3",
+  "verification_mode": "sha256-canonical-lf-v1",
+  "ordered_combined_sha256": "688927f3b384936795b0be6b2a46f2220a2fc9e32597b543910de56495753d0a",
+  "decoded_gzip_sha256": "cf881f73ff6097024623f9d016ec455faadecf033f3ba4a3cf7076efba9e7aba",
+  "decoded_patch_sha256": "f746fe54d34d868da9498871c7b1b71eb10326bfd89aed191677934f9237412f",
+  "files": {
+    "payload/patches/01-comp-c-v2.patch.gz.b64": "688927f3b384936795b0be6b2a46f2220a2fc9e32597b543910de56495753d0a"
+  }
+}
