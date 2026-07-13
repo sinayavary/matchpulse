@@ -1,0 +1,66 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "COMP-QA",
+  "pack_version": "COMP-QA-v1",
+  "baseline_commit": "46277a859bf39d11bb027060b1effaf823ec3acc",
+  "review_only": true,
+  "payload": {
+    "type": "ordered_canonical_git_patch_gzip_base64_chunks",
+    "directory": "payload/chunks",
+    "order": "lexicographic_filename",
+    "count": 1,
+    "verification_mode": "sha256-canonical-lf-v1",
+    "ordered_combined_sha256": "3a18355f4cd2cd606d2aef946ece1f1ec2f32a4fe67cf0b610084cd54fcd778d",
+    "decoded_gzip_sha256": "9f0e8a53f7d7b09f57de0442d11b9cab516125938730a87b12219fbb2f097bea",
+    "decoded_patch_sha256": "59048a3323fa32dddb929ff099604a7231a60f6aa49eb0f25942526a3851dd67"
+  },
+  "baseline_target_blobs": {
+    "apps/web/next-env.d.ts": "6080addc2d9595896fa4440b16cf51a41bfcfef8",
+    "apps/web/tsconfig.json": "338677b11d0774eee857dbdfe427f97b81bbd5b2"
+  },
+  "baseline_absent_targets": [
+    "docs/competition-release-final-qa.md"
+  ],
+  "allowed_target_files": [
+    "apps/web/next-env.d.ts",
+    "apps/web/tsconfig.json",
+    "docs/competition-release-final-qa.md"
+  ],
+  "required_validation_commands": [
+    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/competition-model-profile.test.ts src/prediction-engine-v1.test.ts src/odds-intelligence-public-mapper.test.ts src/competition-prediction-public-mapper.test.ts src/server-competition-prediction-route.test.ts src/competition-replay-fixtures.test.ts src/server-competition-replay-route.test.ts ../web/lib/competition-api.test.ts ../web/components/competition/CompetitionPredictionPanel.test.tsx",
+    "pnpm.cmd --filter @matchpulse/api typecheck",
+    "pnpm.cmd --filter @matchpulse/api build",
+    "pnpm.cmd --filter @matchpulse/api test",
+    "pnpm.cmd --filter @matchpulse/web typecheck",
+    "pnpm.cmd --filter @matchpulse/web build",
+    "git restore --source=HEAD --staged --worktree -- apps/web/next-env.d.ts apps/web/tsconfig.json",
+    "git diff --quiet -- apps/web/next-env.d.ts apps/web/tsconfig.json",
+    "git diff --check",
+    "git diff --name-only -- prisma"
+  ],
+  "expected_results": [
+    "the final competition QA acceptance artifact is added",
+    "the evaluator entry remains available at /competition",
+    "deterministic replay retains the three approved checkpoints",
+    "live or stored mode retains explicit deterministic replay fallback",
+    "prediction and public market analysis remain separate",
+    "public contracts continue to exclude protected internal implementation details",
+    "focused competition tests pass",
+    "API typecheck, build, and full regression pass",
+    "web typecheck and production build pass",
+    "Next-generated configuration changes are restored to baseline and excluded from the completion commit",
+    "git diff check passes",
+    "Prisma and migration diff is empty",
+    "no external service access or database mutation occurs",
+    "PHASE_QUEUE.json is unchanged during execution",
+    "10H-A and every successor remain inactive"
+  ],
+  "allows_migration": false,
+  "allows_network": false,
+  "git_publish": {
+    "allow_commit": true,
+    "allow_push": false,
+    "require_exact_staged_paths": true,
+    "commit_message": "Complete COMP-QA competition release final QA"
+  }
+}
