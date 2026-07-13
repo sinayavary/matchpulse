@@ -5,9 +5,12 @@
   "baseline_commit": "0df8ff23e23501c4b67108821d331f937d74887d",
   "review_only": true,
   "payload": {
-    "type": "git_apply_patch",
-    "path": "payload/comp-b-v2.patch",
-    "verification_mode": "sha256-canonical-lf-v1"
+    "type": "ordered_git_apply_patch_set",
+    "directory": "payload/patches",
+    "order": "lexicographic_filename",
+    "count": 11,
+    "verification_mode": "sha256-canonical-lf-v1",
+    "ordered_combined_sha256": "268b0a641af2f4107e58261dfaa1320b3b22f6912d87f30f2a3c6b7db36758eb"
   },
   "baseline_target_blobs": {
     "apps/api/package.json": "70240d9b992d37ffe7584d37053af7b6a01a2a4d",
