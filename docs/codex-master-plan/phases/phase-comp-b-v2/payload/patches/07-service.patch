@@ -1,0 +1,544 @@
+diff --git a/apps/api/src/competition-prediction-service.ts b/apps/api/src/competition-prediction-service.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..42a26c8b7b3db6d37c5924e95e5baf56bbef0c7b
+--- /dev/null
++++ b/apps/api/src/competition-prediction-service.ts
+@@ -0,0 +1,538 @@
++import {
++  buildCompetitionPredictionSnapshot,
++  type CompetitionEventEvidence,
++  type CompetitionMarketDirection,
++  type CompetitionMarketEvidence,
++  type CompetitionPredictionInput,
++} from "./competition-model-profile.js";
++import { getDbClient } from "./db.js";
++import {
++  buildEventImpactAssessment,
++  type EventImpactAssessment,
++} from "./event-impact-foundation.js";
++import type {
++  FinalOutcomeProbabilities,
++  FinalPredictionSnapshot,
++  NextGoalProbabilities,
++  PredictionMatchContext,
++  PredictionSnapshotTrigger,
++} from "./final-prediction-domain.js";
++import {
++  getDbBackedMatchEventContext,
++  type MatchEventContext,
++} from "./match-event-context-builder.js";
++import {
++  getDbBackedMatchState,
++  type CanonicalMatchState,
++} from "./match-state-builder.js";
++import { assessOddsIntelligence } from "./odds-intelligence-assessment.js";
++import {
++  type InternalOddsIntelligenceContext,
++  type OddsMarketIntelligence,
++  type PublicMarketIntelligence,
++} from "./odds-intelligence-contract.js";
++import { mapInternalOddsIntelligenceToPublic } from "./odds-intelligence-public-mapper.js";
++import { createPredictionStorage } from "./prediction-storage.js";
++import { computeStorageContentHash } from "./prediction-storage-hash.js";
++import { parseFixtureId } from "./txline-normalizer.js";
++
++export type CompetitionPredictionRuntimeStatus =
++  | "live"
++  | "degraded"
++  | "stale"
++  | "no_data"
++  | "replay";
++
++export type CompetitionPredictionRuntimeSource = "database" | "replay";
++
++export type CompetitionPredictionRuntimeInput = {
++  match_state: CanonicalMatchState;
++  minute: number | null;
++  odds_intelligence: InternalOddsIntelligenceContext;
++  event_context: MatchEventContext;
++  event_impact: EventImpactAssessment;
++  as_of?: string;
++  sequence?: number | null;
++  trigger?: PredictionSnapshotTrigger;
++};
++
++export type CompetitionPredictionRuntimeResult = {
++  fixture_id: string;
++  status: CompetitionPredictionRuntimeStatus;
++  source: CompetitionPredictionRuntimeSource;
++  mode: "request_time" | "replay";
++  snapshot: FinalPredictionSnapshot | null;
++  market_analysis: PublicMarketIntelligence;
++  limitations: string[];
++};
++
++export type CompetitionReplayInputProvider = (
++  fixtureId: string,
++) => Promise<CompetitionPredictionRuntimeInput | null>;
++
++export type CompetitionPredictionServiceDependencies = {
++  loadStoredInput?: (
++    fixtureId: string,
++    generatedAt: string,
++  ) => Promise<CompetitionPredictionRuntimeInput>;
++  replayProvider?: CompetitionReplayInputProvider;
++  now?: () => Date;
++  env?: Record<string, string | undefined>;
++};
++
++const FEATURE_VERSION = "competition-runtime-input-v1";
++const MAX_STORED_ASSESSMENTS = 1;
++
++function clamp01(value: number): number {
++  if (!Number.isFinite(value)) return 0;
++  return Math.min(1, Math.max(0, value));
++}
++
++function compareText(left: string, right: string): number {
++  return left < right ? -1 : left > right ? 1 : 0;
++}
++
++function emptyOddsIntelligence(
++  fixtureId: string,
++  generatedAt: string,
++): InternalOddsIntelligenceContext {
++  return assessOddsIntelligence({
++    fixture_id: fixtureId,
++    generated_at: generatedAt,
++    observations: [],
++  });
++}
++
++async function readStoredMinute(fixtureId: string): Promise<number | null> {
++  const row = await getDbClient().matchState.findUnique({
++    where: { fixtureId },
++    select: { minute: true },
++  });
++  return row?.minute ?? null;
++}
++
++async function loadStoredRuntimeInput(
++  fixtureId: string,
++  generatedAt: string,
++): Promise<CompetitionPredictionRuntimeInput> {
++  const storage = createPredictionStorage();
++  const [matchState, minute, eventContext, oddsAssessments] = await Promise.all([
++    getDbBackedMatchState(fixtureId, { includeOdds: false }),
++    readStoredMinute(fixtureId),
++    getDbBackedMatchEventContext(fixtureId, { recentLimit: 25 }),
++    storage.listOddsIntelligenceAssessmentsForFixture(fixtureId, {
++      limit: MAX_STORED_ASSESSMENTS,
++    }),
++  ]);
++  const oddsIntelligence = oddsAssessments[0] ?? emptyOddsIntelligence(
++    fixtureId,
++    generatedAt,
++  );
++  return {
++    match_state: matchState,
++    minute,
++    odds_intelligence: oddsIntelligence,
++    event_context: eventContext,
++    event_impact: buildEventImpactAssessment(eventContext, { keyEventLimit: 10 }),
++    trigger: "manual",
++  };
++}
++
++function normalizedPhase(
++  phase: string | null,
++  fixtureStatus: string | null,
++): PredictionMatchContext["normalized_phase"] {
++  const value = `${phase ?? ""} ${fixtureStatus ?? ""}`
++    .trim()
++    .toLowerCase()
++    .replace(/[\s-]+/g, "_");
++  if (/(finished|full_time|final|ended|\bft\b)/.test(value)) return "finished";
++  if (/(extra_time|\bet\b)/.test(value)) return "extra_time";
++  if (/(second_half|\b2h\b|half_2)/.test(value)) return "second_half";
++  if (/(half_time|halftime|\bht\b)/.test(value)) return "halftime";
++  if (/(first_half|\b1h\b|half_1)/.test(value)) return "first_half";
++  if (/(pre_match|not_started|scheduled|upcoming)/.test(value)) return "pre_match";
++  return "unknown";
++}
++
++function selectionProbability(
++  market: OddsMarketIntelligence,
++  selection: "home" | "draw" | "away" | "none",
++): number | null {
++  const candidate = market.selections.find((item) => item.selection === selection);
++  return candidate?.consensus_probability ?? null;
++}
++
++function finalOutcomeFromMarket(
++  market: OddsMarketIntelligence | null,
++): FinalOutcomeProbabilities | null {
++  if (market === null || !market.complete || !market.usable) return null;
++  const home = selectionProbability(market, "home");
++  const draw = selectionProbability(market, "draw");
++  const away = selectionProbability(market, "away");
++  if (home === null || draw === null || away === null) return null;
++  return { home, draw, away };
++}
++
++function nextGoalFromMarket(
++  context: InternalOddsIntelligenceContext,
++): NextGoalProbabilities | null {
++  const market = context.markets
++    .filter((item) => item.market_type === "next_goal" && item.complete && item.usable)
++    .sort((left, right) => (
++      right.reliability_score - left.reliability_score ||
++      compareText(left.market_key, right.market_key)
++    ))[0];
++  if (market === undefined) return null;
++  const home = selectionProbability(market, "home");
++  const none = selectionProbability(market, "none");
++  const away = selectionProbability(market, "away");
++  if (home === null || none === null || away === null) return null;
++  return { home, none, away };
++}
++
++function marketDirection(
++  context: InternalOddsIntelligenceContext,
++): CompetitionMarketDirection {
++  const candidates = context.markets
++    .filter((market) => market.usable)
++    .flatMap((market) => market.selections.map((selection) => ({
++      selection: selection.selection,
++      change: selection.probability_change_5m ?? selection.probability_change_1m,
++      volatility: market.volatility_score,
++      market_key: market.market_key,
++    })))
++    .filter((item) => item.change !== null)
++    .sort((left, right) => (
++      Math.abs(right.change ?? 0) - Math.abs(left.change ?? 0) ||
++      right.volatility - left.volatility ||
++      compareText(left.market_key, right.market_key)
++    ));
++  const strongest = candidates[0];
++  if (strongest === undefined) {
++    return context.volatility_score >= 0.5 ? "volatile" : "neutral";
++  }
++  if (context.volatility_score >= 0.7 && Math.abs(strongest.change ?? 0) < 0.01) {
++    return "volatile";
++  }
++  if (strongest.selection === "home") return "home";
++  if (strongest.selection === "away") return "away";
++  return "neutral";
++}
++
++function publicMarketAnalysis(
++  context: InternalOddsIntelligenceContext,
++): PublicMarketIntelligence {
++  const safe = structuredClone(context);
++  const limitations: string[] = [];
++  if (safe.status === "unavailable") {
++    limitations.push("Market intelligence is unavailable because no usable odds data is present.");
++  } else if (safe.status === "invalid") {
++    limitations.push("Available market data did not pass validation.");
++  } else if (!safe.usable_for_model) {
++    limitations.push("Available market data did not pass reliability checks for model use.");
++  }
++  if (safe.issues.includes("stale_snapshot")) {
++    limitations.push("Available market data is stale.");
++  }
++  if (safe.issues.includes("single_provider")) {
++    limitations.push("Market source coverage is limited.");
++  }
++  if (safe.issues.includes("provider_disagreement")) {
++    limitations.push("Available market sources show material disagreement.");
++  }
++  if (safe.issues.includes("abnormal_jump") || safe.issues.includes("provider_outlier")) {
++    limitations.push("Recent market data contains an anomaly warning.");
++  }
++  safe.limitations = [...new Set(limitations)];
++  safe.markets = safe.markets.map((market) => ({ ...market, limitations: [] }));
++  if (safe.primary_match_result_market !== null) {
++    const replacement = safe.markets.find((market) => (
++      market.market_key === safe.primary_match_result_market?.market_key
++    ));
++    safe.primary_match_result_market = replacement ?? null;
++  }
++  return mapInternalOddsIntelligenceToPublic(safe);
++}
++
++function mapMarketEvidence(
++  context: InternalOddsIntelligenceContext,
++): CompetitionMarketEvidence {
++  return {
++    available: context.market_count > 0,
++    usable_for_model: context.usable_for_model,
++    assessment_id: context.assessment_id,
++    reliability_score: clamp01(context.overall_reliability_score),
++    approved_model_weight_cap: clamp01(context.recommended_market_model_weight),
++    final_outcome: finalOutcomeFromMarket(context.primary_match_result_market),
++    next_goal: nextGoalFromMarket(context),
++    direction: marketDirection(context),
++    limitations: context.market_count === 0
++      ? ["Market evidence is unavailable."]
++      : context.usable_for_model
++        ? []
++        : ["Market evidence is present but reliability checks limit model use."],
++  };
++}
++
++function weightedImpact(event: EventImpactAssessment["key_impact_events"][number]): number {
++  return event.impact_weight === "high" ? 3 : event.impact_weight === "medium" ? 2 : 1;
++}
++
++function mapEventEvidence(
++  context: MatchEventContext,
++  impact: EventImpactAssessment,
++): CompetitionEventEvidence {
++  const sideEvents = context.recent_events.filter((event) => (
++    event.team_side === "home" || event.team_side === "away"
++  ));
++  const homeEvents = sideEvents.filter((event) => event.team_side === "home").length;
++  const awayEvents = sideEvents.filter((event) => event.team_side === "away").length;
++  const eventTotal = homeEvents + awayEvents;
++  const homeImpact = impact.key_impact_events
++    .filter((event) => event.team_side === "home")
++    .reduce((sum, event) => sum + weightedImpact(event), 0);
++  const awayImpact = impact.key_impact_events
++    .filter((event) => event.team_side === "away")
++    .reduce((sum, event) => sum + weightedImpact(event), 0);
++  const impactTotal = homeImpact + awayImpact;
++  const available = context.event_count > 0;
++  return {
++    available,
++    home_pressure: eventTotal > 0 ? clamp01(homeEvents / eventTotal) : 0,
++    away_pressure: eventTotal > 0 ? clamp01(awayEvents / eventTotal) : 0,
++    home_impact: impactTotal > 0 ? clamp01(homeImpact / impactTotal) : 0,
++    away_impact: impactTotal > 0 ? clamp01(awayImpact / impactTotal) : 0,
++    limitations: available ? [] : ["Event evidence is unavailable."],
++  };
++}
++
++function latestTimestamp(values: Array<string | null | undefined>, ceiling: string): string {
++  const ceilingMs = Date.parse(ceiling);
++  const latest = values
++    .filter((value): value is string => typeof value === "string")
++    .map((value) => Date.parse(value))
++    .filter((value) => Number.isFinite(value) && value <= ceilingMs)
++    .sort((left, right) => right - left)[0];
++  return latest === undefined ? ceiling : new Date(latest).toISOString();
++}
++
++function freshnessScore(asOf: string, generatedAt: string): number {
++  const ageMs = Math.max(0, Date.parse(generatedAt) - Date.parse(asOf));
++  if (ageMs <= 90_000) return 1;
++  if (ageMs <= 5 * 60_000) return 0.85;
++  if (ageMs <= 15 * 60_000) return 0.6;
++  if (ageMs <= 30 * 60_000) return 0.35;
++  return 0;
++}
++
++function runtimeFreshnessScore(
++  runtime: CompetitionPredictionRuntimeInput,
++  generatedAt: string,
++): number {
++  const values: number[] = [];
++  if (runtime.match_state.scoreboard.available) {
++    const timestamp = runtime.match_state.scoreboard.last_data_received_at;
++    values.push(timestamp === null ? 0 : freshnessScore(timestamp, generatedAt));
++  }
++  if (runtime.event_context.event_count > 0) {
++    const timestamp = runtime.event_context.latest_event_timestamp;
++    values.push(timestamp === null ? 0 : freshnessScore(timestamp, generatedAt));
++  }
++  if (runtime.odds_intelligence.market_count > 0) {
++    values.push(clamp01(runtime.odds_intelligence.freshness_score));
++  }
++  return values.length === 0 ? 0 : Math.min(...values);
++}
++
++function runtimeInputToPredictionInput(
++  fixtureId: string,
++  runtime: CompetitionPredictionRuntimeInput,
++  generatedAt: string,
++  source: CompetitionPredictionRuntimeSource,
++): CompetitionPredictionInput {
++  const state = runtime.match_state;
++  const asOf = latestTimestamp([
++    runtime.as_of,
++    state.freshness.latest_data_timestamp,
++    runtime.event_context.latest_event_timestamp,
++    runtime.odds_intelligence.generated_at,
++  ], generatedAt);
++  const market = mapMarketEvidence(runtime.odds_intelligence);
++  const events = mapEventEvidence(runtime.event_context, runtime.event_impact);
++  const featurePayload = {
++    fixture_id: fixtureId,
++    as_of: asOf,
++    phase: state.scoreboard.phase,
++    minute: runtime.minute,
++    home_score: state.scoreboard.home_score,
++    away_score: state.scoreboard.away_score,
++    market_available: market.available,
++    market_usable: market.usable_for_model,
++    event_available: events.available,
++    source,
++  };
++  return {
++    fixture_id: fixtureId,
++    as_of: asOf,
++    generated_at: generatedAt,
++    sequence: runtime.sequence ?? null,
++    trigger: runtime.trigger ?? (source === "replay" ? "replay" : "manual"),
++    feature_reference: {
++      feature_version: FEATURE_VERSION,
++      feature_hash: computeStorageContentHash(featurePayload),
++      feature_count: Object.keys(featurePayload).length,
++    },
++    phase: state.scoreboard.phase,
++    normalized_phase: normalizedPhase(
++      state.scoreboard.phase,
++      state.identity.status,
++    ),
++    minute: runtime.minute,
++    home_score: state.scoreboard.home_score,
++    away_score: state.scoreboard.away_score,
++    freshness_score: runtimeFreshnessScore(runtime, generatedAt),
++    market,
++    events,
++  };
++}
++
++function hasStoredEvidence(input: CompetitionPredictionRuntimeInput): boolean {
++  return input.match_state.quality.status !== "empty" ||
++    input.event_context.event_count > 0 ||
++    input.odds_intelligence.market_count > 0;
++}
++
++function statusForSnapshot(
++  source: CompetitionPredictionRuntimeSource,
++  snapshot: FinalPredictionSnapshot,
++  input: CompetitionPredictionRuntimeInput,
++): CompetitionPredictionRuntimeStatus {
++  if (source === "replay") return "replay";
++  if (snapshot.confidence.freshness_score < 0.4) return "stale";
++  if (
++    input.match_state.quality.status === "complete" &&
++    snapshot.risk.level === "low"
++  ) return "live";
++  return "degraded";
++}
++
++function noDataResult(
++  fixtureId: string,
++  generatedAt: string,
++  limitations: string[],
++): CompetitionPredictionRuntimeResult {
++  const odds = emptyOddsIntelligence(fixtureId, generatedAt);
++  return {
++    fixture_id: fixtureId,
++    status: "no_data",
++    source: "database",
++    mode: "request_time",
++    snapshot: null,
++    market_analysis: publicMarketAnalysis(odds),
++    limitations: [...new Set(limitations)],
++  };
++}
++
++function buildResult(
++  fixtureId: string,
++  runtime: CompetitionPredictionRuntimeInput,
++  generatedAt: string,
++  source: CompetitionPredictionRuntimeSource,
++): CompetitionPredictionRuntimeResult {
++  const predictionInput = runtimeInputToPredictionInput(
++    fixtureId,
++    runtime,
++    generatedAt,
++    source,
++  );
++  const snapshot = buildCompetitionPredictionSnapshot(predictionInput);
++  return {
++    fixture_id: fixtureId,
++    status: statusForSnapshot(source, snapshot, runtime),
++    source,
++    mode: source === "replay" ? "replay" : "request_time",
++    snapshot,
++    market_analysis: publicMarketAnalysis(runtime.odds_intelligence),
++    limitations: [],
++  };
++}
++
++async function tryReplay(
++  fixtureId: string,
++  generatedAt: string,
++  provider: CompetitionReplayInputProvider | undefined,
++): Promise<CompetitionPredictionRuntimeResult | null> {
++  if (provider === undefined) return null;
++  try {
++    const replay = await provider(fixtureId);
++    return replay === null ? null : buildResult(fixtureId, replay, generatedAt, "replay");
++  } catch {
++    return null;
++  }
++}
++
++export function createDeterministicCompetitionReplayProvider(
++  inputs: Readonly<Record<string, CompetitionPredictionRuntimeInput>>,
++): CompetitionReplayInputProvider {
++  const frozen = structuredClone(inputs);
++  return async (fixtureId: string) => {
++    const input = frozen[fixtureId];
++    return input === undefined ? null : structuredClone(input);
++  };
++}
++
++export function createCompetitionPredictionService(
++  dependencies: CompetitionPredictionServiceDependencies = {},
++) {
++  const now = dependencies.now ?? (() => new Date());
++  const env = dependencies.env ?? process.env;
++  const loadStoredInput = dependencies.loadStoredInput ?? loadStoredRuntimeInput;
++
++  return async function getCompetitionPredictionForFixture(
++    fixtureId: string,
++  ): Promise<CompetitionPredictionRuntimeResult> {
++    const normalizedFixtureId = parseFixtureId(fixtureId);
++    if (normalizedFixtureId === null) {
++      throw new TypeError("fixtureId is required.");
++    }
++    const generatedAt = now().toISOString();
++
++    if (!env.DATABASE_URL) {
++      const replay = await tryReplay(
++        normalizedFixtureId,
++        generatedAt,
++        dependencies.replayProvider,
++      );
++      return replay ?? noDataResult(normalizedFixtureId, generatedAt, [
++        "Stored competition data is unavailable because database access is not configured.",
++      ]);
++    }
++
++    try {
++      const runtime = await loadStoredInput(normalizedFixtureId, generatedAt);
++      if (!hasStoredEvidence(runtime)) {
++        const replay = await tryReplay(
++          normalizedFixtureId,
++          generatedAt,
++          dependencies.replayProvider,
++        );
++        return replay ?? noDataResult(normalizedFixtureId, generatedAt, [
++          "No stored competition state, odds intelligence, or event evidence is available.",
++        ]);
++      }
++      return buildResult(normalizedFixtureId, runtime, generatedAt, "database");
++    } catch {
++      const replay = await tryReplay(
++        normalizedFixtureId,
++        generatedAt,
++        dependencies.replayProvider,
++      );
++      return replay ?? noDataResult(normalizedFixtureId, generatedAt, [
++        "Stored competition prediction data is temporarily unavailable.",
++      ]);
++    }
++  };
++}
++
++export const getCompetitionPredictionForFixture = createCompetitionPredictionService();

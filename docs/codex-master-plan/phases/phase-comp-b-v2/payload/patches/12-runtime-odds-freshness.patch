@@ -1,0 +1,263 @@
+diff --git a/apps/api/src/competition-prediction-service.test.ts b/apps/api/src/competition-prediction-service.test.ts
+index 18d02c7467274e5631b050d617118bae638538ce..176c10d2f1094e8c3185b1deaba57ca8eb3655cf 100644
+--- a/apps/api/src/competition-prediction-service.test.ts
++++ b/apps/api/src/competition-prediction-service.test.ts
+@@ -34,6 +34,7 @@ function market(input: {
+   key: string;
+   type: OddsMarketIntelligence["market_type"];
+   selections: OddsMarketIntelligence["selections"];
++  latest_timestamp?: string;
+ }): OddsMarketIntelligence {
+   return {
+     market_key: input.key,
+@@ -54,14 +55,17 @@ function market(input: {
+     recommended_model_weight: 0.12,
+     issues: [],
+     limitations: [],
+-    latest_timestamp: "2026-07-13T11:59:30.000Z",
++    latest_timestamp: input.latest_timestamp ?? "2026-07-13T11:59:30.000Z",
+   };
+ }
+ 
+-function oddsContext(): InternalOddsIntelligenceContext {
++function oddsContext(
++  options: { generatedAt?: string; latestTimestamp?: string } = {},
++): InternalOddsIntelligenceContext {
+   const resultMarket = market({
+     key: "match_result_1x2|period:full_time",
+     type: "match_result_1x2",
++    latest_timestamp: options.latestTimestamp,
+     selections: [
+       {
+         selection: "home",
+@@ -98,6 +102,7 @@ function oddsContext(): InternalOddsIntelligenceContext {
+   const nextGoalMarket = market({
+     key: "next_goal|period:full_time",
+     type: "next_goal",
++    latest_timestamp: options.latestTimestamp,
+     selections: [
+       {
+         selection: "home",
+@@ -135,7 +140,7 @@ function oddsContext(): InternalOddsIntelligenceContext {
+     odds_intelligence_version: "odds-intelligence-v1",
+     assessment_id: "odds-assessment-v1:competition-runtime-test",
+     fixture_id: "fixture-1",
+-    generated_at: GENERATED_AT,
++    generated_at: options.generatedAt ?? GENERATED_AT,
+     status: "reliable",
+     usable_for_model: true,
+     overall_reliability_score: 0.9,
+@@ -155,7 +160,9 @@ function oddsContext(): InternalOddsIntelligenceContext {
+   });
+ }
+ 
+-function runtimeInput(options: { stale?: boolean } = {}): CompetitionPredictionRuntimeInput {
++function runtimeInput(
++  options: { stale?: boolean; staleOdds?: boolean } = {},
++): CompetitionPredictionRuntimeInput {
+   const latest = options.stale
+     ? "2026-07-13T10:00:00.000Z"
+     : "2026-07-13T11:59:30.000Z";
+@@ -236,7 +243,12 @@ function runtimeInput(options: { stale?: boolean } = {}): CompetitionPredictionR
+       },
+     },
+     minute: 67,
+-    odds_intelligence: oddsContext(),
++    odds_intelligence: options.staleOdds
++      ? oddsContext({
++          generatedAt: "2026-07-13T10:00:00.000Z",
++          latestTimestamp: "2026-07-13T09:59:30.000Z",
++        })
++      : oddsContext(),
+     event_context: eventContext,
+     event_impact: buildEventImpactAssessment(eventContext),
+     trigger: "manual",
+@@ -312,6 +324,30 @@ test("old supporting data is labeled stale", async () => {
+   assert.equal(result.snapshot?.risk.reasons.includes("stale_data"), true);
+ });
+ 
++test("persisted odds freshness is recalculated and stale market evidence is excluded", async () => {
++  const service = createCompetitionPredictionService({
++    env: { DATABASE_URL: "postgresql://offline-placeholder" },
++    now: fixedNow,
++    loadStoredInput: async () => runtimeInput({ staleOdds: true }),
++  });
++  const result = await service("fixture-1");
++  assert.equal(result.status, "stale");
++  assert.equal(result.snapshot?.data_coverage.has_odds, true);
++  assert.equal(result.snapshot?.data_coverage.has_reliable_odds, false);
++  assert.equal(result.snapshot?.odds_intelligence_reference.assigned_market_weight, 0);
++  assert.equal(result.snapshot?.risk.reasons.includes("stale_data"), true);
++  assert.equal(result.market_analysis.generated_at, GENERATED_AT);
++  assert.equal(result.market_analysis.last_update, "2026-07-13T09:59:30.000Z");
++  assert.equal(result.market_analysis.freshness, "stale");
++  assert.equal(result.market_analysis.availability, "limited");
++  assert.equal(result.market_analysis.reliability, "low");
++  assert.equal(result.market_analysis.usable_market_count, 0);
++  assert.equal(
++    result.market_analysis.limitations.includes("Available market data is stale."),
++    true,
++  );
++});
++
+ test("invalid fixture identity is rejected before any loader runs", async () => {
+   let called = false;
+   const service = createCompetitionPredictionService({
+diff --git a/apps/api/src/competition-prediction-service.ts b/apps/api/src/competition-prediction-service.ts
+index 42a26c8b7b3db6d37c5924e95e5baf56bbef0c7b..a44d869b98e7b740e5d0d896697716590e9e8a4a 100644
+--- a/apps/api/src/competition-prediction-service.ts
++++ b/apps/api/src/competition-prediction-service.ts
+@@ -27,6 +27,7 @@ import {
+ } from "./match-state-builder.js";
+ import { assessOddsIntelligence } from "./odds-intelligence-assessment.js";
+ import {
++  buildPublicMarketIntelligence,
+   type InternalOddsIntelligenceContext,
+   type OddsMarketIntelligence,
+   type PublicMarketIntelligence,
+@@ -222,6 +223,7 @@ function marketDirection(
+ 
+ function publicMarketAnalysis(
+   context: InternalOddsIntelligenceContext,
++  generatedAt: string,
+ ): PublicMarketIntelligence {
+   const safe = structuredClone(context);
+   const limitations: string[] = [];
+@@ -252,26 +254,68 @@ function publicMarketAnalysis(
+     ));
+     safe.primary_match_result_market = replacement ?? null;
+   }
+-  return mapInternalOddsIntelligenceToPublic(safe);
++
++  const mapped = mapInternalOddsIntelligenceToPublic(safe);
++  const runtimeFreshness = runtimeOddsFreshness(safe, generatedAt);
++  const freshness = runtimeFreshness.last_update === null
++    ? "unknown" as const
++    : runtimeFreshness.score >= 0.95
++      ? "fresh" as const
++      : runtimeFreshness.score >= 0.4
++        ? "aging" as const
++        : "stale" as const;
++  const stale = safe.market_count > 0 && runtimeFreshness.score < 0.4;
++  const freshnessUnknown = safe.market_count > 0 && runtimeFreshness.last_update === null;
++  const runtimeLimitations = [
++    ...mapped.limitations,
++    ...(stale ? ["Available market data is stale."] : []),
++    ...(freshnessUnknown ? ["Market data freshness could not be verified."] : []),
++  ];
++
++  return buildPublicMarketIntelligence({
++    ...mapped,
++    generated_at: generatedAt,
++    availability: stale || freshnessUnknown ? "limited" : mapped.availability,
++    reliability: stale || freshnessUnknown ? "low" : mapped.reliability,
++    freshness,
++    usable_market_count: stale || freshnessUnknown ? 0 : mapped.usable_market_count,
++    summary: stale
++      ? "Market data is present but stale and is excluded from prediction use."
++      : freshnessUnknown
++        ? "Market data is present, but its freshness could not be verified."
++        : mapped.summary,
++    limitations: [...new Set(runtimeLimitations)].sort(compareText),
++    last_update: runtimeFreshness.last_update,
++  });
+ }
+ 
+ function mapMarketEvidence(
+   context: InternalOddsIntelligenceContext,
++  generatedAt: string,
+ ): CompetitionMarketEvidence {
++  const runtimeFreshness = runtimeOddsFreshness(context, generatedAt);
++  const freshEnough = runtimeFreshness.last_update !== null && runtimeFreshness.score >= 0.4;
++  const usableForModel = context.usable_for_model && freshEnough;
+   return {
+     available: context.market_count > 0,
+-    usable_for_model: context.usable_for_model,
++    usable_for_model: usableForModel,
+     assessment_id: context.assessment_id,
+-    reliability_score: clamp01(context.overall_reliability_score),
+-    approved_model_weight_cap: clamp01(context.recommended_market_model_weight),
+-    final_outcome: finalOutcomeFromMarket(context.primary_match_result_market),
+-    next_goal: nextGoalFromMarket(context),
+-    direction: marketDirection(context),
++    reliability_score: usableForModel ? clamp01(context.overall_reliability_score) : 0,
++    approved_model_weight_cap: usableForModel
++      ? clamp01(context.recommended_market_model_weight)
++      : 0,
++    final_outcome: usableForModel
++      ? finalOutcomeFromMarket(context.primary_match_result_market)
++      : null,
++    next_goal: usableForModel ? nextGoalFromMarket(context) : null,
++    direction: usableForModel ? marketDirection(context) : "neutral",
+     limitations: context.market_count === 0
+       ? ["Market evidence is unavailable."]
+-      : context.usable_for_model
+-        ? []
+-        : ["Market evidence is present but reliability checks limit model use."],
++      : !freshEnough
++        ? ["Market evidence is stale or has unverifiable freshness and is excluded from model use."]
++        : context.usable_for_model
++          ? []
++          : ["Market evidence is present but reliability checks limit model use."],
+   };
+ }
+ 
+@@ -326,6 +370,22 @@ function freshnessScore(asOf: string, generatedAt: string): number {
+   return 0;
+ }
+ 
++function runtimeOddsFreshness(
++  context: InternalOddsIntelligenceContext,
++  generatedAt: string,
++): { score: number; last_update: string | null } {
++  const generatedAtMs = Date.parse(generatedAt);
++  const latest = context.markets
++    .map((market) => market.latest_timestamp)
++    .filter((value): value is string => value !== null)
++    .map((value) => Date.parse(value))
++    .filter((value) => Number.isFinite(value) && value <= generatedAtMs)
++    .sort((left, right) => right - left)[0];
++  if (latest === undefined) return { score: 0, last_update: null };
++  const lastUpdate = new Date(latest).toISOString();
++  return { score: freshnessScore(lastUpdate, generatedAt), last_update: lastUpdate };
++}
++
+ function runtimeFreshnessScore(
+   runtime: CompetitionPredictionRuntimeInput,
+   generatedAt: string,
+@@ -340,7 +400,7 @@ function runtimeFreshnessScore(
+     values.push(timestamp === null ? 0 : freshnessScore(timestamp, generatedAt));
+   }
+   if (runtime.odds_intelligence.market_count > 0) {
+-    values.push(clamp01(runtime.odds_intelligence.freshness_score));
++    values.push(runtimeOddsFreshness(runtime.odds_intelligence, generatedAt).score);
+   }
+   return values.length === 0 ? 0 : Math.min(...values);
+ }
+@@ -358,7 +418,7 @@ function runtimeInputToPredictionInput(
+     runtime.event_context.latest_event_timestamp,
+     runtime.odds_intelligence.generated_at,
+   ], generatedAt);
+-  const market = mapMarketEvidence(runtime.odds_intelligence);
++  const market = mapMarketEvidence(runtime.odds_intelligence, generatedAt);
+   const events = mapEventEvidence(runtime.event_context, runtime.event_impact);
+   const featurePayload = {
+     fixture_id: fixtureId,
+@@ -429,7 +489,7 @@ function noDataResult(
+     source: "database",
+     mode: "request_time",
+     snapshot: null,
+-    market_analysis: publicMarketAnalysis(odds),
++    market_analysis: publicMarketAnalysis(odds, generatedAt),
+     limitations: [...new Set(limitations)],
+   };
+ }
+@@ -453,7 +513,7 @@ function buildResult(
+     source,
+     mode: source === "replay" ? "replay" : "request_time",
+     snapshot,
+-    market_analysis: publicMarketAnalysis(runtime.odds_intelligence),
++    market_analysis: publicMarketAnalysis(runtime.odds_intelligence, generatedAt),
+     limitations: [],
+   };
+ }
