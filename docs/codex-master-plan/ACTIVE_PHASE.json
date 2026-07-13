@@ -1,41 +1,19 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "completed_pending_review",
-  "phase_id": "COMP-C",
-  "phase_title": "Competition Web Experience, Replay Fallback, and Submission Gate",
-  "pack_path": "docs/codex-master-plan/phases/phase-comp-c-v2",
-  "pack_version": "COMP-C-v2",
-  "baseline_commit": "a3641a092a91e934bf5e3cf7d0b32bf3bc8109a0",
-  "human_approved": false,
-  "activation_note": "The human explicitly approved activation of the exact reviewed and installed COMP-C-v2 pack. This governance activation commit must not execute the payload. A subsequent Codex run must execute only COMP-C, verify and decode only the canonical five-chunk payload producing exactly the eleven-file allowlist, perform no migration, database mutation, or real application network access, stop after Automation v2 Prepare, and must not activate or execute 10H-A or any successor in the same run.",
+  "state": "ready",
+  "phase_id": "COMP-QA",
+  "phase_title": "Competition Release Final QA and Acceptance",
+  "pack_path": "docs/codex-master-plan/phases/phase-comp-qa-v1",
+  "pack_version": "COMP-QA-v1",
+  "baseline_commit": "46277a859bf39d11bb027060b1effaf823ec3acc",
+  "human_approved": true,
+  "activation_note": "The human explicitly prioritized completion of the competition release and approved the repository-controlled COMP-QA-v1 final QA gate. Codex must execute only COMP-QA, verify and apply only the canonical one-chunk payload, run every exact validation, restore the two known Next-generated configuration files exactly to baseline after the successful web build, add only the final QA acceptance artifact, perform no migration, database mutation, external service access, deployment, or production operation, stop after Automation v2 Prepare, and must not activate or execute 10H-A or any successor.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
     "allow_completion_state_update": true,
     "stop_after_phase": true
   },
-  "last_result": {
-    "status": "PHASE_COMPLETE",
-    "phase_id": "COMP-C",
-    "pack_version": "COMP-C-v2",
-    "baseline_commit": "a3641a092a91e934bf5e3cf7d0b32bf3bc8109a0",
-    "completed_at": "2026-07-13T15:18:25.6182071Z",
-    "files_changed": [
-      "apps/api/package.json",
-      "apps/api/src/competition-replay-fixtures.test.ts",
-      "apps/api/src/competition-replay-fixtures.ts",
-      "apps/api/src/server-competition-prediction-route.ts",
-      "apps/api/src/server-competition-replay-route.test.ts",
-      "apps/web/app/competition/page.tsx",
-      "apps/web/components/competition/CompetitionPredictionPanel.test.tsx",
-      "apps/web/components/competition/CompetitionPredictionPanel.tsx",
-      "apps/web/lib/competition-api.test.ts",
-      "apps/web/lib/competition-api.ts",
-      "docs/competition-release-submission.md"
-    ],
-    "validation_summary": "Focused prediction and competition replay tests 67/67 passed; API typecheck passed; API production build passed; API regression suite 919/919 passed; web typecheck passed; web production build passed; git diff --check passed; Prisma schema/migration diff empty. Dependencies were prepared offline with frozen lockfile and lifecycle scripts disabled; Corepack/package-manager network remained disabled. No application, database, migration, production, or provider network access occurred.",
-    "migration_applied": false,
-    "network_accessed": false
-  }
+  "last_result": null
 }
