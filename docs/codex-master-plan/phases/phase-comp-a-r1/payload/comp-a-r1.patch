@@ -295,12 +295,13 @@ diff --git a/docs/phase-comp-a-competition-prediction-baseline.md b/docs/phase-c
  
 -- Market contribution cannot exceed the approved odds-intelligence cap.
 +- Market contribution cannot exceed the approved odds-intelligence cap for any prediction target.
-+- Only the explicit market specialist may consume market probability distributions.
++- Only the explicit market specialist may inject market probability distributions into prediction target composition.
 +- Missing specialist outputs contribute the declared fallback at the specialist's global weight; target-specific renormalization cannot amplify market influence.
  - Missing or unusable odds receive zero market weight.
  - Missing event evidence does not fabricate pressure.
- - Missing score or minute activates a complete conservative fallback, lowers confidence and raises risk.
+-- Missing score or minute activates a complete conservative fallback, lowers confidence and raises risk.
 -- Finished matches collapse to deterministic terminal values.
++- Outside terminal states, missing score or minute activates a complete conservative fallback, lowers confidence and raises risk.
 +- Finished matches collapse to deterministic terminal probabilities, while confidence and risk still reflect freshness and data coverage.
 +- Caller-supplied limitation text is not copied verbatim into the public-shaped explanation.
  - The competition profile is intentionally limited and is not described as production calibrated.
