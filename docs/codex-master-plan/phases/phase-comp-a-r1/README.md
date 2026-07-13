@@ -89,7 +89,7 @@ git apply --whitespace=error-all -- `
 
 ### Single market-consumption path
 
-- Only the `market` specialist may read market probability distributions.
+- Only the `market` specialist may inject market probability distributions into prediction target composition.
 - `goal_hazard`, state, event, scoreline, and fallback specialists must not consume market probabilities.
 - Missing or unusable market evidence continues to receive zero market weight.
 
