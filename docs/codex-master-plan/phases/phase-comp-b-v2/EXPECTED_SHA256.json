@@ -1,7 +1,18 @@
 {
   "schema_version": "matchpulse-payload-integrity-v3",
   "verification_mode": "sha256-canonical-lf-v1",
+  "ordered_combined_sha256": "268b0a641af2f4107e58261dfaa1320b3b22f6912d87f30f2a3c6b7db36758eb",
   "files": {
-    "payload/comp-b-v2.patch": "268b0a641af2f4107e58261dfaa1320b3b22f6912d87f30f2a3c6b7db36758eb"
+    "payload/patches/01-apps-api-package.patch": "71589c04edeadb2146806c0e39635be8d912fff9bf9689576eb94e61e52f6bdc",
+    "payload/patches/02-public-mapper-test.patch": "756bbe9ccdce2e8c8c397f82b00482a079832b6299938e341fbfbca0b99ee69c",
+    "payload/patches/03-public-mapper.patch": "7b36cd764bc0a00e9600ec2f4856c79a84731e81ff3529b99f564b39aec8c18a",
+    "payload/patches/04-route-contract-test.patch": "21a93f17bc4c9a5b007b00ace9b71e84f4cdf1faa99e6b99fe9410d9ce4790da",
+    "payload/patches/05-route-contract.patch": "2306db7da44a1483407f3d620bb89c7d25d687150efd5eac62f2155f00931080",
+    "payload/patches/06-service-test.patch": "de3315a6f41fdef5d6764cc47f1d6639e3d0f68178344fc0cf6457b4e2c681ed",
+    "payload/patches/07-service.patch": "61979ae989672d0e38e3114c6469f277cfd0c39126901db74687bcb669f96a04",
+    "payload/patches/08-server-route-test.patch": "02467be97ded94a65b1040f379f4c9db66cf76ec6c1f988433c01b7c6975a75a",
+    "payload/patches/09-server-route.patch": "eb11a02d5a8da0912ff853bdd222cf42f698c1f2076cc0cdba41ac53baf41d1c",
+    "payload/patches/10-phase-doc.patch": "60cc76498e8e362c114c109f1b70c4c48eefb231848b4412c0aca53a8e51ffb3",
+    "payload/patches/11-server-registration.patch": "5f0ef3013c7c1b180deccc77de0c326ef0dcc2195231e884a10ce6e75c16880b"
   }
 }
