@@ -120,7 +120,7 @@
       "status": "ready",
       "depends_on": ["COMP-A"],
       "pack_version": "COMP-B-v2",
-      "baseline_commit": "c973504e73734d557834db4fb5c5198daccaf95e",
+      "baseline_commit": "0df8ff23e23501c4b67108821d331f937d74887d",
       "human_gate": false
     },
     {
