@@ -47,12 +47,12 @@ Apply the ordered patch set under:
 ```text
 payload/patches/01-apps-api-package.patch
 ...
-payload/patches/11-server-registration.patch
+payload/patches/12-runtime-odds-freshness.patch
 ```
 
-The lexicographic order is mandatory. Concatenating the eleven canonical-LF patch files in that order reproduces the reviewed combined payload hash recorded in `EXPECTED_SHA256.json`.
+The lexicographic order is mandatory. Concatenating the twelve canonical-LF patch files in that order reproduces the reviewed combined payload hash recorded in `EXPECTED_SHA256.json`.
 
-The ordered patch set changes exactly these eleven targets:
+The ordered twelve-patch set changes exactly these eleven targets:
 
 1. `apps/api/package.json`
 2. `apps/api/src/competition-prediction-public-mapper.test.ts`
@@ -107,20 +107,34 @@ function Get-CanonicalLfSha256 {
 
 ## Exact application
 
-After all baseline and integrity checks pass:
+After all baseline and integrity checks pass, materialize one canonical temporary patch from the ordered set and apply that single combined file:
 
 ```powershell
 $patches = Get-ChildItem -LiteralPath docs/codex-master-plan/phases/phase-comp-b-v2/payload/patches -Filter *.patch | Sort-Object Name
-if ($patches.Count -ne 11) { throw "SPEC_CONFLICT: expected exactly 11 ordered patches." }
+if ($patches.Count -ne 12) { throw "SPEC_CONFLICT: expected exactly 12 ordered patches." }
 
-git apply --check --whitespace=error-all -- @($patches.FullName)
-if ($LASTEXITCODE -ne 0) { throw "SPEC_CONFLICT: COMP-B-v2 patch check failed." }
+$strictUtf8 = [System.Text.UTF8Encoding]::new($false, $true)
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+$combinedText = [System.Text.StringBuilder]::new()
+foreach ($patch in $patches) {
+  $text = $strictUtf8.GetString([System.IO.File]::ReadAllBytes($patch.FullName))
+  [void]$combinedText.Append($text.Replace("`r`n", "`n").Replace("`r", "`n"))
+}
 
-git apply --whitespace=error-all -- @($patches.FullName)
-if ($LASTEXITCODE -ne 0) { throw "SPEC_CONFLICT: COMP-B-v2 patch application failed." }
+$combinedPatch = Join-Path ([System.IO.Path]::GetTempPath()) "matchpulse-comp-b-v2-$PID.patch"
+[System.IO.File]::WriteAllText($combinedPatch, $combinedText.ToString(), $utf8NoBom)
+try {
+  git apply --check --whitespace=error-all -- $combinedPatch
+  if ($LASTEXITCODE -ne 0) { throw "SPEC_CONFLICT: COMP-B-v2 patch check failed." }
+
+  git apply --whitespace=error-all -- $combinedPatch
+  if ($LASTEXITCODE -ne 0) { throw "SPEC_CONFLICT: COMP-B-v2 patch application failed." }
+} finally {
+  Remove-Item -LiteralPath $combinedPatch -Force -ErrorAction SilentlyContinue
+}
 ```
 
-Then verify that `git diff --name-only` contains only the eleven allowlisted targets before validation.
+Then verify that `git status --short` resolves to only the eleven allowlisted targets before validation.
 
 ## Public safety boundary
 
@@ -146,6 +160,7 @@ Prediction and `market_analysis` remain semantically separate in every public re
 - Stored-data failure may fall back to injected replay without exposing the underlying error.
 - Missing or unusable odds preserve mandatory unavailable/limited `market_analysis`.
 - Prediction freshness uses the least-fresh available supporting evidence; fresh odds cannot hide stale state or event data.
+- Stored odds freshness is recalculated against request time; stale or unverifiable market evidence receives zero model weight.
 - Finished matches retain terminal prediction semantics.
 - Both routes reject every query parameter.
 - Internal authentication reuses the existing constant-time token verifier.
@@ -173,8 +188,8 @@ Run exactly the commands in `manifest.json`. Completion requires evidence that:
 Before publication of this review pack:
 
 - isolated strict TypeScript compilation passed for all eight new source/test files;
-- an injected mock-runtime harness passed `22/22` focused tests;
-- the ordered eleven-patch parser and application check passed;
+- an injected mock-runtime harness passed `23/23` focused tests;
+- the ordered twelve-patch canonical concatenation and application check passed;
 - the ordered patch set contains exactly eleven implementation targets;
 - `git diff --check` passed after application.
 
