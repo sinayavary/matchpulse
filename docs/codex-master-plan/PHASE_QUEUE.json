@@ -23,9 +23,7 @@
       "id": "10E-B",
       "title": "Odds mathematical primitives",
       "status": "completed",
-      "depends_on": [
-        "10E-A"
-      ],
+      "depends_on": ["10E-A"],
       "completion_commit": "fd5045eb109305242eef1cd847a007e93c28c87a",
       "human_gate": false
     },
@@ -33,9 +31,7 @@
       "id": "10E-C",
       "title": "Odds reliability and assessment",
       "status": "completed",
-      "depends_on": [
-        "10E-B"
-      ],
+      "depends_on": ["10E-B"],
       "pack_version": "10E-C-v1",
       "baseline_commit": "fd5045eb109305242eef1cd847a007e93c28c87a",
       "completion_commit": "bbdd6f67936ec4c5ece0b9cf158712c74cde3c75",
@@ -46,28 +42,21 @@
       "title": "Database readiness and approved development migration",
       "status": "blocked_human_approval",
       "depends_on": [],
-      "required_before": [
-        "10E-D"
-      ],
+      "required_before": ["10E-D"],
       "human_gate": true
     },
     {
       "id": "10E-D",
       "title": "Odds DB service and persistence",
       "status": "planned",
-      "depends_on": [
-        "10E-C",
-        "gate-1"
-      ],
+      "depends_on": ["10E-C", "gate-1"],
       "human_gate": true
     },
     {
       "id": "10F-A",
       "title": "TxLINE transport, auth, REST, SSE, and match-data foundation",
       "status": "completed",
-      "depends_on": [
-        "10E-C"
-      ],
+      "depends_on": ["10E-C"],
       "pack_version": "10F-A-v1",
       "baseline_commit": "acea876b2a26c22e26a7390bf6520e2eb8e41a9d",
       "human_gate": false
@@ -76,9 +65,7 @@
       "id": "10F-B",
       "title": "TxLINE provider-specific stream bindings and additional data domains",
       "status": "completed",
-      "depends_on": [
-        "10F-A"
-      ],
+      "depends_on": ["10F-A"],
       "pack_version": "10F-B-v1",
       "baseline_commit": "791ea52e68537ae8d5eadc96f0d0c8cf6f72c2c8",
       "human_gate": false
@@ -87,9 +74,7 @@
       "id": "10F-C",
       "title": "TxLINE complete client integration and regression closure",
       "status": "completed",
-      "depends_on": [
-        "10F-B"
-      ],
+      "depends_on": ["10F-B"],
       "pack_version": "10F-C-v1",
       "baseline_commit": "c1b2461ec42db2af1d93bfb5af7dcdb714bb2c7e",
       "completion_commit": "b4f1bf28e3ad05d4c796ac52a1383cd918182842",
@@ -99,28 +84,21 @@
       "id": "10F",
       "title": "TxLINE complete client integration gate",
       "status": "planned",
-      "depends_on": [
-        "10F-C"
-      ],
+      "depends_on": ["10F-C"],
       "human_gate": false
     },
     {
       "id": "10G",
       "title": "Streaming ingestion and backfill",
       "status": "planned",
-      "depends_on": [
-        "10F",
-        "gate-1"
-      ],
+      "depends_on": ["10F", "gate-1"],
       "human_gate": true
     },
     {
       "id": "BUILD-INFRA-A",
       "title": "Workspace package build and API output boundary",
       "status": "completed",
-      "depends_on": [
-        "10F-C"
-      ],
+      "depends_on": ["10F-C"],
       "pack_version": "BUILD-INFRA-A-v1",
       "baseline_commit": "865489f386cc1073532f8889365470b57eb9b852",
       "completion_commit": "e33a8f4d8949ee219261350b1bd05836bc3c8878",
@@ -130,9 +108,7 @@
       "id": "COMP-A",
       "title": "Competition complete prediction baseline kernel",
       "status": "completed",
-      "depends_on": [
-        "BUILD-INFRA-A"
-      ],
+      "depends_on": ["BUILD-INFRA-A"],
       "pack_version": "COMP-A-v1",
       "baseline_commit": "13c2e80ec40da1443048cd61bb020a501f4b9d22",
       "completion_commit": "0df8ff23e23501c4b67108821d331f937d74887d",
@@ -142,9 +118,7 @@
       "id": "COMP-B",
       "title": "Competition prediction runtime and versioned public-safe API",
       "status": "completed",
-      "depends_on": [
-        "COMP-A"
-      ],
+      "depends_on": ["COMP-A"],
       "pack_version": "COMP-B-v2",
       "baseline_commit": "0df8ff23e23501c4b67108821d331f937d74887d",
       "completion_commit": "a3641a092a91e934bf5e3cf7d0b32bf3bc8109a0",
@@ -154,9 +128,7 @@
       "id": "COMP-C",
       "title": "Competition web experience, replay fallback, and submission gate",
       "status": "completed",
-      "depends_on": [
-        "COMP-B"
-      ],
+      "depends_on": ["COMP-B"],
       "pack_version": "COMP-C-v2",
       "baseline_commit": "a3641a092a91e934bf5e3cf7d0b32bf3bc8109a0",
       "completion_commit": "46277a859bf39d11bb027060b1effaf823ec3acc",
@@ -166,9 +138,7 @@
       "id": "COMP-QA",
       "title": "Competition release final QA and acceptance",
       "status": "ready",
-      "depends_on": [
-        "COMP-C"
-      ],
+      "depends_on": ["COMP-C"],
       "pack_version": "COMP-QA-v1",
       "baseline_commit": "46277a859bf39d11bb027060b1effaf823ec3acc",
       "human_gate": false
@@ -177,95 +147,70 @@
       "id": "10H-A",
       "title": "Production prediction composition engine",
       "status": "planned",
-      "depends_on": [
-        "COMP-QA"
-      ],
+      "depends_on": ["COMP-QA"],
       "human_gate": false
     },
     {
       "id": "10H",
       "title": "Production prediction engine",
       "status": "planned",
-      "depends_on": [
-        "10H-A"
-      ],
+      "depends_on": ["10H-A"],
       "human_gate": false
     },
     {
       "id": "10I",
       "title": "Runtime prediction orchestrator",
       "status": "planned",
-      "depends_on": [
-        "10E-D",
-        "10G",
-        "10H"
-      ],
+      "depends_on": ["10E-D", "10G", "10H"],
       "human_gate": false
     },
     {
       "id": "10J",
       "title": "Labels, evaluation, backtest, and calibration",
       "status": "planned",
-      "depends_on": [
-        "10I"
-      ],
+      "depends_on": ["10I"],
       "human_gate": false
     },
     {
       "id": "10K",
       "title": "Production public prediction API",
       "status": "planned",
-      "depends_on": [
-        "10I"
-      ],
+      "depends_on": ["10I"],
       "human_gate": true
     },
     {
       "id": "10L",
       "title": "Final production web experience",
       "status": "planned",
-      "depends_on": [
-        "10K"
-      ],
+      "depends_on": ["10K"],
       "human_gate": true
     },
     {
       "id": "10M",
       "title": "Watchlist and Telegram",
       "status": "planned",
-      "depends_on": [
-        "10I"
-      ],
+      "depends_on": ["10I"],
       "human_gate": true
     },
     {
       "id": "10N",
       "title": "TxLINE and Solana verification",
       "status": "planned",
-      "depends_on": [
-        "10F"
-      ],
+      "depends_on": ["10F"],
       "human_gate": true
     },
     {
       "id": "10O",
       "title": "Production hardening",
       "status": "planned",
-      "depends_on": [
-        "10K",
-        "10L",
-        "10M",
-        "10N"
-      ],
+      "depends_on": ["10K", "10L", "10M", "10N"],
       "human_gate": true
     },
     {
       "id": "10P",
       "title": "Production demo and final delivery",
       "status": "planned",
-      "depends_on": [
-        "10O"
-      ],
+      "depends_on": ["10O"],
       "human_gate": true
     }
   ]
