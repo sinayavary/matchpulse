@@ -6,7 +6,7 @@
   "phase_title": "Competition Prediction Runtime and Versioned Public-Safe API",
   "pack_path": "docs/codex-master-plan/phases/phase-comp-b-v2",
   "pack_version": "COMP-B-v2",
-  "baseline_commit": "c973504e73734d557834db4fb5c5198daccaf95e",
+  "baseline_commit": "0df8ff23e23501c4b67108821d331f937d74887d",
   "human_approved": true,
   "activation_note": "The human explicitly approved activation of the exact reviewed and installed COMP-B-v2 pack. Codex must execute only COMP-B, verify and apply only the canonical thirteen-patch payload producing exactly the eleven-file allowlist, perform no migration, database mutation, or real application network access, stop after Automation v2 Prepare, and must not activate or execute COMP-C in the same run.",
   "execution": {
