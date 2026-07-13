@@ -1,0 +1,241 @@
+diff --git a/apps/api/src/server-competition-prediction-route.test.ts b/apps/api/src/server-competition-prediction-route.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..032800fb504e41c7d7019c75a885fc54d22afba2
+--- /dev/null
++++ b/apps/api/src/server-competition-prediction-route.test.ts
+@@ -0,0 +1,235 @@
++import assert from "node:assert/strict";
++import test from "node:test";
++import Fastify from "fastify";
++import {
++  buildCompetitionPredictionSnapshot,
++  type CompetitionPredictionInput,
++} from "./competition-model-profile.js";
++import type { CompetitionPredictionRuntimeResult } from "./competition-prediction-service.js";
++import {
++  buildPublicMarketIntelligence,
++  PUBLIC_MARKET_SAFETY_NOTE,
++} from "./odds-intelligence-contract.js";
++import { registerCompetitionPredictionRoutes } from "./server-competition-prediction-route.js";
++
++const TOKEN = "competition-route-secret";
++
++function input(): CompetitionPredictionInput {
++  return {
++    fixture_id: "fixture-1",
++    as_of: "2026-07-13T11:59:30.000Z",
++    generated_at: "2026-07-13T12:00:00.000Z",
++    sequence: null,
++    trigger: "manual",
++    feature_reference: {
++      feature_version: "competition-runtime-input-v1",
++      feature_hash: "route-test-hash",
++      feature_count: 10,
++    },
++    phase: "H2",
++    normalized_phase: "second_half",
++    minute: 67,
++    home_score: 1,
++    away_score: 1,
++    freshness_score: 1,
++    market: {
++      available: false,
++      usable_for_model: false,
++      assessment_id: "unavailable-assessment",
++      reliability_score: 0,
++      approved_model_weight_cap: 0,
++      final_outcome: null,
++      next_goal: null,
++      direction: "unknown",
++      limitations: ["Market evidence is unavailable."],
++    },
++    events: {
++      available: false,
++      home_pressure: 0,
++      away_pressure: 0,
++      home_impact: 0,
++      away_impact: 0,
++      limitations: ["Event evidence is unavailable."],
++    },
++  };
++}
++
++function marketAnalysis() {
++  return buildPublicMarketIntelligence({
++    market_intelligence_version: "public-market-intelligence-v1",
++    fixture_id: "fixture-1",
++    generated_at: "2026-07-13T12:00:00.000Z",
++    availability: "unavailable",
++    reliability: "unavailable",
++    freshness: "unknown",
++    provider_coverage: "none",
++    provider_agreement: "unknown",
++    volatility: "none",
++    market_count: 0,
++    usable_market_count: 0,
++    provider_count: 0,
++    notable_movements: [],
++    summary: "Market intelligence is unavailable because no usable odds data is present.",
++    limitations: ["No market evidence is available."],
++    last_update: null,
++    safety_note: PUBLIC_MARKET_SAFETY_NOTE,
++  });
++}
++
++function runtimeResult(): CompetitionPredictionRuntimeResult {
++  return {
++    fixture_id: "fixture-1",
++    status: "degraded",
++    source: "database",
++    mode: "request_time",
++    snapshot: buildCompetitionPredictionSnapshot(input()),
++    market_analysis: marketAnalysis(),
++    limitations: [],
++  };
++}
++
++function createApp(
++  getPrediction: (fixtureId: string) => Promise<CompetitionPredictionRuntimeResult> = async () => runtimeResult(),
++  env: Record<string, string | undefined> = { MATCHPULSE_INTERNAL_TOKEN: TOKEN },
++) {
++  const app = Fastify();
++  registerCompetitionPredictionRoutes(app, {
++    env,
++    getCompetitionPredictionForFixture: getPrediction,
++  });
++  return app;
++}
++
++test("internal competition route requires configured authentication", async () => {
++  const app = createApp(undefined as never, {});
++  const response = await app.inject({
++    method: "GET",
++    url: "/api/internal/competition/matches/fixture-1/prediction",
++  });
++  assert.equal(response.statusCode, 503);
++  assert.equal(response.body.includes(TOKEN), false);
++  assert.equal(response.json().meta.message, "Internal auth is not configured.");
++  await app.close();
++});
++
++test("internal competition route rejects missing, invalid, and malformed credentials", async () => {
++  for (const headers of [
++    {},
++    { "x-matchpulse-internal-token": "wrong" },
++    { authorization: "Basic abc" },
++  ]) {
++    const app = createApp();
++    const response = await app.inject({
++      method: "GET",
++      url: "/api/internal/competition/matches/fixture-1/prediction",
++      headers,
++    });
++    assert.equal(response.statusCode, 401);
++    assert.equal(response.body.includes(TOKEN), false);
++    await app.close();
++  }
++});
++
++test("valid internal auth returns the complete internal snapshot and public-safe market analysis", async () => {
++  const app = createApp();
++  const response = await app.inject({
++    method: "GET",
++    url: "/api/internal/competition/matches/fixture-1/prediction",
++    headers: { "x-matchpulse-internal-token": TOKEN },
++  });
++  assert.equal(response.statusCode, 200);
++  const body = response.json();
++  assert.equal(body.data.identity.fixture_id, "fixture-1");
++  assert.ok(Array.isArray(body.data.specialist_contributions));
++  assert.equal(body.market_analysis.fixture_id, "fixture-1");
++  assert.equal(body.meta.mode, "internal");
++  await app.close();
++});
++
++test("public route needs no auth and recursively omits protected internals", async () => {
++  const app = createApp();
++  const response = await app.inject({
++    method: "GET",
++    url: "/api/public/v1/matches/fixture-1/prediction",
++  });
++  assert.equal(response.statusCode, 200);
++  const body = response.json();
++  assert.equal(body.data.fixture_id, "fixture-1");
++  assert.equal(body.market_analysis.fixture_id, "fixture-1");
++  for (const forbidden of [
++    "specialist_contributions",
++    "feature_reference",
++    "odds_intelligence_reference",
++    "assigned_weight",
++    "fair_probability",
++    "consensus_probability",
++  ]) {
++    assert.equal(response.body.includes(forbidden), false, forbidden);
++  }
++  await app.close();
++});
++
++test("both routes reject unknown query parameters without echoing their names", async () => {
++  const app = createApp();
++  const publicResponse = await app.inject({
++    method: "GET",
++    url: "/api/public/v1/matches/fixture-1/prediction?privateDebug=true",
++  });
++  assert.equal(publicResponse.statusCode, 400);
++  assert.equal(publicResponse.body.includes("privateDebug"), false);
++
++  const internalResponse = await app.inject({
++    method: "GET",
++    url: "/api/internal/competition/matches/fixture-1/prediction?privateDebug=true",
++    headers: { authorization: `Bearer ${TOKEN}` },
++  });
++  assert.equal(internalResponse.statusCode, 400);
++  assert.equal(internalResponse.body.includes("privateDebug"), false);
++  await app.close();
++});
++
++test("service failures and unsafe output become sanitized 503 responses", async () => {
++  for (const getPrediction of [
++    async () => {
++      throw new Error("private database stack");
++    },
++    async () => ({
++      ...runtimeResult(),
++      market_analysis: {
++        ...marketAnalysis(),
++        raw_payload: { secret: "provider-secret" },
++      },
++    } as never),
++  ]) {
++    const app = createApp(getPrediction);
++    const response = await app.inject({
++      method: "GET",
++      url: "/api/public/v1/matches/fixture-1/prediction",
++    });
++    assert.equal(response.statusCode, 503);
++    assert.equal(response.json().market_analysis.availability, "unavailable");
++    assert.equal(response.body.includes("private database stack"), false);
++    assert.equal(response.body.includes("provider-secret"), false);
++    await app.close();
++  }
++});
++
++test("no_data response remains bounded and keeps mandatory market analysis", async () => {
++  const app = createApp(async () => ({
++    fixture_id: "fixture-1",
++    status: "no_data",
++    source: "database",
++    mode: "request_time",
++    snapshot: null,
++    market_analysis: marketAnalysis(),
++    limitations: ["No stored data."],
++  }));
++  const response = await app.inject({
++    method: "GET",
++    url: "/api/public/v1/matches/fixture-1/prediction",
++  });
++  assert.equal(response.statusCode, 200);
++  assert.equal(response.json().data, null);
++  assert.equal(response.json().market_analysis.availability, "unavailable");
++  await app.close();
++});
