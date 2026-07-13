@@ -42,13 +42,17 @@ No new table, migration, queue, worker, supervisor, external model, provider dep
 
 ## Exact payload
 
-Apply only:
+Apply the ordered patch set under:
 
 ```text
-payload/comp-b-v2.patch
+payload/patches/01-apps-api-package.patch
+...
+payload/patches/11-server-registration.patch
 ```
 
-The patch changes exactly these eleven targets:
+The lexicographic order is mandatory. Concatenating the eleven canonical-LF patch files in that order reproduces the reviewed combined payload hash recorded in `EXPECTED_SHA256.json`.
+
+The ordered patch set changes exactly these eleven targets:
 
 1. `apps/api/package.json`
 2. `apps/api/src/competition-prediction-public-mapper.test.ts`
@@ -78,7 +82,7 @@ All newly introduced implementation and test files, plus the phase document, mus
 
 ## Canonical payload verification
 
-Verify `payload/comp-b-v2.patch` against `EXPECTED_SHA256.json` using strict UTF-8 and canonical LF normalization. Verification must not rewrite the payload.
+Verify every file under `payload/patches` against `EXPECTED_SHA256.json` using strict UTF-8 and canonical LF normalization. Then concatenate the canonical bytes in lexicographic filename order and verify `ordered_combined_sha256`. Verification must not rewrite any payload file.
 
 PowerShell verifier:
 
@@ -106,8 +110,14 @@ function Get-CanonicalLfSha256 {
 After all baseline and integrity checks pass:
 
 ```powershell
-git apply --check --whitespace=error-all docs/codex-master-plan/phases/phase-comp-b-v2/payload/comp-b-v2.patch
-git apply --whitespace=error-all docs/codex-master-plan/phases/phase-comp-b-v2/payload/comp-b-v2.patch
+$patches = Get-ChildItem -LiteralPath docs/codex-master-plan/phases/phase-comp-b-v2/payload/patches -Filter *.patch | Sort-Object Name
+if ($patches.Count -ne 11) { throw "SPEC_CONFLICT: expected exactly 11 ordered patches." }
+
+git apply --check --whitespace=error-all -- @($patches.FullName)
+if ($LASTEXITCODE -ne 0) { throw "SPEC_CONFLICT: COMP-B-v2 patch check failed." }
+
+git apply --whitespace=error-all -- @($patches.FullName)
+if ($LASTEXITCODE -ne 0) { throw "SPEC_CONFLICT: COMP-B-v2 patch application failed." }
 ```
 
 Then verify that `git diff --name-only` contains only the eleven allowlisted targets before validation.
@@ -164,8 +174,8 @@ Before publication of this review pack:
 
 - isolated strict TypeScript compilation passed for all eight new source/test files;
 - an injected mock-runtime harness passed `22/22` focused tests;
-- the unified patch parser and application check passed;
-- the patch contains exactly eleven implementation targets;
+- the ordered eleven-patch parser and application check passed;
+- the ordered patch set contains exactly eleven implementation targets;
 - `git diff --check` passed after application.
 
 This supporting evidence does **not** replace repository `pnpm` typecheck, build, or full regression. Those remain mandatory during a separately approved execution.
