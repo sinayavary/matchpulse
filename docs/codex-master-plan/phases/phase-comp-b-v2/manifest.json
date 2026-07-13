@@ -1,0 +1,76 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "COMP-B",
+  "pack_version": "COMP-B-v2",
+  "baseline_commit": "0df8ff23e23501c4b67108821d331f937d74887d",
+  "review_only": true,
+  "payload": {
+    "type": "git_apply_patch",
+    "path": "payload/comp-b-v2.patch",
+    "verification_mode": "sha256-canonical-lf-v1"
+  },
+  "baseline_target_blobs": {
+    "apps/api/package.json": "70240d9b992d37ffe7584d37053af7b6a01a2a4d",
+    "apps/api/src/server.ts": "fac7bcf57b5b851927011683e94aed0584432d6b"
+  },
+  "baseline_absent_targets": [
+    "apps/api/src/competition-prediction-public-mapper.test.ts",
+    "apps/api/src/competition-prediction-public-mapper.ts",
+    "apps/api/src/competition-prediction-route-contract.test.ts",
+    "apps/api/src/competition-prediction-route-contract.ts",
+    "apps/api/src/competition-prediction-service.test.ts",
+    "apps/api/src/competition-prediction-service.ts",
+    "apps/api/src/server-competition-prediction-route.test.ts",
+    "apps/api/src/server-competition-prediction-route.ts",
+    "docs/phase-comp-b-competition-runtime-api.md"
+  ],
+  "allowed_target_files": [
+    "apps/api/package.json",
+    "apps/api/src/competition-prediction-public-mapper.test.ts",
+    "apps/api/src/competition-prediction-public-mapper.ts",
+    "apps/api/src/competition-prediction-route-contract.test.ts",
+    "apps/api/src/competition-prediction-route-contract.ts",
+    "apps/api/src/competition-prediction-service.test.ts",
+    "apps/api/src/competition-prediction-service.ts",
+    "apps/api/src/server-competition-prediction-route.test.ts",
+    "apps/api/src/server-competition-prediction-route.ts",
+    "apps/api/src/server.ts",
+    "docs/phase-comp-b-competition-runtime-api.md"
+  ],
+  "required_validation_commands": [
+    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/competition-model-profile.test.ts src/prediction-engine-v1.test.ts src/odds-intelligence-public-mapper.test.ts src/competition-prediction-service.test.ts src/competition-prediction-public-mapper.test.ts src/competition-prediction-route-contract.test.ts src/server-competition-prediction-route.test.ts",
+    "pnpm.cmd --filter @matchpulse/api typecheck",
+    "pnpm.cmd --filter @matchpulse/api build",
+    "pnpm.cmd --filter @matchpulse/api test",
+    "git diff --check",
+    "git diff --name-only -- prisma"
+  ],
+  "expected_results": [
+    "the request-time runtime reuses existing canonical state, event, odds-intelligence, storage, auth, and public market mapper boundaries",
+    "all required prediction families are present",
+    "mandatory public market_analysis is present in every bounded public response",
+    "prediction and public market analysis remain separately labeled",
+    "internal competition prediction route is authenticated",
+    "versioned public-safe prediction route is available",
+    "public mapper recursively excludes protected internal fields and private text",
+    "fair and consensus probabilities, provider identities, component scores, assessment IDs, and internal weights are absent",
+    "stored, partial, stale, no-data, finished, replay, and sanitized-failure paths are bounded",
+    "unknown query parameters are rejected",
+    "API typecheck passes",
+    "API production build passes",
+    "full API regression passes",
+    "Prisma/migration diff is empty",
+    "no real network access",
+    "no database mutation or migration applied",
+    "no frontend, worker, queue, persistence, or successor-phase change",
+    "no COMP-C activation"
+  ],
+  "allows_migration": false,
+  "allows_network": false,
+  "git_publish": {
+    "allow_commit": true,
+    "allow_push": false,
+    "require_exact_staged_paths": true,
+    "commit_message": "Complete COMP-B competition prediction runtime API"
+  }
+}
