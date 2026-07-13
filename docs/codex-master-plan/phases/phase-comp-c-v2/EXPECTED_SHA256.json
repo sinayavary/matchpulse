@@ -1,0 +1,14 @@
+{
+  "schema_version": "matchpulse-payload-integrity-v3",
+  "verification_mode": "sha256-canonical-lf-v1",
+  "ordered_combined_sha256": "688927f3b384936795b0be6b2a46f2220a2fc9e32597b543910de56495753d0a",
+  "decoded_gzip_sha256": "cf881f73ff6097024623f9d016ec455faadecf033f3ba4a3cf7076efba9e7aba",
+  "decoded_patch_sha256": "f746fe54d34d868da9498871c7b1b71eb10326bfd89aed191677934f9237412f",
+  "files": {
+    "payload/chunks/part-00.b64.part": "62fee29832c585f1a979139ad6bc5344c1231f085d14b359e5bebc0d06dca8c2",
+    "payload/chunks/part-01.b64.part": "fb8e158d21ea50c882010cd9cf9aabc95e8f63d6d0cc9781f098c0822af918f6",
+    "payload/chunks/part-02.b64.part": "6ae9d27e3563db01aa843c88cae2e586c0ddb25b9b9fcb41ae4eb4808111d473",
+    "payload/chunks/part-03.b64.part": "22a4c6eaafad9fba2c32c55b506bf7a8beabf99020a3aaeac6d8de91b7362208",
+    "payload/chunks/part-04.b64.part": "27db3975a2df9a7efad4a907599a9a3842e12962b7231c6cf822b538c958d522"
+  }
+}
