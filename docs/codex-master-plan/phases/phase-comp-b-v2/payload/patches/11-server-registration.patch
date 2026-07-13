@@ -1,0 +1,11 @@
+diff --git a/apps/api/src/server.ts b/apps/api/src/server.ts
+--- a/apps/api/src/server.ts
++++ b/apps/api/src/server.ts
+@@ -91,2 +91,3 @@ import { registerPublicApiRoutes } from "./public-api.js";
+ import { registerTxlineRuntimeAuditRoutes } from "./txline-runtime-audit-routes.js";
++import { registerCompetitionPredictionRoutes } from "./server-competition-prediction-route.js";
+ 
+@@ -102,2 +103,3 @@ registerInternalAgentPresenterRoute(app);
+ registerInternalProductAgentRoute(app);
++registerCompetitionPredictionRoutes(app);
+ 
