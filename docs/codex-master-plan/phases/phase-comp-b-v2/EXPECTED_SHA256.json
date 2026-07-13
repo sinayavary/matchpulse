@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-payload-integrity-v3",
   "verification_mode": "sha256-canonical-lf-v1",
-  "ordered_combined_sha256": "bd9489be630f64b018a9d64bf9d84d685bf6fd52a4e2b32a0957426988ded4c3",
+  "ordered_combined_sha256": "87a19f95f38652840249287fd7e4979a7daec758e045baf58704facf37d62689",
   "files": {
     "payload/patches/01-apps-api-package.patch": "71589c04edeadb2146806c0e39635be8d912fff9bf9689576eb94e61e52f6bdc",
     "payload/patches/02-public-mapper-test.patch": "756bbe9ccdce2e8c8c397f82b00482a079832b6299938e341fbfbca0b99ee69c",
@@ -14,6 +14,7 @@
     "payload/patches/09-server-route.patch": "eb11a02d5a8da0912ff853bdd222cf42f698c1f2076cc0cdba41ac53baf41d1c",
     "payload/patches/10-phase-doc.patch": "60cc76498e8e362c114c109f1b70c4c48eefb231848b4412c0aca53a8e51ffb3",
     "payload/patches/11-server-registration.patch": "5f0ef3013c7c1b180deccc77de0c326ef0dcc2195231e884a10ce6e75c16880b",
-    "payload/patches/12-runtime-odds-freshness.patch": "0c0eb981cceffd751be764dad0ab592672e15e19293be385366d9b09b582b726"
+    "payload/patches/12-runtime-odds-freshness.patch": "0c0eb981cceffd751be764dad0ab592672e15e19293be385366d9b09b582b726",
+    "payload/patches/13-market-freshness-floor.patch": "a31a5f659f3bd29fea247210f361c4b4c39b63a579b977c8e23053b0f9b222d9"
   }
 }
