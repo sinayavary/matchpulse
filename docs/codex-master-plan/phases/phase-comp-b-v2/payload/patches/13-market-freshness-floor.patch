@@ -1,0 +1,120 @@
+diff --git a/apps/api/src/competition-prediction-service.test.ts b/apps/api/src/competition-prediction-service.test.ts
+index 176c10d2f1094e8c3185b1deaba57ca8eb3655cf..42f602f6def5024d640b7822c4ef1500c8a58c8f 100644
+--- a/apps/api/src/competition-prediction-service.test.ts
++++ b/apps/api/src/competition-prediction-service.test.ts
+@@ -60,12 +60,16 @@ function market(input: {
+ }
+ 
+ function oddsContext(
+-  options: { generatedAt?: string; latestTimestamp?: string } = {},
++  options: {
++    generatedAt?: string;
++    resultLatestTimestamp?: string;
++    nextGoalLatestTimestamp?: string;
++  } = {},
+ ): InternalOddsIntelligenceContext {
+   const resultMarket = market({
+     key: "match_result_1x2|period:full_time",
+     type: "match_result_1x2",
+-    latest_timestamp: options.latestTimestamp,
++    latest_timestamp: options.resultLatestTimestamp,
+     selections: [
+       {
+         selection: "home",
+@@ -102,7 +106,7 @@ function oddsContext(
+   const nextGoalMarket = market({
+     key: "next_goal|period:full_time",
+     type: "next_goal",
+-    latest_timestamp: options.latestTimestamp,
++    latest_timestamp: options.nextGoalLatestTimestamp,
+     selections: [
+       {
+         selection: "home",
+@@ -246,7 +250,8 @@ function runtimeInput(
+     odds_intelligence: options.staleOdds
+       ? oddsContext({
+           generatedAt: "2026-07-13T10:00:00.000Z",
+-          latestTimestamp: "2026-07-13T09:59:30.000Z",
++          resultLatestTimestamp: "2026-07-13T09:59:30.000Z",
++          nextGoalLatestTimestamp: "2026-07-13T09:59:30.000Z",
+         })
+       : oddsContext(),
+     event_context: eventContext,
+@@ -348,6 +353,26 @@ test("persisted odds freshness is recalculated and stale market evidence is excl
+   );
+ });
+ 
++test("a fresh market cannot hide another usable market that is stale", async () => {
++  const mixedFreshness = runtimeInput();
++  mixedFreshness.odds_intelligence = oddsContext({
++    generatedAt: "2026-07-13T11:50:00.000Z",
++    resultLatestTimestamp: "2026-07-13T11:20:00.000Z",
++    nextGoalLatestTimestamp: "2026-07-13T11:49:00.000Z",
++  });
++  const service = createCompetitionPredictionService({
++    env: { DATABASE_URL: "postgresql://offline-placeholder" },
++    now: fixedNow,
++    loadStoredInput: async () => mixedFreshness,
++  });
++  const result = await service("fixture-1");
++  assert.equal(result.status, "stale");
++  assert.equal(result.snapshot?.data_coverage.has_reliable_odds, false);
++  assert.equal(result.snapshot?.odds_intelligence_reference.assigned_market_weight, 0);
++  assert.equal(result.market_analysis.freshness, "stale");
++  assert.equal(result.market_analysis.last_update, "2026-07-13T11:49:00.000Z");
++});
++
+ test("invalid fixture identity is rejected before any loader runs", async () => {
+   let called = false;
+   const service = createCompetitionPredictionService({
+diff --git a/apps/api/src/competition-prediction-service.ts b/apps/api/src/competition-prediction-service.ts
+index a44d869b98e7b740e5d0d896697716590e9e8a4a..2ccc6bddc3415d2a7ca1b5375a8b409e7d43e87b 100644
+--- a/apps/api/src/competition-prediction-service.ts
++++ b/apps/api/src/competition-prediction-service.ts
+@@ -264,8 +264,8 @@ function publicMarketAnalysis(
+       : runtimeFreshness.score >= 0.4
+         ? "aging" as const
+         : "stale" as const;
+-  const stale = safe.market_count > 0 && runtimeFreshness.score < 0.4;
+   const freshnessUnknown = safe.market_count > 0 && runtimeFreshness.last_update === null;
++  const stale = safe.market_count > 0 && !freshnessUnknown && runtimeFreshness.score < 0.4;
+   const runtimeLimitations = [
+     ...mapped.limitations,
+     ...(stale ? ["Available market data is stale."] : []),
+@@ -375,15 +375,27 @@ function runtimeOddsFreshness(
+   generatedAt: string,
+ ): { score: number; last_update: string | null } {
+   const generatedAtMs = Date.parse(generatedAt);
+-  const latest = context.markets
+-    .map((market) => market.latest_timestamp)
+-    .filter((value): value is string => value !== null)
+-    .map((value) => Date.parse(value))
+-    .filter((value) => Number.isFinite(value) && value <= generatedAtMs)
+-    .sort((left, right) => right - left)[0];
+-  if (latest === undefined) return { score: 0, last_update: null };
+-  const lastUpdate = new Date(latest).toISOString();
+-  return { score: freshnessScore(lastUpdate, generatedAt), last_update: lastUpdate };
++  const parsedTimestamp = (value: string | null): number | null => {
++    if (value === null) return null;
++    const parsed = Date.parse(value);
++    return Number.isFinite(parsed) && parsed <= generatedAtMs ? parsed : null;
++  };
++  const validMarketTimes = context.markets
++    .map((market) => parsedTimestamp(market.latest_timestamp))
++    .filter((value): value is number => value !== null);
++  const latest = [...validMarketTimes].sort((left, right) => right - left)[0];
++  const modelMarkets = context.markets.filter((market) => market.usable);
++  const freshnessMarkets = modelMarkets.length > 0 ? modelMarkets : context.markets;
++  const scores = freshnessMarkets.map((market) => {
++    const timestamp = parsedTimestamp(market.latest_timestamp);
++    return timestamp === null
++      ? 0
++      : freshnessScore(new Date(timestamp).toISOString(), generatedAt);
++  });
++  return {
++    score: scores.length === 0 ? 0 : Math.min(...scores),
++    last_update: latest === undefined ? null : new Date(latest).toISOString(),
++  };
+ }
+ 
+ function runtimeFreshnessScore(
