@@ -1,0 +1,56 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "COMP-A-R1",
+  "pack_version": "COMP-A-R1-v1",
+  "baseline_commit": "0df8ff23e23501c4b67108821d331f937d74887d",
+  "review_only": true,
+  "payload_mode": "git-blob-baseline-plus-unified-diff-v1",
+  "patch_path": "payload/comp-a-r1.patch",
+  "baseline_target_blobs": {
+    "apps/api/src/competition-model-profile.ts": "10d6d2146f92e19cb77316986b8dd9d4eafcd481",
+    "apps/api/src/competition-model-profile.test.ts": "2ad12a4539c90ebbedf3eebff38d9e392c045a59",
+    "apps/api/src/prediction-engine-v1.ts": "45bdcd5fa75fcc69bb9c3efca1b5590cd15ed204",
+    "apps/api/src/prediction-engine-v1.test.ts": "c3b1de67d21778a36314f614294001115aac14f3",
+    "docs/phase-comp-a-competition-prediction-baseline.md": "9127751bc9dba27f80da188c20a3998524d07f82"
+  },
+  "allowed_target_files": [
+    "apps/api/src/competition-model-profile.test.ts",
+    "apps/api/src/competition-model-profile.ts",
+    "apps/api/src/prediction-engine-v1.test.ts",
+    "apps/api/src/prediction-engine-v1.ts",
+    "docs/phase-comp-a-competition-prediction-baseline.md"
+  ],
+  "required_validation_commands": [
+    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/final-prediction-domain.test.ts src/prediction-engine-v1.test.ts src/competition-model-profile.test.ts",
+    "pnpm.cmd --filter @matchpulse/api typecheck",
+    "pnpm.cmd --filter @matchpulse/api build",
+    "pnpm.cmd --filter @matchpulse/api test",
+    "git diff --check",
+    "git diff --name-only -- prisma"
+  ],
+  "expected_results": [
+    "all specialist outputs retain their declared global weights for every target",
+    "missing specialist target outputs contribute fallback mass without target-local renormalization",
+    "effective market influence stays within the assigned approved cap",
+    "only the explicit market specialist consumes market probability distributions",
+    "finished probabilities remain terminal while stale or incomplete evidence degrades confidence and risk",
+    "caller limitation text is not copied verbatim into the public-shaped explanation",
+    "focused prediction tests pass",
+    "API typecheck passes",
+    "API production build passes",
+    "full API regression passes",
+    "Prisma/migration diff is empty",
+    "no real network access",
+    "no migration applied",
+    "no route, service, worker, frontend, persistence, queue, or public contract change",
+    "no COMP-B activation"
+  ],
+  "allows_migration": false,
+  "allows_network": false,
+  "git_publish": {
+    "allow_commit": true,
+    "allow_push": false,
+    "require_exact_staged_paths": true,
+    "commit_message": "Remediate COMP-A competition prediction baseline"
+  }
+}
