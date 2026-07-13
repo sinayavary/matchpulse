@@ -8,9 +8,9 @@
     "type": "ordered_git_apply_patch_set",
     "directory": "payload/patches",
     "order": "lexicographic_filename",
-    "count": 12,
+    "count": 13,
     "verification_mode": "sha256-canonical-lf-v1",
-    "ordered_combined_sha256": "bd9489be630f64b018a9d64bf9d84d685bf6fd52a4e2b32a0957426988ded4c3"
+    "ordered_combined_sha256": "87a19f95f38652840249287fd7e4979a7daec758e045baf58704facf37d62689"
   },
   "baseline_target_blobs": {
     "apps/api/package.json": "70240d9b992d37ffe7584d37053af7b6a01a2a4d",
