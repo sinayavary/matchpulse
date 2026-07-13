@@ -47,12 +47,12 @@ Apply the ordered patch set under:
 ```text
 payload/patches/01-apps-api-package.patch
 ...
-payload/patches/12-runtime-odds-freshness.patch
+payload/patches/13-market-freshness-floor.patch
 ```
 
-The lexicographic order is mandatory. Concatenating the twelve canonical-LF patch files in that order reproduces the reviewed combined payload hash recorded in `EXPECTED_SHA256.json`.
+The lexicographic order is mandatory. Concatenating the thirteen canonical-LF patch files in that order reproduces the reviewed combined payload hash recorded in `EXPECTED_SHA256.json`.
 
-The ordered twelve-patch set changes exactly these eleven targets:
+The ordered thirteen-patch set changes exactly these eleven targets:
 
 1. `apps/api/package.json`
 2. `apps/api/src/competition-prediction-public-mapper.test.ts`
@@ -111,7 +111,7 @@ After all baseline and integrity checks pass, materialize one canonical temporar
 
 ```powershell
 $patches = Get-ChildItem -LiteralPath docs/codex-master-plan/phases/phase-comp-b-v2/payload/patches -Filter *.patch | Sort-Object Name
-if ($patches.Count -ne 12) { throw "SPEC_CONFLICT: expected exactly 12 ordered patches." }
+if ($patches.Count -ne 13) { throw "SPEC_CONFLICT: expected exactly 13 ordered patches." }
 
 $strictUtf8 = [System.Text.UTF8Encoding]::new($false, $true)
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
@@ -161,6 +161,7 @@ Prediction and `market_analysis` remain semantically separate in every public re
 - Missing or unusable odds preserve mandatory unavailable/limited `market_analysis`.
 - Prediction freshness uses the least-fresh available supporting evidence; fresh odds cannot hide stale state or event data.
 - Stored odds freshness is recalculated against request time; stale or unverifiable market evidence receives zero model weight.
+- Freshness across usable markets uses the conservative minimum, so one fresh market cannot hide another stale usable market.
 - Finished matches retain terminal prediction semantics.
 - Both routes reject every query parameter.
 - Internal authentication reuses the existing constant-time token verifier.
@@ -188,9 +189,10 @@ Run exactly the commands in `manifest.json`. Completion requires evidence that:
 Before publication of this review pack:
 
 - isolated strict TypeScript compilation passed for all eight new source/test files;
-- an injected mock-runtime harness passed `23/23` focused tests;
-- the ordered twelve-patch canonical concatenation and application check passed;
+- an injected mock-runtime harness passed `24/24` focused tests;
+- the ordered thirteen-patch canonical concatenation and application check passed;
 - the ordered patch set contains exactly eleven implementation targets;
+- applied target contents match the reviewed final source files exactly;
 - `git diff --check` passed after application.
 
 This supporting evidence does **not** replace repository `pnpm` typecheck, build, or full regression. Those remain mandatory during a separately approved execution.
