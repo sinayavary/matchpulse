@@ -90,6 +90,7 @@ import {
 } from "./demo-bridge.js";
 import { registerPublicApiRoutes } from "./public-api.js";
 import { registerTxlineRuntimeAuditRoutes } from "./txline-runtime-audit-routes.js";
+import { registerCompetitionPredictionRoutes } from "./server-competition-prediction-route.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -141,6 +142,7 @@ app.get("/api/internal/signalcore/contract", async () => ({
 registerInternalSignalCoreRoute(app);
 registerInternalAgentPresenterRoute(app);
 registerInternalProductAgentRoute(app);
+registerCompetitionPredictionRoutes(app);
 
 app.get("/api/internal/demo/matches/:fixtureId/bundle", async (request) => {
   const { fixtureId } = request.params as { fixtureId: string };

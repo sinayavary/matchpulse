@@ -1,0 +1,189 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  buildCompetitionPredictionSnapshot,
+  type CompetitionPredictionInput,
+} from "./competition-model-profile.js";
+import {
+  assertPublicCompetitionPredictionSafe,
+  mapCompetitionPredictionRuntimeResultToPublic,
+  mapCompetitionPredictionSnapshotToPublic,
+} from "./competition-prediction-public-mapper.js";
+import type { CompetitionPredictionRuntimeResult } from "./competition-prediction-service.js";
+import {
+  buildPublicMarketIntelligence,
+  PUBLIC_MARKET_SAFETY_NOTE,
+} from "./odds-intelligence-contract.js";
+
+function predictionInput(): CompetitionPredictionInput {
+  return {
+    fixture_id: "fixture-1",
+    as_of: "2026-07-13T11:59:30.000Z",
+    generated_at: "2026-07-13T12:00:00.000Z",
+    sequence: 12,
+    trigger: "manual",
+    feature_reference: {
+      feature_version: "competition-runtime-input-v1",
+      feature_hash: "competition-runtime-feature-hash",
+      feature_count: 10,
+    },
+    phase: "H2",
+    normalized_phase: "second_half",
+    minute: 67,
+    home_score: 1,
+    away_score: 1,
+    freshness_score: 1,
+    market: {
+      available: true,
+      usable_for_model: true,
+      assessment_id: "private-assessment-id",
+      reliability_score: 0.9,
+      approved_model_weight_cap: 0.12,
+      final_outcome: { home: 0.46, draw: 0.3, away: 0.24 },
+      next_goal: { home: 0.4, none: 0.25, away: 0.35 },
+      direction: "home",
+      limitations: ["ProviderAlpha private threshold and formula."],
+    },
+    events: {
+      available: true,
+      home_pressure: 0.6,
+      away_pressure: 0.4,
+      home_impact: 0.55,
+      away_impact: 0.45,
+      limitations: ["Secret event coefficient."],
+    },
+  };
+}
+
+function marketAnalysis() {
+  return buildPublicMarketIntelligence({
+    market_intelligence_version: "public-market-intelligence-v1",
+    fixture_id: "fixture-1",
+    generated_at: "2026-07-13T12:00:00.000Z",
+    availability: "available",
+    reliability: "good",
+    freshness: "fresh",
+    provider_coverage: "limited",
+    provider_agreement: "strong",
+    volatility: "low",
+    market_count: 2,
+    usable_market_count: 2,
+    provider_count: 2,
+    notable_movements: [{
+      market_label: "Match result",
+      selection_label: "Home",
+      direction: "up",
+      strength: "medium",
+      summary: "Home market support moved upward in the recent window.",
+    }],
+    summary: "Market intelligence is usable with good overall reliability.",
+    limitations: [],
+    last_update: "2026-07-13T11:59:30.000Z",
+    safety_note: PUBLIC_MARKET_SAFETY_NOTE,
+  });
+}
+
+test("public mapper exposes every competition prediction family through an allowlist", () => {
+  const snapshot = buildCompetitionPredictionSnapshot(predictionInput());
+  const output = mapCompetitionPredictionSnapshotToPublic(snapshot);
+  assert.equal(output.prediction_version, "competition-public-prediction-v1");
+  assert.equal(output.model_profile, "competition_baseline_v1");
+  assert.deepEqual(Object.keys(output.final_outcome).sort(), ["away", "draw", "home"]);
+  assert.deepEqual(Object.keys(output.next_goal).sort(), ["away", "home", "none"]);
+  assert.deepEqual(Object.keys(output.goal_horizon).sort(), ["next_10m", "next_15m", "next_5m"]);
+  assert.ok(output.final_score.outcomes.length > 0);
+  assert.equal(typeof output.current_result_survival.current_result_holds, "number");
+  assert.equal(typeof output.momentum_shift.neutral, "number");
+  assert.equal(typeof output.confidence.score, "number");
+  assert.equal(typeof output.risk.level, "string");
+  assert.equal(typeof output.explanation.summary, "string");
+  assert.equal(typeof output.data_quality.freshness, "string");
+});
+
+test("public mapper never copies private feature, specialist, odds-reference, or limitation text", () => {
+  const snapshot = buildCompetitionPredictionSnapshot(predictionInput());
+  const output = mapCompetitionPredictionSnapshotToPublic(snapshot);
+  const text = JSON.stringify(output);
+  for (const forbidden of [
+    "private-assessment-id",
+    "ProviderAlpha",
+    "private threshold",
+    "Secret event coefficient",
+    "specialist_contributions",
+    "feature_reference",
+    "odds_intelligence_reference",
+    "assigned_weight",
+    "fair_probability",
+    "consensus_probability",
+  ]) {
+    assert.equal(text.includes(forbidden), false, forbidden);
+  }
+});
+
+test("runtime response keeps prediction and mandatory market_analysis separately labeled", () => {
+  const snapshot = buildCompetitionPredictionSnapshot(predictionInput());
+  const result: CompetitionPredictionRuntimeResult = {
+    fixture_id: "fixture-1",
+    status: "live",
+    source: "database",
+    mode: "request_time",
+    snapshot,
+    market_analysis: marketAnalysis(),
+    limitations: [],
+  };
+  const response = mapCompetitionPredictionRuntimeResultToPublic(result);
+  assert.equal(response.data?.fixture_id, "fixture-1");
+  assert.equal(response.market_analysis.fixture_id, "fixture-1");
+  assert.equal(response.market_analysis.market_intelligence_version, "public-market-intelligence-v1");
+  assert.equal("market_analysis" in (response.data as object), false);
+});
+
+test("no_data response retains mandatory unavailable market analysis", () => {
+  const unavailable = buildPublicMarketIntelligence({
+    market_intelligence_version: "public-market-intelligence-v1",
+    fixture_id: "fixture-1",
+    generated_at: "2026-07-13T12:00:00.000Z",
+    availability: "unavailable",
+    reliability: "unavailable",
+    freshness: "unknown",
+    provider_coverage: "none",
+    provider_agreement: "unknown",
+    volatility: "none",
+    market_count: 0,
+    usable_market_count: 0,
+    provider_count: 0,
+    notable_movements: [],
+    summary: "Market intelligence is unavailable because no usable odds data is present.",
+    limitations: ["No market evidence is available."],
+    last_update: null,
+    safety_note: PUBLIC_MARKET_SAFETY_NOTE,
+  });
+  const response = mapCompetitionPredictionRuntimeResultToPublic({
+    fixture_id: "fixture-1",
+    status: "no_data",
+    source: "database",
+    mode: "request_time",
+    snapshot: null,
+    market_analysis: unavailable,
+    limitations: ["No stored competition data."],
+  });
+  assert.equal(response.data, null);
+  assert.equal(response.market_analysis.availability, "unavailable");
+  assert.equal(response.meta.status, "no_data");
+  assert.equal(typeof response.meta.message, "string");
+});
+
+test("recursive public safety scanner rejects protected nested keys", () => {
+  assert.throws(
+    () => assertPublicCompetitionPredictionSafe({
+      data: { nested: [{ provider_payload: { secret: true } }] },
+    }),
+    /Forbidden public competition prediction field/,
+  );
+  assert.throws(
+    () => assertPublicCompetitionPredictionSafe({
+      data: { nested: { specialist_contributions: [] } },
+    }),
+    /Forbidden public competition prediction field/,
+  );
+});
