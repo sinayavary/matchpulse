@@ -1,8 +1,8 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "COMP-B",
-  "updated_at": "2026-07-13T12:49:55Z",
+  "active_phase_id": "COMP-C",
+  "updated_at": "2026-07-13T14:18:00Z",
   "items": [
     {
       "id": "governance-orchestration-v1",
@@ -117,19 +117,21 @@
     {
       "id": "COMP-B",
       "title": "Competition prediction runtime and versioned public-safe API",
-      "status": "ready",
+      "status": "completed",
       "depends_on": ["COMP-A"],
       "pack_version": "COMP-B-v2",
       "baseline_commit": "0df8ff23e23501c4b67108821d331f937d74887d",
+      "completion_commit": "a3641a092a91e934bf5e3cf7d0b32bf3bc8109a0",
       "human_gate": false
     },
     {
       "id": "COMP-C",
       "title": "Competition web experience, replay fallback, and submission gate",
-      "status": "planned",
+      "status": "ready",
       "depends_on": ["COMP-B"],
-      "pack_version": "COMP-C-v1",
-      "human_gate": true
+      "pack_version": "COMP-C-v2",
+      "baseline_commit": "a3641a092a91e934bf5e3cf7d0b32bf3bc8109a0",
+      "human_gate": false
     },
     {
       "id": "10H-A",
