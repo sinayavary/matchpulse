@@ -1,0 +1,85 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "COMP-C",
+  "pack_version": "COMP-C-v2",
+  "baseline_commit": "a3641a092a91e934bf5e3cf7d0b32bf3bc8109a0",
+  "review_only": true,
+  "payload": {
+    "type": "canonical_git_patch_gzip_base64",
+    "directory": "payload/patches",
+    "order": "lexicographic_filename",
+    "count": 1,
+    "verification_mode": "sha256-canonical-lf-v1",
+    "ordered_combined_sha256": "688927f3b384936795b0be6b2a46f2220a2fc9e32597b543910de56495753d0a",
+    "decoded_gzip_sha256": "cf881f73ff6097024623f9d016ec455faadecf033f3ba4a3cf7076efba9e7aba",
+    "decoded_patch_sha256": "f746fe54d34d868da9498871c7b1b71eb10326bfd89aed191677934f9237412f"
+  },
+  "baseline_target_blobs": {
+    "apps/api/package.json": "ebc1d59f9f5b49b7e4dd2215e1289099ea02411c",
+    "apps/api/src/server-competition-prediction-route.ts": "9e652b01470854f5ed6ee128a02d35d4e85b0fec"
+  },
+  "baseline_absent_targets": [
+    "apps/api/src/competition-replay-fixtures.test.ts",
+    "apps/api/src/competition-replay-fixtures.ts",
+    "apps/api/src/server-competition-replay-route.test.ts",
+    "apps/web/app/competition/page.tsx",
+    "apps/web/components/competition/CompetitionPredictionPanel.test.tsx",
+    "apps/web/components/competition/CompetitionPredictionPanel.tsx",
+    "apps/web/lib/competition-api.test.ts",
+    "apps/web/lib/competition-api.ts",
+    "docs/competition-release-submission.md"
+  ],
+  "allowed_target_files": [
+    "apps/api/package.json",
+    "apps/api/src/competition-replay-fixtures.test.ts",
+    "apps/api/src/competition-replay-fixtures.ts",
+    "apps/api/src/server-competition-prediction-route.ts",
+    "apps/api/src/server-competition-replay-route.test.ts",
+    "apps/web/app/competition/page.tsx",
+    "apps/web/components/competition/CompetitionPredictionPanel.test.tsx",
+    "apps/web/components/competition/CompetitionPredictionPanel.tsx",
+    "apps/web/lib/competition-api.test.ts",
+    "apps/web/lib/competition-api.ts",
+    "docs/competition-release-submission.md"
+  ],
+  "required_validation_commands": [
+    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/competition-model-profile.test.ts src/prediction-engine-v1.test.ts src/odds-intelligence-public-mapper.test.ts src/competition-prediction-public-mapper.test.ts src/server-competition-prediction-route.test.ts src/competition-replay-fixtures.test.ts src/server-competition-replay-route.test.ts ../web/lib/competition-api.test.ts ../web/components/competition/CompetitionPredictionPanel.test.tsx",
+    "pnpm.cmd --filter @matchpulse/api typecheck",
+    "pnpm.cmd --filter @matchpulse/api build",
+    "pnpm.cmd --filter @matchpulse/api test",
+    "pnpm.cmd --filter @matchpulse/web typecheck",
+    "pnpm.cmd --filter @matchpulse/web build",
+    "git diff --check",
+    "git diff --name-only -- prisma"
+  ],
+  "expected_results": [
+    "the evaluator entry is available at /competition without wallet, payment, private token, or provider credential",
+    "live or stored public prediction mode consumes the existing versioned public-safe competition prediction API",
+    "deterministic replay fallback contains ordered opening, pressure-shift, and terminal checkpoints",
+    "replay visibly changes score, phase, market reliability, freshness, agreement, volatility, confidence, and risk",
+    "every required prediction family renders",
+    "mandatory human-readable market analysis renders availability, reliability, freshness, coverage, agreement, volatility, counts, movements, summary, limitations, and last update",
+    "prediction and market analysis remain visually and semantically distinct",
+    "loading, unavailable, no-data, replay-fallback, stale, partial, and terminal states remain bounded and explicit",
+    "public API responses and browser props exclude provider identities, raw payloads, assessment IDs, feature references, formulas, thresholds, weights, component scores, credentials, and proof blobs",
+    "no prescriptive wagering, stake, payout, profit, expected-value, wallet, payment, or financial recommendation feature is introduced",
+    "API focused tests pass",
+    "web client and component focused tests pass",
+    "API typecheck and production build pass",
+    "full API regression passes",
+    "web typecheck and production build pass",
+    "Prisma and migration diff is empty",
+    "no real application network access occurs during validation",
+    "no database mutation or migration is applied",
+    "no unrelated frontend file is changed",
+    "no successor phase is activated"
+  ],
+  "allows_migration": false,
+  "allows_network": false,
+  "git_publish": {
+    "allow_commit": true,
+    "allow_push": false,
+    "require_exact_staged_paths": true,
+    "commit_message": "Complete COMP-C competition release experience"
+  }
+}
