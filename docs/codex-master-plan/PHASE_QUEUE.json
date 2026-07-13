@@ -1,8 +1,8 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "COMP-C",
-  "updated_at": "2026-07-13T14:18:00Z",
+  "active_phase_id": "COMP-QA",
+  "updated_at": "2026-07-13T15:40:00Z",
   "items": [
     {
       "id": "governance-orchestration-v1",
@@ -127,17 +127,27 @@
     {
       "id": "COMP-C",
       "title": "Competition web experience, replay fallback, and submission gate",
-      "status": "ready",
+      "status": "completed",
       "depends_on": ["COMP-B"],
       "pack_version": "COMP-C-v2",
       "baseline_commit": "a3641a092a91e934bf5e3cf7d0b32bf3bc8109a0",
+      "completion_commit": "46277a859bf39d11bb027060b1effaf823ec3acc",
+      "human_gate": false
+    },
+    {
+      "id": "COMP-QA",
+      "title": "Competition release final QA and acceptance",
+      "status": "ready",
+      "depends_on": ["COMP-C"],
+      "pack_version": "COMP-QA-v1",
+      "baseline_commit": "46277a859bf39d11bb027060b1effaf823ec3acc",
       "human_gate": false
     },
     {
       "id": "10H-A",
       "title": "Production prediction composition engine",
       "status": "planned",
-      "depends_on": ["COMP-C"],
+      "depends_on": ["COMP-QA"],
       "human_gate": false
     },
     {
