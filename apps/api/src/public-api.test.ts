@@ -36,6 +36,18 @@ type PublicFixtureRow = {
   status: string | null;
 };
 
+type PublicFixtureFindManyArgs = {
+  where?: {
+    competition?: string;
+    startTimeUtc?: {
+      gte?: Date;
+      lt?: Date;
+    };
+  };
+  orderBy: { startTimeUtc: "asc" | "desc" };
+  take: number;
+};
+
 function makeState(overrides: Partial<CanonicalMatchState> = {}): CanonicalMatchState {
   const baseIdentity: CanonicalMatchState["identity"] = {
     fixture_id: "17952170",
@@ -243,6 +255,48 @@ function makeDbClient(rows: PublicFixtureRow[]) {
     },
     oddsSnapshot: {
       count: async ({ where }: { where: { fixtureId: string } }) => (rowById.has(where.fixtureId) ? 1 : 0)
+    }
+  };
+}
+
+function makeRangeFilteringDbClient(
+  rows: PublicFixtureRow[],
+  onFindMany: (args: PublicFixtureFindManyArgs) => void
+) {
+  return {
+    fixture: {
+      findMany: async (args: PublicFixtureFindManyArgs) => {
+        onFindMany(args);
+        const competition = args.where?.competition;
+        const lowerBound = args.where?.startTimeUtc?.gte?.getTime();
+        const upperBound = args.where?.startTimeUtc?.lt?.getTime();
+        const direction = args.orderBy.startTimeUtc;
+
+        return rows
+          .filter((row) => competition === undefined || row.competition === competition)
+          .filter((row) => {
+            const startTime = row.startTimeUtc?.getTime();
+            if (lowerBound !== undefined && (startTime === undefined || startTime < lowerBound)) {
+              return false;
+            }
+            if (upperBound !== undefined && (startTime === undefined || startTime >= upperBound)) {
+              return false;
+            }
+            return true;
+          })
+          .sort((left, right) => {
+            const leftTime = left.startTimeUtc?.getTime() ?? 0;
+            const rightTime = right.startTimeUtc?.getTime() ?? 0;
+            return direction === "asc" ? leftTime - rightTime : rightTime - leftTime;
+          })
+          .slice(0, args.take);
+      }
+    },
+    matchState: {
+      findUnique: async () => null
+    },
+    oddsSnapshot: {
+      count: async () => 0
     }
   };
 }
@@ -1033,6 +1087,139 @@ test("single public match route returns a safe degraded response on backend fail
     assert.equal(serialized.includes("DATABASE_URL"), false);
     assert.equal(serialized.includes("secret"), false);
     assert.equal(serialized.includes("/tmp/"), false);
+    await app.close();
+  });
+});
+
+test("public upcoming range filters before bounded take and returns nearest future fixtures", async () => {
+  await withDatabaseUrl(async () => {
+    const now = new Date("2026-07-15T12:00:00.000Z");
+    const rows: PublicFixtureRow[] = [
+      ...Array.from({ length: 101 }, (_, index) => ({
+        fixtureId: `historical-${index + 1}`,
+        competition: "World Cup",
+        homeTeam: `Historical Home ${index + 1}`,
+        awayTeam: `Historical Away ${index + 1}`,
+        startTimeUtc: new Date(now.getTime() - (index + 1) * 60_000),
+        status: "FT"
+      })),
+      {
+        fixtureId: "future-near",
+        competition: "World Cup",
+        homeTeam: "England",
+        awayTeam: "Argentina",
+        startTimeUtc: new Date("2026-07-15T13:00:00.000Z"),
+        status: "UNKNOWN"
+      },
+      {
+        fixtureId: "future-far",
+        competition: "World Cup",
+        homeTeam: "Spain",
+        awayTeam: "TBD",
+        startTimeUtc: new Date("2026-07-15T14:00:00.000Z"),
+        status: "UNKNOWN"
+      }
+    ];
+    let findManyArgs: PublicFixtureFindManyArgs | undefined;
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => makeRangeFilteringDbClient(rows, (args) => {
+        findManyArgs = args;
+      }),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState()),
+      now: () => now
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches?range=upcoming&competitionId=World%20Cup&limit=1"
+    });
+
+    const body = response.json();
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(body.data.map((item: { fixture_id: string }) => item.fixture_id), ["future-near"]);
+    assert.deepEqual(body.meta, {
+      status: "live",
+      source: "database",
+      mode: "public"
+    });
+    assert.deepEqual(Object.keys(body.data[0]).sort(), [
+      "away_team",
+      "competition",
+      "fixture_id",
+      "home_team",
+      "latest_data_timestamp",
+      "odds",
+      "quality",
+      "scoreboard",
+      "start_time_utc",
+      "status"
+    ]);
+    assert.equal(findManyArgs?.where?.competition, "World Cup");
+    assert.equal(findManyArgs?.where?.startTimeUtc?.gte, now);
+    assert.equal(findManyArgs?.where?.startTimeUtc?.lt, undefined);
+    assert.equal(findManyArgs?.orderBy.startTimeUtc, "asc");
+    assert.equal(findManyArgs?.take, 5);
+    await app.close();
+  });
+});
+
+test("public past range filters before bounded take and returns the most recent past fixtures", async () => {
+  await withDatabaseUrl(async () => {
+    const now = new Date("2026-07-15T12:00:00.000Z");
+    const rows: PublicFixtureRow[] = [
+      ...Array.from({ length: 101 }, (_, index) => ({
+        fixtureId: `future-${index + 1}`,
+        competition: "World Cup",
+        homeTeam: `Future Home ${index + 1}`,
+        awayTeam: `Future Away ${index + 1}`,
+        startTimeUtc: new Date(now.getTime() + (index + 1) * 60_000),
+        status: "UNKNOWN"
+      })),
+      {
+        fixtureId: "past-recent",
+        competition: "World Cup",
+        homeTeam: "Recent Home",
+        awayTeam: "Recent Away",
+        startTimeUtc: new Date("2026-07-15T11:55:00.000Z"),
+        status: "FT"
+      },
+      {
+        fixtureId: "past-older",
+        competition: "World Cup",
+        homeTeam: "Older Home",
+        awayTeam: "Older Away",
+        startTimeUtc: new Date("2026-07-15T11:00:00.000Z"),
+        status: "FT"
+      }
+    ];
+    let findManyArgs: PublicFixtureFindManyArgs | undefined;
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => makeRangeFilteringDbClient(rows, (args) => {
+        findManyArgs = args;
+      }),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState()),
+      now: () => now
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/public/matches?range=past&limit=2"
+    });
+
+    const body = response.json();
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(body.data.map((item: { fixture_id: string }) => item.fixture_id), [
+      "past-recent",
+      "past-older"
+    ]);
+    assert.equal(findManyArgs?.where?.startTimeUtc?.gte, undefined);
+    assert.equal(findManyArgs?.where?.startTimeUtc?.lt, now);
+    assert.equal(findManyArgs?.orderBy.startTimeUtc, "desc");
+    assert.equal(findManyArgs?.take, 10);
     await app.close();
   });
 });

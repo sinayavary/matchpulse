@@ -46,10 +46,18 @@ type PublicFixtureRow = {
   status: string | null;
 };
 
+type PublicFixtureWhere = {
+  competition?: string;
+  startTimeUtc?: {
+    gte?: Date;
+    lt?: Date;
+  };
+};
+
 type PublicApiDbClient = {
   fixture: {
     findMany(args: {
-      where?: { competition?: string };
+      where?: PublicFixtureWhere;
       orderBy: { startTimeUtc: "asc" | "desc" };
       take: number;
       select: {
@@ -691,6 +699,27 @@ function fixtureMatchesRequestedRange(
   return isUpcoming;
 }
 
+function buildPublicFixtureWhere(
+  range: PublicMatchesRange,
+  competitionId: string | undefined,
+  now: Date
+): PublicFixtureWhere | undefined {
+  const startTimeUtc = range === "upcoming"
+    ? { gte: now }
+    : range === "past"
+      ? { lt: now }
+      : undefined;
+
+  if (competitionId === undefined && startTimeUtc === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...(competitionId === undefined ? {} : { competition: competitionId }),
+    ...(startTimeUtc === undefined ? {} : { startTimeUtc })
+  };
+}
+
 export function buildPublicStatusResponse(): PublicStatusResponse {
   const output: PublicStatusResponse = {
     data: {
@@ -1274,9 +1303,7 @@ export function registerPublicApiRoutes(
 
       const now = deps.now();
       const candidates = await deps.getDbClient().fixture.findMany({
-        where: normalized.competitionId === undefined
-          ? undefined
-          : { competition: normalized.competitionId },
+        where: buildPublicFixtureWhere(normalized.range, normalized.competitionId, now),
         orderBy: { startTimeUtc: normalized.range === "past" ? "desc" : "asc" },
         take: Math.min(normalized.limit * 5, 100),
         select: {
