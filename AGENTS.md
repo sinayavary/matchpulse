@@ -127,6 +127,22 @@ Do not:
 - use real TxLINE, Telegram, Solana, or production Neon credentials
 - perform unapproved network smoke tests
 
+### Narrow owner-local TxLINE mainnet read-only exception
+
+Real TxLINE mainnet guest JWT and API token use is permitted only when every condition below is true:
+
+- `ACTIVE_PHASE.json` has `state=ready` and `human_approved=true`;
+- the active manifest has `allows_network=true`;
+- the exact active phase README explicitly authorizes an owner-local, read-only mainnet smoke;
+- credentials are read only from the local environment and never from a tracked file;
+- no secret, request header, raw payload, or HTTP client configuration is printed;
+- no wallet, subscription, activation, or token-acquisition operation occurs;
+- no odds or market endpoint is called;
+- no production database write or migration occurs;
+- no deployment or other production operation occurs.
+
+This is a phase-scoped exception, not general permission for production access. If any condition is absent, the permanent prohibition remains in force.
+
 ## Git and Automation v2
 
 Automation v2 is the only permitted automated Git path.

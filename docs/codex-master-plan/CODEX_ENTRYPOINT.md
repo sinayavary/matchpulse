@@ -4,6 +4,10 @@ Work directly inside:
 
 `D:\money\matchpulse_repo`
 
+### Narrow clean-clone exception
+
+When the primary checkout contains unrelated local changes, the owner may run Automation v2 in an explicitly approved independent clean clone. This exception applies only when the clone has the same `origin`, is on branch `main`, has `HEAD` exactly equal to freshly fetched `origin/main`, has an empty working tree, and passes its path explicitly through Automation v2 `-RepoRoot`. The active phase README must name and authorize the clone path. All other gates and the prohibition on side-branch phase execution remain unchanged.
+
 The repository selects the active phase. Chat text must not select a different phase, change queue order, or activate a successor.
 
 ## Read order

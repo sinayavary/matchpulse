@@ -1,8 +1,8 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "HOTFIX-PUBLIC-MATCHES-UPCOMING",
-  "updated_at": "2026-07-15T10:38:56Z",
+  "active_phase_id": "OPS-LOCAL-MAINNET-READONLY-SMOKE",
+  "updated_at": "2026-07-15T19:05:14.3665157Z",
   "items": [
     {
       "id": "governance-orchestration-v1",
@@ -177,13 +177,25 @@
     {
       "id": "HOTFIX-PUBLIC-MATCHES-UPCOMING",
       "title": "Public matches upcoming and past range query hotfix",
-      "status": "ready",
+      "status": "completed",
       "depends_on": [
         "COMP-QA"
       ],
       "pack_version": "HOTFIX-PUBLIC-MATCHES-UPCOMING-v1",
       "baseline_commit": "f6eca5347f9522d14c75321f29bc0d1700160afe",
+      "completion_commit": "2d5c9958471e4a70d227b19ed78ec5424cc22662",
       "human_gate": false
+    },
+    {
+      "id": "OPS-LOCAL-MAINNET-READONLY-SMOKE",
+      "title": "Owner local TxLINE mainnet read-only fixture and score smoke",
+      "status": "ready",
+      "depends_on": [
+        "HOTFIX-PUBLIC-MATCHES-UPCOMING"
+      ],
+      "pack_version": "OPS-LOCAL-MAINNET-READONLY-SMOKE-v1",
+      "baseline_commit": "2d5c9958471e4a70d227b19ed78ec5424cc22662",
+      "human_gate": true
     },
     {
       "id": "10H-A",

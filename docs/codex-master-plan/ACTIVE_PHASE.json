@@ -1,32 +1,19 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "completed_pending_review",
-  "phase_id": "HOTFIX-PUBLIC-MATCHES-UPCOMING",
-  "phase_title": "Public Matches Upcoming and Past Range Query Hotfix",
-  "pack_path": "docs/codex-master-plan/phases/phase-hotfix-public-matches-upcoming-v1",
-  "pack_version": "HOTFIX-PUBLIC-MATCHES-UPCOMING-v1",
-  "baseline_commit": "f6eca5347f9522d14c75321f29bc0d1700160afe",
-  "human_approved": false,
-  "activation_note": "The human explicitly approved repository-controlled activation of HOTFIX-PUBLIC-MATCHES-UPCOMING-v1. Codex must execute only this hotfix, verify and apply only the canonical payload, modify only apps/api/src/public-api.ts and apps/api/src/public-api.test.ts, run every exact validation, preserve unrelated local changes including apps/web/next-env.d.ts and apps/web/tsconfig.json, perform no migration, database mutation, external service access, deployment, or production operation, stop after Automation v2 Prepare, and must not activate or execute 10H-A or any successor.",
+  "state": "ready",
+  "phase_id": "OPS-LOCAL-MAINNET-READONLY-SMOKE",
+  "phase_title": "Owner Local TxLINE Mainnet Read-Only Smoke",
+  "pack_path": "docs/codex-master-plan/phases/phase-ops-local-mainnet-readonly-smoke-v1",
+  "pack_version": "OPS-LOCAL-MAINNET-READONLY-SMOKE-v1",
+  "baseline_commit": "2d5c9958471e4a70d227b19ed78ec5424cc22662",
+  "human_approved": true,
+  "activation_note": "The owner approved one local read-only TxLINE mainnet smoke for fixture and score only: no odds, database write, wallet operation, subscription, activation, token acquisition, deployment, or other production operation. Execute only from the authorized clean main clone D:\\money\\matchpulse_mainnet_test after the governance change is merged and HEAD equals origin/main.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
     "allow_completion_state_update": true,
     "stop_after_phase": true
   },
-  "last_result": {
-    "status": "PHASE_COMPLETE",
-    "phase_id": "HOTFIX-PUBLIC-MATCHES-UPCOMING",
-    "pack_version": "HOTFIX-PUBLIC-MATCHES-UPCOMING-v1",
-    "baseline_commit": "f6eca5347f9522d14c75321f29bc0d1700160afe",
-    "completed_at": "2026-07-15T12:08:01.5645998Z",
-    "files_changed": [
-      "apps/api/src/public-api.test.ts",
-      "apps/api/src/public-api.ts"
-    ],
-    "validation_summary": "Focused public API tests 49/49 passed; API typecheck passed; API production build passed; API regression suite 921/921 passed; git diff --check passed; Prisma and migration diff was empty. pnpm, tsx, and Prisma engines were hydrated as out-of-band workstation prerequisites before validation; binaries.prisma.sh was accessed only during the separately human-approved bootstrap. No network access occurred during phase validation commands; no migration or database action occurred.",
-    "migration_applied": false,
-    "network_accessed": false
-  }
+  "last_result": null
 }

@@ -1,0 +1,58 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "OPS-LOCAL-MAINNET-READONLY-SMOKE",
+  "pack_version": "OPS-LOCAL-MAINNET-READONLY-SMOKE-v1",
+  "baseline_commit": "2d5c9958471e4a70d227b19ed78ec5424cc22662",
+  "payload": {
+    "type": "ordered_canonical_git_patch_gzip_base64_chunks",
+    "directory": "payload/chunks",
+    "order": "lexicographic_filename",
+    "count": 1,
+    "verification_mode": "sha256-canonical-lf-v1",
+    "ordered_combined_sha256": "504c8226329e3603b0853a65c8cf42594352affbb9e850664ad1689dd9d7a79d",
+    "decoded_gzip_sha256": "ae8040586d9298194f54d75b6d5584921d17ebfe09f4464dc14c8f4f70e27d94",
+    "decoded_patch_sha256": "2db5855c2e6044eb2fdb2128f7a17c77305399127a1c087b5ad592e8be514180"
+  },
+  "baseline_target_blobs": {},
+  "baseline_absent_targets": [
+    "scripts/mainnet-readonly-smoke.ps1"
+  ],
+  "allowed_target_files": [
+    "scripts/mainnet-readonly-smoke.ps1"
+  ],
+  "required_validation_commands": [
+    "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/mainnet-readonly-smoke.ps1 -RepoRoot D:\\money\\matchpulse_mainnet_test -ValidateOnly",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/mainnet-readonly-smoke.ps1 -RepoRoot D:\\money\\matchpulse_mainnet_test -FixtureId 18241006 -ExpectedTeam1 England -ExpectedTeam2 Argentina",
+    "git diff --check",
+    "git diff --name-only -- prisma"
+  ],
+  "expected_results": [
+    "PowerShell 5.1 parses the script and ValidateOnly checks local env and configuration without a network request",
+    "the live validation performs GET-only fixture snapshot, score snapshot, and score updates requests against TxLINE mainnet Level 12",
+    "fixture 18241006 is resolved by ID or by the case-insensitive England and Argentina fallback",
+    "only safe fixture and score summaries are printed",
+    "no raw payload, credential, request header, or HTTP client configuration is printed",
+    "no odds or market endpoint is requested",
+    "no POST, database mutation, wallet operation, subscription, activation, token acquisition, migration, deployment, or other production operation occurs",
+    "git diff check passes",
+    "Prisma and migration diff is empty",
+    "PHASE_QUEUE.json remains unchanged during phase execution",
+    "no successor phase is activated"
+  ],
+  "allows_migration": false,
+  "allows_network": true,
+  "database_mutation": false,
+  "wallet_operation": false,
+  "subscription": false,
+  "activation": false,
+  "token_acquisition": false,
+  "odds_access": false,
+  "deployment": false,
+  "public_contract_change": false,
+  "git_publish": {
+    "allow_commit": true,
+    "allow_push": false,
+    "require_exact_staged_paths": true,
+    "commit_message": "Complete local mainnet read-only smoke phase"
+  }
+}
