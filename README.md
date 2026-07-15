@@ -8,6 +8,14 @@ MatchPulse is a **sports data intelligence** tool, not a betting platform. It an
 
 The system ingests structured sports data (fixtures, scores, odds) from the TxLINE oracle on Solana, persists it in Neon PostgreSQL, assembles a canonical match state, then runs it through SignalCore (data-quality analysis) and Agent Presenter (natural-language briefing). A safe public demo bridge exposes a curated subset of this pipeline to the frontend without exposing internals or secrets.
 
+## Open Source Status
+
+MatchPulse is publicly developed as an open-source project. The repository source code and documentation are licensed under the [Apache License 2.0](LICENSE), and contributions are welcome under the guidance in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+The project is still at an early adoption stage, so it does not claim large download numbers or established downstream dependencies. It does provide a working end-to-end implementation, evaluator-ready web flows, deterministic replay paths, automated tests, and structured release controls.
+
+Third-party services and data remain subject to their own licenses and terms. The repository license does not relicense TxLINE, TxODDS, bookmaker, or other external data.
+
 ## Architecture
 
 ```
@@ -206,6 +214,7 @@ Future development could include:
 
 | Document | Purpose |
 | -------- | ------- |
+| `CONTRIBUTING.md` | Contribution workflow, safety boundaries, and validation expectations |
 | `docs/final-demo-readiness.md` | Final readiness status, demo flow, and judge-facing narrative |
 | `docs/final-smoke-checklist.md` | Command-by-command smoke checklist for public API, demo bridge, and worker safety |
 | `docs/submission-checklist.md` | Final submission and pitch preparation checklist |
@@ -230,12 +239,16 @@ For the final demo and submission review, start with:
 - [`docs/worker-runbook.md`](docs/worker-runbook.md)
 - [`docs/deployment-scheduling-strategy.md`](docs/deployment-scheduling-strategy.md)
 
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a substantial pull request, and preserve the project's public-safety, secret-handling, provider-data, and repository-governance boundaries.
+
 ## License
 
-Private project — not for public distribution without authorization.
+Licensed under the [Apache License 2.0](LICENSE).
 
 ## Phase 29G Safety Note
 
-The repository is currently private, and GitHub Environment required reviewers or deployment protection may depend on plan and repository settings.
+The repository is public. GitHub Environment required reviewers and deployment protection can still depend on the repository plan and settings.
 
 Until the `controlled-ingestion` environment protection is confirmed and verified, use the dry-run workflow only and do not treat environment presence alone as enough approval protection for confirmed execute.
