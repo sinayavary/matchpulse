@@ -1,0 +1,10 @@
+{
+  "schema_version": "matchpulse-payload-integrity-v3",
+  "verification_mode": "sha256-canonical-lf-v1",
+  "ordered_combined_sha256": "c885c2d612e37c6c2e88c0e4c9556dd35db1f81366d1849ca8f536f8f76239a0",
+  "decoded_gzip_sha256": "f6dbbf475cf0e1da1221a2bf98946d57bc463087b0e90270d692d3f62b358b38",
+  "decoded_patch_sha256": "48785761177d3769bbd2fbfb7944a3b098fc954ee9c72fd87da97a37cc40c45b",
+  "files": {
+    "payload/chunks/part-00.b64.part": "c885c2d612e37c6c2e88c0e4c9556dd35db1f81366d1849ca8f536f8f76239a0"
+  }
+}
