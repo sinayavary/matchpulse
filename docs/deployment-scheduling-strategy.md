@@ -8,8 +8,8 @@ It does not introduce a production scheduler, automatic database writes, cron, R
 
 ## 1. Current State
 
-The repository is currently private.
-GitHub Environment required reviewers and deployment protection rules may not be available or may not behave as expected depending on the GitHub plan, repository visibility, and org settings.
+The repository is public.
+GitHub Environment required reviewers and deployment protection rules can still depend on the GitHub plan, repository visibility, and organization settings.
 Until that protection is confirmed and configured, environment presence alone must not be treated as sufficient approval protection.
 
 The current worker system supports controlled one-shot execution only:
@@ -191,7 +191,7 @@ Recommended operating strategy for the current phase:
 - Keep the CI workflow secret-free because schedule dry-run does not require database access or TxLINE credentials.
 - Reserve any later confirmed execute workflow for a separate phase with environment approval.
 - Do not enable automatic scheduled database writes yet.
-- For the current private repo, prefer restricting deployment branches to `main` if the GitHub configuration allows it.
+- For the current public repository, prefer restricting deployment branches to `main` if the GitHub configuration allows it.
 - Keep the confirmed execute workflow manual-only, keep the confirmation inputs, keep the dry-run-first behavior, and avoid adding secrets until real execution is intentionally needed.
 - Use the dry-run workflow as the safe current mode until required reviewers are confirmed available and working.
 
@@ -292,7 +292,7 @@ Safety posture:
 - no secrets are added by this phase
 - any future runtime secrets should be configured as GitHub Actions environment secrets by name only, never documented by value
 - workflow logs must remain sanitized and must not print DB URLs, JWTs, API keys, wallet keys, or raw secret payloads
-- in the current private-repo setup, environment presence alone must not be treated as sufficient approval protection
+- in the current repository setup, environment presence alone must not be treated as sufficient approval protection
 
 Operational note:
 
@@ -322,7 +322,7 @@ Safety posture:
 - the scheduled run only validates the dry-run path on a low-frequency cadence
 - the dry-run workflow remains separate from any confirmed execute path
 - confirmed execute remains manual-only
-- confirmed execute should not be run in the private repo until GitHub Environment protection is verified and intentionally configured
+- confirmed execute should not be run until GitHub Environment protection is verified and intentionally configured
 - no automatic DB-writing workflow is introduced by this phase
 - no runtime worker behavior changes are introduced by this phase
 
