@@ -1,31 +1,19 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "completed_pending_review",
-  "phase_id": "COMP-QA",
-  "phase_title": "Competition Release Final QA and Acceptance",
-  "pack_path": "docs/codex-master-plan/phases/phase-comp-qa-v1",
-  "pack_version": "COMP-QA-v1",
-  "baseline_commit": "46277a859bf39d11bb027060b1effaf823ec3acc",
-  "human_approved": false,
-  "activation_note": "The human explicitly prioritized completion of the competition release and approved the repository-controlled COMP-QA-v1 final QA gate. Codex must execute only COMP-QA, verify and apply only the canonical one-chunk payload, run every exact validation, restore the two known Next-generated configuration files exactly to baseline after the successful web build, add only the final QA acceptance artifact, perform no migration, database mutation, external service access, deployment, or production operation, stop after Automation v2 Prepare, and must not activate or execute 10H-A or any successor.",
+  "state": "ready",
+  "phase_id": "HOTFIX-PUBLIC-MATCHES-UPCOMING",
+  "phase_title": "Public Matches Upcoming and Past Range Query Hotfix",
+  "pack_path": "docs/codex-master-plan/phases/phase-hotfix-public-matches-upcoming-v1",
+  "pack_version": "HOTFIX-PUBLIC-MATCHES-UPCOMING-v1",
+  "baseline_commit": "f6eca5347f9522d14c75321f29bc0d1700160afe",
+  "human_approved": true,
+  "activation_note": "The human explicitly approved repository-controlled activation of HOTFIX-PUBLIC-MATCHES-UPCOMING-v1. Codex must execute only this hotfix, verify and apply only the canonical payload, modify only apps/api/src/public-api.ts and apps/api/src/public-api.test.ts, run every exact validation, preserve unrelated local changes including apps/web/next-env.d.ts and apps/web/tsconfig.json, perform no migration, database mutation, external service access, deployment, or production operation, stop after Automation v2 Prepare, and must not activate or execute 10H-A or any successor.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
     "allow_completion_state_update": true,
     "stop_after_phase": true
   },
-  "last_result": {
-    "status": "PHASE_COMPLETE",
-    "phase_id": "COMP-QA",
-    "pack_version": "COMP-QA-v1",
-    "baseline_commit": "46277a859bf39d11bb027060b1effaf823ec3acc",
-    "completed_at": "2026-07-13T15:47:34.0926449Z",
-    "files_changed": [
-      "docs/competition-release-final-qa.md"
-    ],
-    "validation_summary": "Focused competition tests 67/67 passed; API typecheck passed; API production build passed; API regression suite 919/919 passed; web typecheck passed; web production build passed; Next-generated apps/web/next-env.d.ts and apps/web/tsconfig.json changes were restored exactly to HEAD and excluded; git diff --check passed; Prisma schema/migration diff empty. Corepack/package-manager network was disabled; no application, database, migration, provider, production, or external service network access occurred.",
-    "migration_applied": false,
-    "network_accessed": false
-  }
+  "last_result": null
 }
