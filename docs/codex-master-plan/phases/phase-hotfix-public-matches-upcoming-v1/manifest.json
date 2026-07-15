@@ -1,0 +1,55 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "HOTFIX-PUBLIC-MATCHES-UPCOMING",
+  "pack_version": "HOTFIX-PUBLIC-MATCHES-UPCOMING-v1",
+  "baseline_commit": "f6eca5347f9522d14c75321f29bc0d1700160afe",
+  "payload": {
+    "type": "ordered_canonical_git_patch_gzip_base64_chunks",
+    "directory": "payload/chunks",
+    "order": "lexicographic_filename",
+    "count": 1,
+    "verification_mode": "sha256-canonical-lf-v1",
+    "ordered_combined_sha256": "c885c2d612e37c6c2e88c0e4c9556dd35db1f81366d1849ca8f536f8f76239a0",
+    "decoded_gzip_sha256": "f6dbbf475cf0e1da1221a2bf98946d57bc463087b0e90270d692d3f62b358b38",
+    "decoded_patch_sha256": "48785761177d3769bbd2fbfb7944a3b098fc954ee9c72fd87da97a37cc40c45b"
+  },
+  "baseline_target_blobs": {
+    "apps/api/src/public-api.ts": "209bac4e6169e98ecfcbf71bfc931cf0c269dcf7",
+    "apps/api/src/public-api.test.ts": "793b7f960012cd2a02fd1dccb0025dc7603ab22d"
+  },
+  "baseline_absent_targets": [],
+  "allowed_target_files": [
+    "apps/api/src/public-api.ts",
+    "apps/api/src/public-api.test.ts"
+  ],
+  "required_validation_commands": [
+    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/public-api.test.ts",
+    "pnpm.cmd --filter @matchpulse/api typecheck",
+    "pnpm.cmd --filter @matchpulse/api build",
+    "pnpm.cmd --filter @matchpulse/api test",
+    "git diff --check",
+    "git diff --name-only -- prisma"
+  ],
+  "expected_results": [
+    "upcoming fixture time filtering is applied in the Prisma query before the bounded take",
+    "upcoming results are ordered nearest future first",
+    "past fixture time filtering is applied in the Prisma query before the bounded take",
+    "past results are ordered most recent first",
+    "competition filtering, bounded limits, public DTOs, metadata, and sanitized failure behavior remain unchanged",
+    "focused public API tests pass",
+    "API typecheck, production build, and full API regression pass",
+    "git diff check passes",
+    "Prisma and migration diff is empty",
+    "no migration, database mutation, external provider access, deployment, or production operation occurs",
+    "PHASE_QUEUE.json remains unchanged during execution",
+    "10H-A and every successor remain inactive"
+  ],
+  "allows_migration": false,
+  "allows_network": false,
+  "git_publish": {
+    "allow_commit": true,
+    "allow_push": false,
+    "require_exact_staged_paths": true,
+    "commit_message": "Fix public matches upcoming and past range queries"
+  }
+}
