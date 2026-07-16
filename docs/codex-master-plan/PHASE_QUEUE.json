@@ -14,6 +14,15 @@
       "human_gate": false
     },
     {
+      "id": "P0-SEC-B",
+      "title": "Telegram webhook, raw audit and legacy route isolation",
+      "status": "ready",
+      "depends_on": ["P0-SEC-A"],
+      "pack_version": "P0-SEC-B-v1",
+      "baseline_commit": "d0cd300c1f4f6c051aafae1656eb380368730e63",
+      "human_gate": false
+    },
+    {
       "id": "governance-orchestration-v1",
       "title": "Canonical governance and repository-controlled Codex execution",
       "status": "completed",

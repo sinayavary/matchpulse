@@ -149,7 +149,6 @@ export function registerTxlineRuntimeAuditRoutes(app: FastifyInstance): void {
     return {
       data: {
         audit_run: auditRun,
-        raw_payloads: auditRun.rawPayloads,
         findings: auditRun.findings,
         summary: auditRun.summaryJson
       },

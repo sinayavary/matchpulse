@@ -1,0 +1,43 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "P0-SEC-B",
+  "pack_version": "P0-SEC-B-v1",
+  "baseline_commit": "d0cd300c1f4f6c051aafae1656eb380368730e63",
+  "allowed_target_files": [
+    "apps/api/src/security-route-isolation.test.ts",
+    "apps/api/src/server.ts",
+    "apps/api/src/txline-runtime-audit-routes.ts",
+    "docs/codex-master-plan/ACTIVE_PHASE.json",
+    "docs/codex-master-plan/PHASE_QUEUE.json",
+    "docs/codex-master-plan/phases/phase-p0-sec-b/EXPECTED_SHA256.json",
+    "docs/codex-master-plan/phases/phase-p0-sec-b/README.md",
+    "docs/codex-master-plan/phases/phase-p0-sec-b/manifest.json",
+    "docs/codex-master-plan/phases/phase-p0-sec-b/payload/README.md",
+    "docs/phase-p0-sec-b-isolation.md"
+  ],
+  "required_validation_commands": [
+    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/security-route-isolation.test.ts src/internal-auth-boundary.test.ts",
+    "pnpm.cmd --filter @matchpulse/api typecheck",
+    "pnpm.cmd --filter @matchpulse/api build",
+    "pnpm.cmd --filter @matchpulse/api test",
+    "git diff --check",
+    "git diff --name-only -- prisma"
+  ],
+  "expected_results": [
+    "Telegram webhook body is never logged",
+    "public legacy raw route returns unavailable without raw payload",
+    "runtime audit HTTP response excludes raw_payloads",
+    "focused and full API tests pass",
+    "Prisma diff is empty",
+    "no migration or production network occurs",
+    "P0-SEC-C remains inactive"
+  ],
+  "allows_migration": false,
+  "allows_network": false,
+  "git_publish": {
+    "allow_commit": true,
+    "allow_push": true,
+    "require_exact_staged_paths": true,
+    "commit_message": "Complete Phase P0-SEC-B raw and legacy route isolation"
+  }
+}

@@ -1615,7 +1615,10 @@ app.get("/api/matches/:fixtureId", async (request, reply) => {
 
   return response(matchState);
 });
-app.get("/api/matches/:fixtureId/raw", async () => response(readMock("raw-data.json")));
+app.get("/api/matches/:fixtureId/raw", async (_request, reply) => {
+  reply.code(404);
+  return notFoundResponse("Raw provider payloads are not publicly available.");
+});
 app.get("/api/matches/:fixtureId/timeline", async () => response(readMock("timeline.json")));
 app.get("/api/matches/:fixtureId/odds", async () => response(readMock("odds.json")));
 app.get("/api/matches/:fixtureId/signals", async () => response(readMock("signals.json")));
@@ -1710,7 +1713,7 @@ app.post("/api/watchlist", async (request) => {
 });
 
 app.post("/api/telegram/webhook", async (request) => {
-  app.log.info({ body: request.body }, "Telegram webhook received in mock mode");
+  app.log.info({ event: "telegram_webhook_received", mode: "mock" }, "Telegram webhook received");
   return response({ ok: true, mode: "mock" });
 });
 

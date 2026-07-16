@@ -1,0 +1,16 @@
+{
+  "schema_version": "matchpulse-phase-pack-hashes-v1",
+  "phase": "P0-SEC-B",
+  "pack_version": "P0-SEC-B-v1",
+  "files": {
+    "apps/api/src/security-route-isolation.test.ts": "e27071724fe6340a68a2e03b878bf3657fa44297a7bc964634f9171ce5999349",
+    "apps/api/src/server.ts": "44692ad4543e3e6ac380952abaeced78ff4e938df3362029f955db4c579afe6a",
+    "apps/api/src/txline-runtime-audit-routes.ts": "1307289e68bdee24424362ce29436b90ff5cf0bd35e8eec5e532fa79114b8fb3",
+    "docs/codex-master-plan/ACTIVE_PHASE.json": "b0d2dceb32d6ea9bdda5e65f2516b4f91497dce8d6ba8a5e8d7bf0ff615ab6f8",
+    "docs/codex-master-plan/PHASE_QUEUE.json": "4a22d58c6aeff084adeed9b4c80969ce65cafc087c2b59a0cebc38c7fee3576c",
+    "docs/codex-master-plan/phases/phase-p0-sec-b/README.md": "366c85b925e7202582d6a81db677173cb2556f154dfacf2ac3590e964c0f5820",
+    "docs/codex-master-plan/phases/phase-p0-sec-b/manifest.json": "47e098f66f3a65d288805627f0156a957307a3abd25759153ba400c42ce34fa5",
+    "docs/codex-master-plan/phases/phase-p0-sec-b/payload/README.md": "8ca9908ac3c232c6e0cc463c39d953cbfc3ac8d81026b59c1436cb2578e843a3",
+    "docs/phase-p0-sec-b-isolation.md": "f500527efec2520b425df4ea772ce95cc9969c636fb73c03a93a09ef8fde3821"
+  }
+}
