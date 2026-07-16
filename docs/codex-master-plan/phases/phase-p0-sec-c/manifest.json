@@ -4,6 +4,11 @@
   "pack_version": "P0-SEC-C-v1",
   "baseline_commit": "e7cf280f3c6b2d55d10269efdc4733f29de6db5f",
   "allowed_target_files": [
+    "apps/api/src/internal-auth-boundary.ts",
+    "apps/api/src/internal-service-identity.test.ts",
+    "apps/api/src/internal-service-identity.ts",
+    "apps/api/src/internal-service-identity-store.ts",
+    "apps/api/src/server.ts",
     "docs/codex-master-plan/ACTIVE_PHASE.json",
     "docs/codex-master-plan/PHASE_QUEUE.json",
     "docs/codex-master-plan/phases/phase-p0-sec-c/EXPECTED_SHA256.json",
@@ -12,7 +17,7 @@
     "docs/codex-master-plan/phases/phase-p0-sec-c/payload/README.md",
     "docs/phase-p0-sec-c-service-identity-proposal.md",
     "prisma/schema.prisma",
-    "prisma/migrations"
+    "prisma/migrations/20260716003000_p0_sec_c_service_identity/migration.sql"
   ],
   "required_validation_commands": [
     "pnpm.cmd --filter @matchpulse/api typecheck",

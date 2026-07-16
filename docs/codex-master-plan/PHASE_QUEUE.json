@@ -1,13 +1,13 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "P0-SEC-A",
+  "active_phase_id": "P0-SEC-C",
   "updated_at": "2026-07-15T10:38:56Z",
   "items": [
     {
       "id": "P0-SEC-A",
       "title": "Internal route authentication boundary",
-      "status": "ready",
+      "status": "completed",
       "depends_on": ["HOTFIX-PUBLIC-MATCHES-UPCOMING"],
       "pack_version": "P0-SEC-A-v1",
       "baseline_commit": "2d5c9958471e4a70d227b19ed78ec5424cc22662",
@@ -16,7 +16,7 @@
     {
       "id": "P0-SEC-B",
       "title": "Telegram webhook, raw audit and legacy route isolation",
-      "status": "ready",
+      "status": "completed",
       "depends_on": ["P0-SEC-A"],
       "pack_version": "P0-SEC-B-v1",
       "baseline_commit": "d0cd300c1f4f6c051aafae1656eb380368730e63",

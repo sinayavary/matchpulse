@@ -3,11 +3,18 @@
   "phase": "P0-SEC-C",
   "pack_version": "P0-SEC-C-v1",
   "files": {
-    "docs/codex-master-plan/ACTIVE_PHASE.json": "28317a44b636dd3b0b4c6f08a52ef1d2db7f005c8bee64763f334ffbaf415b63",
-    "docs/codex-master-plan/PHASE_QUEUE.json": "e89c3e0c06268d48cdd62bb3b7ac63c9f639eb794b9e0340438515263b28461c",
-    "docs/codex-master-plan/phases/phase-p0-sec-c/README.md": "aecf1b4e542df453f2502611124fa24dea2c30e43f2ef047aa788e59c19dfc96",
-    "docs/codex-master-plan/phases/phase-p0-sec-c/manifest.json": "cdc7a93ab71914c7c6a400d90dca172c3ad9785ab34ca1f0d45029138f3b33e7",
+    "apps/api/src/internal-auth-boundary.ts": "aa3b55dc022476dfaaef658bcd0e250f82ee4a01c462cb42d2891474e9dc0c08",
+    "apps/api/src/internal-service-identity.test.ts": "a4e57e10dee9cb59c1f67136a345bf5cfad3bae6016528c984a6816a4299dd8d",
+    "apps/api/src/internal-service-identity.ts": "60127145affcf402227f006c53aefc013b6a4d8faf3096478cd3d0aaa09d35c6",
+    "apps/api/src/internal-service-identity-store.ts": "0dc0de1a7ddaa2ddd9172703a9da6aa75c34dcf74b952ea3d95e4560e205a7e1",
+    "apps/api/src/server.ts": "c6d1bba076e48b6aa587cc97d118a604af30e7c1881294751c99971d77ca55c7",
+    "docs/codex-master-plan/ACTIVE_PHASE.json": "8e38d7fabda6d5f0aaecdf95019e7703686ff15911b7e15c9a187d71e4a6e00b",
+    "docs/codex-master-plan/PHASE_QUEUE.json": "7b00b9230e4672f0b73ff34b2b42d93ae5039baed9d62393e3fb2f5cc3d47226",
+    "docs/codex-master-plan/phases/phase-p0-sec-c/README.md": "74c0f6a639c5a30609e70f67441bb8f2f4bc922dba7c512fa172a558e86cbdd2",
+    "docs/codex-master-plan/phases/phase-p0-sec-c/manifest.json": "da4dea9a18f3220c3d5b6c0cd6c700bfd4f237edfc71d23b42f5fec56e38e8b9",
     "docs/codex-master-plan/phases/phase-p0-sec-c/payload/README.md": "abb1c0703d321f29f86670fa8b94a26bde554140648704f649ffab98e62abc40",
-    "docs/phase-p0-sec-c-service-identity-proposal.md": "57c361036f7e14e9e52f97241e46f4c954796457e6cd906c19fd6ab84977f44d"
+    "docs/phase-p0-sec-c-service-identity-proposal.md": "fd3dcf350b8fd672ad55c084d490278699170c9b5c8fa3abb2c91d52add70417",
+    "prisma/schema.prisma": "1cb2a295c7cf331898aa98ae6a27a4515dee60909eafafcecbb409f2456f45a6",
+    "prisma/migrations/20260716003000_p0_sec_c_service_identity/migration.sql": "92011bf99d3a0b21bb3df916b14685310bcf3c68c37213320bd787deba3a3bc1"
   }
 }

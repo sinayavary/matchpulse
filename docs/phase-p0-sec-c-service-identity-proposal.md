@@ -23,3 +23,12 @@ After explicit database approval, activate P0-SEC-C with the exact schema,
 migration, service/auth contracts, negative tests, audit tests, rollback plan,
 and local migration validation. Until then, `P0-SEC-C` remains awaiting human
 approval and no successor phase is activated.
+
+## Execution evidence
+
+The additive schema and migration were authored and validated offline. Prisma
+schema validation and client generation passed; the migration contains only
+one enum, four new tables, indexes, and foreign keys, with no destructive SQL.
+The configured database is a Neon host without an explicit development/test
+environment marker or a development-named database. Migration apply is
+therefore intentionally withheld.

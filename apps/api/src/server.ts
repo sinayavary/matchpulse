@@ -92,6 +92,7 @@ import { registerPublicApiRoutes } from "./public-api.js";
 import { registerTxlineRuntimeAuditRoutes } from "./txline-runtime-audit-routes.js";
 import { registerCompetitionPredictionRoutes } from "./server-competition-prediction-route.js";
 import { registerInternalAuthBoundary } from "./internal-auth-boundary.js";
+import { createPrismaServiceAuthResolver } from "./internal-service-identity-store.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
@@ -100,7 +101,10 @@ const productRuntimeRefreshWorker = createProductRuntimeRefreshWorker({
 });
 let productRuntimeRefreshWorkerStarted = false;
 
-registerInternalAuthBoundary(app);
+const serviceAuthResolver = process.env.MATCHPULSE_INTERNAL_AUTH_MODE === "service"
+  ? createPrismaServiceAuthResolver({ db: getDbClient() })
+  : undefined;
+registerInternalAuthBoundary(app, { serviceAuth: serviceAuthResolver });
 
 app.addHook("onClose", async () => {
   if (productRuntimeRefreshWorkerStarted) {

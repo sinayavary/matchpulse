@@ -584,3 +584,76 @@ model ModelRegistryEntry {
   @@index([datasetVersion])
   @@map("model_registry_entries")
 }
+
+enum InternalServiceIdentityStatus {
+  ENABLED
+  DISABLED
+}
+
+model InternalServiceIdentity {
+  id          String                         @id @default(cuid())
+  name        String                         @unique
+  description String?
+  status      InternalServiceIdentityStatus  @default(ENABLED)
+  createdAt   DateTime                       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  lastUsedAt  DateTime?                      @map("last_used_at") @db.Timestamptz(3)
+
+  credentials InternalServiceCredential[]
+  auditEvents InternalAuthAuditEvent[]
+
+  @@index([status])
+  @@map("internal_service_identities")
+}
+
+model InternalServiceCredential {
+  id                String                  @id @default(cuid())
+  serviceIdentityId String                  @map("service_identity_id")
+  prefix            String
+  credentialHash    String                  @unique @map("credential_hash")
+  createdAt         DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt         DateTime?               @map("expires_at") @db.Timestamptz(3)
+  revokedAt         DateTime?               @map("revoked_at") @db.Timestamptz(3)
+  lastUsedAt        DateTime?               @map("last_used_at") @db.Timestamptz(3)
+
+  serviceIdentity   InternalServiceIdentity @relation(fields: [serviceIdentityId], references: [id], onDelete: Restrict)
+  scopes            InternalServiceCredentialScope[]
+  auditEvents       InternalAuthAuditEvent[]
+
+  @@index([serviceIdentityId, revokedAt, expiresAt])
+  @@index([prefix])
+  @@map("internal_service_credentials")
+}
+
+model InternalServiceCredentialScope {
+  credentialId String                     @map("credential_id")
+  scope        String
+
+  credential InternalServiceCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@id([credentialId, scope])
+  @@index([scope])
+  @@map("internal_service_credential_scopes")
+}
+
+model InternalAuthAuditEvent {
+  id                String                  @id @default(cuid())
+  serviceIdentityId String?                 @map("service_identity_id")
+  credentialId      String?                 @map("credential_id")
+  eventType         String                  @map("event_type")
+  scope             String?
+  method            String?
+  route             String?
+  success           Boolean
+  reason            String?
+  occurredAt        DateTime                @default(now()) @map("occurred_at") @db.Timestamptz(3)
+
+  serviceIdentity InternalServiceIdentity? @relation(fields: [serviceIdentityId], references: [id], onDelete: SetNull)
+  credential      InternalServiceCredential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+
+  @@index([occurredAt])
+  @@index([eventType, occurredAt])
+  @@index([serviceIdentityId, occurredAt])
+  @@index([credentialId, occurredAt])
+  @@map("internal_auth_audit_events")
+}
