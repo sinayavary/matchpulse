@@ -1,14 +1,14 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "completed_pending_review",
-  "phase_id": "10G-C",
-  "phase_title": "Canonical timeline persistence",
-  "pack_path": "docs/codex-master-plan/phases/phase-10g-c",
-  "pack_version": "10G-C-v1",
-  "baseline_commit": "fd09fe22b286893aef136ea2f3b3019481c2ef0b",
+  "state": "in_progress",
+  "phase_id": "10I",
+  "phase_title": "Prediction runtime orchestration",
+  "pack_path": "docs/codex-master-plan/phases/phase-10i",
+  "pack_version": "10I-v1",
+  "baseline_commit": "a81744f1279de6471d07652090846de544afff72",
   "human_approved": true,
-  "activation_note": "The project owner explicitly requested continuation through all defined phases. 10G-C canonical timeline persistence is complete pending review after embedded local PostgreSQL migration verification; no remote database or network operation was used.",
+  "activation_note": "The project owner explicitly requested continuation through all defined phases. 10I prediction runtime orchestration is in progress; no remote database or network operation is permitted.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
@@ -16,17 +16,17 @@
     "stop_after_phase": true
   },
   "last_result": {
-    "status": "10G_C_COMPLETED_PENDING_REVIEW",
-    "reviewed_phase_id": "10E-D",
-    "reviewed_completion_commit": "fd09fe22b286893aef136ea2f3b3019481c2ef0b",
-    "review_evidence": "local PostgreSQL 16.14 migrate deploy/status up to date; odds persistence foundation tests 2/2; API regression 943/943; typecheck, build, and diff-check passed.",
-    "selected_next_phase": "10G-C",
-    "selected_reason": "10G-C adds transactional canonical timeline and checkpoint persistence after the local database gate became available; migration is explicitly permitted by the active manifest.",
+    "status": "10I_IN_PROGRESS",
+    "reviewed_phase_id": "10G-C",
+    "reviewed_completion_commit": "a81744f1279de6471d07652090846de544afff72",
+    "review_evidence": "embedded PostgreSQL 16.14 migration applied; checkpoint and timeline tables queried; persistence foundation tests 3/3; API regression 943/943; typecheck, build, and diff-check passed.",
+    "selected_next_phase": "10I",
+    "selected_reason": "10I depends on the completed local persistence gates and now has its orchestration foundation; storage and worker integration remain active work.",
     "database_verification": "inherited from completed P0-SEC-C gate",
     "migration_sql_review": "inherited from completed P0-SEC-C gate",
     "schema_validated": true,
     "migration_applied": true,
     "network_accessed": false,
-    "validation_evidence": "embedded PostgreSQL 16.14 migration applied; checkpoint and timeline tables queried; persistence foundation tests 3/3; API typecheck, build, and diff-check passed"
+    "validation_evidence": "orchestrator tests 2/2; API typecheck and build passed; persistence callback integration and worker/route wiring pending"
   }
 }
