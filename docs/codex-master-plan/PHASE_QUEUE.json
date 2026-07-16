@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "10H-C",
+  "active_phase_id": "10N-A",
   "updated_at": "2026-07-16T12:00:00Z",
   "items": [
     {
@@ -220,6 +220,15 @@
       "depends_on": ["10F-C"],
       "pack_version": "10G-A/B-v1",
       "baseline_commit": "a67394e759c2510b84f3b6b1e1b652751499ec41",
+      "human_gate": false
+    },
+      {
+      "id": "10N-A",
+      "title": "Offline proof-state validation",
+      "status": "completed",
+      "depends_on": ["10F-C"],
+      "pack_version": "10N-A-v1",
+      "baseline_commit": "da18e7c69609d7c31498ec7cd33b602d468b5982",
       "human_gate": false
     },
       {

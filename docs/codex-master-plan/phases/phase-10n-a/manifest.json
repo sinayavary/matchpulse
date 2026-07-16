@@ -1,0 +1,12 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase_id": "10N-A",
+  "title": "Offline proof-state validation",
+  "pack_version": "10N-A-v1",
+  "baseline_commit": "da18e7c69609d7c31498ec7cd33b602d468b5982",
+  "allowlist": ["apps/api/package.json", "apps/api/src/proof-state.ts", "apps/api/src/proof-state.test.ts", "docs/codex-master-plan/ACTIVE_PHASE.json", "docs/codex-master-plan/PHASE_QUEUE.json", "docs/codex-master-plan/phases/phase-10n-a/README.md", "docs/codex-master-plan/phases/phase-10n-a/manifest.json", "docs/codex-master-plan/phases/phase-10n-a/EXPECTED_SHA256.json"],
+  "allows_migration": false,
+  "allows_network": false,
+  "human_gate": false,
+  "git": { "allow_commit": true, "allow_push": true }
+}

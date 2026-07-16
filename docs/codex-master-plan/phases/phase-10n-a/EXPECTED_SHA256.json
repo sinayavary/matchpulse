@@ -1,0 +1,5 @@
+{
+  "apps/api/package.json": "5b3a80faa574508c48c26d21971af7db6316a642fb504dfd37bc403517fea59d",
+  "apps/api/src/proof-state.ts": "898ed8f64bce4b4a92dab7dbad9bca2d15d290a850022d7e55216bc2dac80b49",
+  "apps/api/src/proof-state.test.ts": "a6270b3b7f001cdf403767149cf01f9a6b11d558e3ee7ff3b03492a79ad57be0"
+}
