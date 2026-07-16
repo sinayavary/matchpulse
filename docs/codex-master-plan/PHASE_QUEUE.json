@@ -137,7 +137,7 @@
     {
       "id": "10I",
       "title": "Prediction runtime orchestration",
-      "status": "in_progress",
+      "status": "completed",
       "depends_on": ["10E-D", "10G-C", "10H-C"],
       "pack_version": "10I-v1",
       "baseline_commit": "a81744f1279de6471d07652090846de544afff72",
