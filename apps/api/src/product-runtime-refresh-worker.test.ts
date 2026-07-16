@@ -296,3 +296,13 @@ test("no real TxLINE call is made in worker tests", async () => {
 
   assert.equal(calls, 1);
 });
+
+test("worker invokes the optional prediction runtime after ingestion", async () => {
+  let predictions = 0;
+  const worker = createProductRuntimeRefreshWorker({
+    env: { MATCHPULSE_RUNTIME_REFRESH_ENABLED: "true", MATCHPULSE_RUNTIME_REFRESH_RUN_ON_START: "true" },
+    runner: async () => ({ status: "ok", started_at: "2026-07-09T00:00:00.000Z", finished_at: "2026-07-09T00:00:01.000Z", targets: { fixtures: { attempted: true, status: "ok", count: 1 }, scores: { attempted: true, status: "ok", count: 1 }, odds: { attempted: true, status: "ok", count: 1 }, events: { attempted: false, status: "skipped", count: 0 } }, safe_scope_note: "safe" }),
+    predictionRunner: async () => { predictions += 1; }
+  });
+  await worker.start(); await new Promise((resolve) => setImmediate(resolve)); await worker.stop(); assert.equal(predictions, 1);
+});

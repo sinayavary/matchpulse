@@ -4,5 +4,7 @@
   "apps/api/src/prediction-runtime-orchestrator.test.ts": "a7f28f15a2f9a36f8c6a8a37a02b4f607eb46bcb4fc4c0dd9163b52a314b8fec",
   "apps/api/src/prediction-runtime-storage.ts": "dc4a5df7ee5a7aa20b7fa090f5c291ecf4cd0db7a5d768da995e2aca9c87f25c",
   "apps/api/src/prediction-runtime-cycle.ts": "7e07d98c011c02a7104450d20fa57c52a3c761ab4d7dd0ef0a1d84d060ac336c",
-  "apps/api/src/prediction-runtime-cycle.test.ts": "1c88f72a792ab3c5764cccf78175e25970b065f5b632ad51225da431550c6e54"
+  "apps/api/src/prediction-runtime-cycle.test.ts": "1c88f72a792ab3c5764cccf78175e25970b065f5b632ad51225da431550c6e54",
+  "apps/api/src/product-runtime-refresh-worker.ts": "767b69853777a7682848a5de92e7c53db55c286b44b051c32bcc848d71dee397",
+  "apps/api/src/product-runtime-refresh-worker.test.ts": "7277347f85813264c535a040efb0948fe30abc761db69744e91a7d7e40aecc1e"
 }

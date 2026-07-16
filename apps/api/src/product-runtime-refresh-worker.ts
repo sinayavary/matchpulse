@@ -28,6 +28,7 @@ export type ProductRuntimeRefreshWorkerOptions = {
   logger?: ProductRuntimeRefreshWorkerLogger;
   setTimeoutFn?: typeof setTimeout;
   clearTimeoutFn?: typeof clearTimeout;
+  predictionRunner?: () => Promise<unknown>;
 };
 
 export type ProductRuntimeRefreshWorkerSummary = {
@@ -145,6 +146,7 @@ export function createProductRuntimeRefreshWorker(
   const logger = options.logger ?? console;
   const setTimeoutImpl = options.setTimeoutFn ?? setTimeout;
   const clearTimeoutImpl = options.clearTimeoutFn ?? clearTimeout;
+  const predictionRunner = options.predictionRunner;
 
   let started = false;
   let stopped = false;
@@ -171,6 +173,10 @@ export function createProductRuntimeRefreshWorker(
       try {
         const summary = buildSummary(await runner({}));
         logSummary(summary);
+        if (predictionRunner !== undefined) {
+          try { await predictionRunner(); }
+          catch { logger.error({ status: "failed" }, "Prediction runtime cycle failed"); }
+        }
       } catch {
         const summary = buildFailedSummary();
         logSummary(summary);
