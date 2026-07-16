@@ -1,0 +1,12 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase_id": "10G-A/B",
+  "title": "Streaming ingestion and backfill",
+  "pack_version": "10G-A/B-v1",
+  "baseline_commit": "a67394e759c2510b84f3b6b1e1b652751499ec41",
+  "allowlist": ["packages/txline-client/package.json", "packages/txline-client/src/index.ts", "packages/txline-client/src/stream-supervisor.ts", "packages/txline-client/src/stream-supervisor.test.ts", "packages/txline-client/src/backfill-planner.ts", "docs/codex-master-plan/ACTIVE_PHASE.json", "docs/codex-master-plan/PHASE_QUEUE.json", "docs/codex-master-plan/phases/phase-10g-ab/README.md", "docs/codex-master-plan/phases/phase-10g-ab/manifest.json", "docs/codex-master-plan/phases/phase-10g-ab/EXPECTED_SHA256.json"],
+  "allows_migration": false,
+  "allows_network": false,
+  "human_gate": false,
+  "git": { "allow_commit": true, "allow_push": true }
+}

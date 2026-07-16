@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "10H-B",
+  "active_phase_id": "10G-A/B",
   "updated_at": "2026-07-16T12:00:00Z",
   "items": [
     {
@@ -214,7 +214,16 @@
       "human_gate": false
     },
       {
-        "id": "10H-A",
+      "id": "10G-A/B",
+      "title": "Streaming ingestion and backfill",
+      "status": "completed",
+      "depends_on": ["10F-C"],
+      "pack_version": "10G-A/B-v1",
+      "baseline_commit": "a67394e759c2510b84f3b6b1e1b652751499ec41",
+      "human_gate": false
+    },
+      {
+      "id": "10H-A",
       "title": "Production prediction composition engine",
       "status": "completed",
       "depends_on": [

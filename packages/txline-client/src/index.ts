@@ -54,6 +54,10 @@ export { createTxlineLiveClient, TxlineLiveError } from "./live.js";
 export type { TxlineLiveClientDependencies, TxlineLiveErrorKind, TxlineSafeError } from "./live.js";
 export { fetchGuestJwt, sanitizeJwt, TxlineAuthError } from "./auth.js";
 export type { FetchGuestJwtOptions } from "./auth.js";
+export { createStreamCheckpoint, TxlineStreamSupervisor } from "./stream-supervisor.js";
+export type { StreamCheckpoint, StreamSupervisorOptions } from "./stream-supervisor.js";
+export { enumerateBackfill, runBackfill } from "./backfill-planner.js";
+export type { BackfillPlan, BackfillRequest } from "./backfill-planner.js";
 export {
   loadProjectWalletFromEnv,
   resolveProjectWalletPath,

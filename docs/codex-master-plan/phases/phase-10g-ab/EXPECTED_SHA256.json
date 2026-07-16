@@ -1,0 +1,7 @@
+{
+  "packages/txline-client/package.json": "bbe026cdca79782c465645c80d48a591fb0d058f536f394f2c98a24dadf2fe56",
+  "packages/txline-client/src/index.ts": "23aa8974f5073e0addfd7326a0751bbcdda341c9461eace93b0ef325b2faf063",
+  "packages/txline-client/src/stream-supervisor.ts": "7de17e2178221cd19eb1ef2337ff214530bb6b3cfc4446974ee488122f801192",
+  "packages/txline-client/src/stream-supervisor.test.ts": "61f16d6835cf6c3e35b5040e9e6e430307571e9799e46a414427c9f5ca84a80c",
+  "packages/txline-client/src/backfill-planner.ts": "0bfff654d67b6f03e05897ed50824fb27a2ea35fe6115a996b437a0d51a82d2d"
+}
