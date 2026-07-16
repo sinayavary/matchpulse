@@ -1,14 +1,14 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "completed_pending_review",
-  "phase_id": "P0-SEC-B",
-  "phase_title": "Telegram Webhook, Raw Audit and Legacy Route Isolation",
-  "pack_path": "docs/codex-master-plan/phases/phase-p0-sec-b",
-  "pack_version": "P0-SEC-B-v1",
-  "baseline_commit": "d0cd300c1f4f6c051aafae1656eb380368730e63",
+  "state": "awaiting_human_approval",
+  "phase_id": "P0-SEC-C",
+  "phase_title": "Internal Scopes, Service Identity and Audit Foundation",
+  "pack_path": "docs/codex-master-plan/phases/phase-p0-sec-c",
+  "pack_version": "P0-SEC-C-v1",
+  "baseline_commit": "e7cf280f3c6b2d55d10269efdc4733f29de6db5f",
   "human_approved": false,
-  "activation_note": "P0-SEC-A was published successfully. Autonomous recovery selected P0-SEC-B from the verified security roadmap. This phase has no migration, production database write, production network, secret acquisition, or breaking public contract.",
+  "activation_note": "P0-SEC-B was published successfully. P0-SEC-C is selected but blocked because persisted service identity, scopes, expiry, revocation, and audit lifecycle require Prisma schema and migration approval.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
@@ -16,23 +16,13 @@
     "stop_after_phase": true
   },
   "last_result": {
-    "status": "PHASE_COMPLETE",
-    "phase_id": "P0-SEC-B",
-    "pack_version": "P0-SEC-B-v1",
-    "baseline_commit": "d0cd300c1f4f6c051aafae1656eb380368730e63",
-    "completed_at": "2026-07-16T00:13:49.4962832Z",
-    "files_changed": [
-      "apps/api/src/security-route-isolation.test.ts",
-      "apps/api/src/server.ts",
-      "apps/api/src/txline-runtime-audit-routes.ts",
-      "docs/codex-master-plan/PHASE_QUEUE.json",
-      "docs/codex-master-plan/phases/phase-p0-sec-b/EXPECTED_SHA256.json",
-      "docs/codex-master-plan/phases/phase-p0-sec-b/README.md",
-      "docs/codex-master-plan/phases/phase-p0-sec-b/manifest.json",
-      "docs/codex-master-plan/phases/phase-p0-sec-b/payload/README.md",
-      "docs/phase-p0-sec-b-isolation.md"
-    ],
-    "validation_summary": "Focused P0-SEC-B and auth boundary tests 10/10 passed; API typecheck passed; API production build passed; full API regression suite 921/921 passed; git diff --check passed; Prisma and migration diff empty; no production network or database mutation.",
+    "status": "HUMAN_GATE_DATABASE_MIGRATION_REQUIRED",
+    "reviewed_phase_id": "P0-SEC-B",
+    "reviewed_completion_commit": "e7cf280f3c6b2d55d10269efdc4733f29de6db5f",
+    "review_evidence": "P0-SEC-B completion commit published fast-forward with focused 10/10, API 921/921, typecheck/build, empty Prisma diff, and no production network.",
+    "selected_next_phase": "P0-SEC-C",
+    "selected_reason": "Shared-token role/scope/expiry/revocation/audit findings require persisted service identity and migration.",
+    "blocker": "HUMAN_GATE_DATABASE_MIGRATION_REQUIRED",
     "migration_applied": false,
     "network_accessed": false
   }

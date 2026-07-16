@@ -23,6 +23,15 @@
       "human_gate": false
     },
     {
+      "id": "P0-SEC-C",
+      "title": "Internal scopes, service identity and audit foundation",
+      "status": "blocked_human_approval",
+      "depends_on": ["P0-SEC-B"],
+      "pack_version": "P0-SEC-C-v1",
+      "baseline_commit": "e7cf280f3c6b2d55d10269efdc4733f29de6db5f",
+      "human_gate": true
+    },
+    {
       "id": "governance-orchestration-v1",
       "title": "Canonical governance and repository-controlled Codex execution",
       "status": "completed",

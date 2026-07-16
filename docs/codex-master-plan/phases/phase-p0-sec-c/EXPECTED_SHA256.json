@@ -1,0 +1,13 @@
+{
+  "schema_version": "matchpulse-phase-pack-hashes-v1",
+  "phase": "P0-SEC-C",
+  "pack_version": "P0-SEC-C-v1",
+  "files": {
+    "docs/codex-master-plan/ACTIVE_PHASE.json": "28317a44b636dd3b0b4c6f08a52ef1d2db7f005c8bee64763f334ffbaf415b63",
+    "docs/codex-master-plan/PHASE_QUEUE.json": "e89c3e0c06268d48cdd62bb3b7ac63c9f639eb794b9e0340438515263b28461c",
+    "docs/codex-master-plan/phases/phase-p0-sec-c/README.md": "aecf1b4e542df453f2502611124fa24dea2c30e43f2ef047aa788e59c19dfc96",
+    "docs/codex-master-plan/phases/phase-p0-sec-c/manifest.json": "cdc7a93ab71914c7c6a400d90dca172c3ad9785ab34ca1f0d45029138f3b33e7",
+    "docs/codex-master-plan/phases/phase-p0-sec-c/payload/README.md": "abb1c0703d321f29f86670fa8b94a26bde554140648704f649ffab98e62abc40",
+    "docs/phase-p0-sec-c-service-identity-proposal.md": "57c361036f7e14e9e52f97241e46f4c954796457e6cd906c19fd6ab84977f44d"
+  }
+}

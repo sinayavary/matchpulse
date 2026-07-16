@@ -1,0 +1,32 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "P0-SEC-C",
+  "pack_version": "P0-SEC-C-v1",
+  "baseline_commit": "e7cf280f3c6b2d55d10269efdc4733f29de6db5f",
+  "allowed_target_files": [
+    "docs/codex-master-plan/ACTIVE_PHASE.json",
+    "docs/codex-master-plan/PHASE_QUEUE.json",
+    "docs/codex-master-plan/phases/phase-p0-sec-c/EXPECTED_SHA256.json",
+    "docs/codex-master-plan/phases/phase-p0-sec-c/README.md",
+    "docs/codex-master-plan/phases/phase-p0-sec-c/manifest.json",
+    "docs/codex-master-plan/phases/phase-p0-sec-c/payload/README.md",
+    "docs/phase-p0-sec-c-service-identity-proposal.md",
+    "prisma/schema.prisma",
+    "prisma/migrations"
+  ],
+  "required_validation_commands": [
+    "pnpm.cmd --filter @matchpulse/api typecheck",
+    "pnpm.cmd --filter @matchpulse/api test",
+    "pnpm.cmd exec prisma validate --schema prisma/schema.prisma",
+    "git diff --check"
+  ],
+  "expected_results": [
+    "human database approval recorded before schema or migration implementation",
+    "service identity scopes expiry revocation and audit lifecycle are persisted",
+    "rollback and local migration validation are documented",
+    "no production database write or production network occurs"
+  ],
+  "allows_migration": true,
+  "allows_network": false,
+  "human_gate": "HUMAN_GATE_DATABASE_MIGRATION_REQUIRED"
+}
