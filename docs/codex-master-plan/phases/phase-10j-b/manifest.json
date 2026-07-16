@@ -1,0 +1,12 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase_id": "10J-B",
+  "title": "Evaluation metrics",
+  "pack_version": "10J-B-v1",
+  "baseline_commit": "ecd146dfe3c20f1f4d469026dd54cd0f3363fcd5",
+  "allowlist": ["apps/api/package.json", "apps/api/src/prediction-evaluation.ts", "apps/api/src/prediction-evaluation.test.ts", "docs/codex-master-plan/ACTIVE_PHASE.json", "docs/codex-master-plan/PHASE_QUEUE.json", "docs/codex-master-plan/phases/phase-10j-b/README.md", "docs/codex-master-plan/phases/phase-10j-b/manifest.json", "docs/codex-master-plan/phases/phase-10j-b/EXPECTED_SHA256.json"],
+  "allows_migration": false,
+  "allows_network": false,
+  "human_gate": false,
+  "git": { "allow_commit": true, "allow_push": true }
+}

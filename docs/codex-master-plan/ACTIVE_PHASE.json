@@ -2,13 +2,13 @@
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
   "state": "completed_pending_review",
-  "phase_id": "10J-A",
-  "phase_title": "Temporal labels",
-  "pack_path": "docs/codex-master-plan/phases/phase-10j-a",
-  "pack_version": "10J-A-v1",
-  "baseline_commit": "8efe0ae96cff01c2b05229bd79edefe3e4bbace0",
+  "phase_id": "10J-B",
+  "phase_title": "Evaluation metrics",
+  "pack_path": "docs/codex-master-plan/phases/phase-10j-b",
+  "pack_version": "10J-B-v1",
+  "baseline_commit": "ecd146dfe3c20f1f4d469026dd54cd0f3363fcd5",
   "human_approved": true,
-  "activation_note": "The project owner explicitly requested continuation through all defined phases. 10J-A temporal labels are complete pending review; no network or database mutation was used.",
+  "activation_note": "The project owner explicitly requested continuation through all defined phases. 10J-B evaluation metrics are complete pending review; no network or database mutation was used.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
@@ -16,17 +16,17 @@
     "stop_after_phase": true
   },
   "last_result": {
-    "status": "10J_A_COMPLETED_PENDING_REVIEW",
-    "reviewed_phase_id": "10I",
-    "reviewed_completion_commit": "8efe0ae96cff01c2b05229bd79edefe3e4bbace0",
-    "review_evidence": "orchestrator tests 3/3; runtime cycle tests 2/2; worker tests 8/8; local PostgreSQL integration write/read/cleanup passed; API typecheck, build, and diff-check passed.",
-    "selected_next_phase": "10J-A",
-    "selected_reason": "10J-A follows persisted prediction runtime and provides strict future-leak-safe labels without a new database migration.",
+    "status": "10J_B_COMPLETED_PENDING_REVIEW",
+    "reviewed_phase_id": "10J-A",
+    "reviewed_completion_commit": "ecd146dfe3c20f1f4d469026dd54cd0f3363fcd5",
+    "review_evidence": "temporal label tests 2/2; domain label validation; API typecheck/build and diff-check passed.",
+    "selected_next_phase": "10J-B",
+    "selected_reason": "10J-B consumes temporal labels and provides deterministic evaluation metrics and segmented reports without a new database migration.",
     "database_verification": "inherited from completed P0-SEC-C gate",
     "migration_sql_review": "inherited from completed P0-SEC-C gate",
     "schema_validated": true,
     "migration_applied": true,
     "network_accessed": false,
-    "validation_evidence": "temporal label tests 2/2; domain label validation passed; API typecheck/build and diff-check passed; no network or database mutation"
+    "validation_evidence": "evaluation tests 2/2; domain evaluation validation; API typecheck/build and diff-check passed; no network or database mutation"
   }
 }

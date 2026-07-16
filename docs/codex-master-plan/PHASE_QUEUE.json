@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "10J-A",
+  "active_phase_id": "10J-B",
   "updated_at": "2026-07-16T12:00:00Z",
   "items": [
     {
@@ -132,6 +132,15 @@
       "depends_on": [
         "10F-C"
       ],
+      "human_gate": false
+    },
+    {
+      "id": "10J-B",
+      "title": "Evaluation metrics",
+      "status": "completed",
+      "depends_on": ["10J-A"],
+      "pack_version": "10J-B-v1",
+      "baseline_commit": "ecd146dfe3c20f1f4d469026dd54cd0f3363fcd5",
       "human_gate": false
     },
     {
