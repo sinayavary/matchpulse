@@ -1,9 +1,18 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "HOTFIX-PUBLIC-MATCHES-UPCOMING",
+  "active_phase_id": "P0-SEC-A",
   "updated_at": "2026-07-15T10:38:56Z",
   "items": [
+    {
+      "id": "P0-SEC-A",
+      "title": "Internal route authentication boundary",
+      "status": "ready",
+      "depends_on": ["HOTFIX-PUBLIC-MATCHES-UPCOMING"],
+      "pack_version": "P0-SEC-A-v1",
+      "baseline_commit": "2d5c9958471e4a70d227b19ed78ec5424cc22662",
+      "human_gate": false
+    },
     {
       "id": "governance-orchestration-v1",
       "title": "Canonical governance and repository-controlled Codex execution",

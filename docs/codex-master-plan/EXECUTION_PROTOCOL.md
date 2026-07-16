@@ -219,3 +219,9 @@ On any failure:
 ## 13. Next phase
 
 After the completion commit is published and reviewed, a separate governance change may install and activate the next exact phase pack on a separate branch. Phase execution itself never edits queue order or self-activates a successor.
+
+## 14. Autonomous recovery worktree
+
+When the primary worktree contains unrelated user changes or an incoming overlap, it is read-only for the run. The executor must fetch `origin/main`, verify `git worktree list`, and create or reuse a clean secondary worktree from the fetched `origin/main` on a unique `agent/autonomous-*` branch. No files, index entries, or refs belonging to the primary worktree may be reset, stashed, cleaned, restored, staged, committed, or deleted.
+
+In that clean recovery worktree, an explicitly authorized autonomous run may review a valid `completed_pending_review` phase, record its completion evidence and rationale, install a repository-controlled successor pack, activate it, and execute it. The transition must preserve queue integrity, exact allowlists, hashes, rollback instructions, and all human gates. Production network, production database writes, migrations, secrets, breaking public contracts, destructive operations, licensing, retention, wallet, and unresolved product ownership decisions remain mandatory stop conditions.

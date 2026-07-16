@@ -2,7 +2,7 @@
 
 ## Authority
 
-Codex is an implementation executor, not the project architect.
+Codex is the project architect, phase selector, phase-pack author, and implementation executor when operating in an explicitly created clean recovery worktree.
 
 Authority order:
 
@@ -14,7 +14,7 @@ Authority order:
 6. Existing repository code.
 7. Historical documentation.
 
-Chat text must not select a different phase from `ACTIVE_PHASE.json`. When sources conflict or required implementation details are missing, stop. Do not invent a solution.
+The active phase remains repository-controlled. In a clean recovery worktree, an explicitly authorized autonomous run may review a completed phase, record the rationale, install the next phase pack, and activate it. All such decisions must be committed, reviewable, and rollbackable.
 
 ## Mandatory behavior
 
@@ -31,7 +31,9 @@ Before every edit:
 
 When the active state is `ready`, continue implementing and correcting only the active phase until its validation gate passes or a declared blocker is reached. Do not ask for routine confirmation inside an approved phase.
 
-Do not activate or begin another phase.
+The primary worktree may be dirty. Never sync, stage, commit, or edit it during autonomous recovery; use a clean registered secondary worktree based on current `origin/main` instead.
+
+Do not activate or begin another phase from a dirty primary worktree. A clean recovery worktree may activate the next phase only after recording completion evidence and rationale in repository governance.
 
 ## Codex must not decide
 

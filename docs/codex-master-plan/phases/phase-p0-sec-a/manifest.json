@@ -1,0 +1,50 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "P0-SEC-A",
+  "pack_version": "P0-SEC-A-v1",
+  "baseline_commit": "2d5c9958471e4a70d227b19ed78ec5424cc22662",
+  "allowed_target_files": [
+    "AGENTS.md",
+    "apps/api/src/internal-auth-boundary.test.ts",
+    "apps/api/src/internal-auth-boundary.ts",
+    "apps/api/src/server.ts",
+    "docs/codex-master-plan/ACTIVE_PHASE.json",
+    "docs/codex-master-plan/CODEX_ENTRYPOINT.md",
+    "docs/codex-master-plan/CODEX_MASTER_PROMPT.md",
+    "docs/codex-master-plan/EXECUTION_PROTOCOL.md",
+    "docs/codex-master-plan/PHASE_QUEUE.json",
+    "docs/codex-master-plan/phases/phase-p0-sec-a/EXPECTED_SHA256.json",
+    "docs/codex-master-plan/phases/phase-p0-sec-a/README.md",
+    "docs/codex-master-plan/phases/phase-p0-sec-a/manifest.json",
+    "docs/codex-master-plan/phases/phase-p0-sec-a/payload/README.md",
+    "docs/phase-p0-sec-a-internal-route-auth.md",
+    "scripts/codex-automation-v2.ps1"
+  ],
+  "required_validation_commands": [
+    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/internal-auth.test.ts src/internal-auth-boundary.test.ts",
+    "pnpm.cmd --filter @matchpulse/api typecheck",
+    "pnpm.cmd --filter @matchpulse/api build",
+    "pnpm.cmd --filter @matchpulse/api test",
+    "git diff --check",
+    "git diff --name-only -- prisma",
+    "git status --short"
+  ],
+  "expected_results": [
+    "all internal routes are centrally guarded before handlers",
+    "missing configuration returns 503 and invalid credentials return 401",
+    "valid internal credentials reach handlers and public routes remain unaffected",
+    "focused security tests, API typecheck, build, and regression suite pass",
+    "Prisma and migration diff is empty",
+    "no production network or database mutation occurs",
+    "primary dirty worktree remains unchanged and unstaged",
+    "P0-SEC-B remains inactive"
+  ],
+  "allows_migration": false,
+  "allows_network": false,
+  "git_publish": {
+    "allow_commit": true,
+    "allow_push": true,
+    "require_exact_staged_paths": true,
+    "commit_message": "Complete Phase P0-SEC-A internal route authentication boundary"
+  }
+}

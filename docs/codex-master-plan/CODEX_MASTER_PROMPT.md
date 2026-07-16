@@ -3,7 +3,7 @@
 Paste the following permanent instruction into Codex:
 
 ```text
-Work directly inside D:\money\matchpulse_repo. Read AGENTS.md and docs/codex-master-plan/CODEX_ENTRYPOINT.md. Run .\scripts\codex-automation-v2.ps1 -Mode Validate, execute only the repository-selected active phase and every validation in its pack, update only the permitted ACTIVE_PHASE.json completion metadata, then run .\scripts\codex-automation-v2.ps1 -Mode Prepare. Stop before Publish, preserve every unrelated local change, and never activate the next phase.
+Preserve D:\money\matchpulse_repo as read-only when dirty. Use a clean registered secondary worktree based on current origin/main. Read AGENTS.md and docs/codex-master-plan/CODEX_ENTRYPOINT.md, validate the repository-selected active phase, execute its exact pack and validations, record completion, and continue with the next repository-recorded phase until a real human gate or blocker. Never use reset, stash, clean, rebase, force push, or edit the dirty primary worktree.
 ```
 
 After reviewing the prepared commit, the human may separately instruct:

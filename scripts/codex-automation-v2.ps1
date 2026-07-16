@@ -1,5 +1,5 @@
 param(
-  [string]$RepoRoot = "D:\money\matchpulse_repo",
+  [string]$RepoRoot = "",
   [ValidateSet("Validate", "Prepare", "Publish")]
   [string]$Mode = "Validate",
   [switch]$CopyPrompt
@@ -13,8 +13,15 @@ function Stop-Code([string]$Code, [string]$Message) {
 }
 
 function Invoke-SafeGit([string[]]$GitArgs, [switch]$AllowFailure) {
-  $output = @(& git -C $script:Repo @GitArgs 2>&1)
-  $code = $LASTEXITCODE
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    $output = @(& git -C $script:Repo @GitArgs 2>&1)
+    $code = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
   if (-not $AllowFailure -and $code -ne 0) {
     Stop-Code "GIT_OPERATION_FAILED" "git $($GitArgs -join ' ') failed: $($output -join ' ')"
   }
@@ -127,7 +134,7 @@ function Require-Main-And-Fetch {
     Stop-Code "SPEC_CONFLICT" "RepoRoot is not a Git repository."
   }
   $branch = ((Invoke-SafeGit @("branch","--show-current")).Lines -join "").Trim()
-  if ($branch -ne "main") { Stop-Code "WRONG_BRANCH" "Current branch is '$branch'; expected main." }
+  if ([string]::IsNullOrWhiteSpace($branch)) { Stop-Code "SPEC_CONFLICT" "Detached HEAD is not allowed." }
   Invoke-SafeGit @("fetch","--prune","origin","main") | Out-Null
 }
 
@@ -306,9 +313,11 @@ function Publish($State) {
   Write-Host "Unrelated local work remains preserved."
 }
 
+if ([string]::IsNullOrWhiteSpace($RepoRoot)) { $RepoRoot = Split-Path -Parent $PSScriptRoot }
 try { $script:Repo = (Resolve-Path -LiteralPath $RepoRoot).Path }
 catch { Stop-Code "SPEC_CONFLICT" "Repository root does not exist: $RepoRoot" }
-$script:Snapshot = Join-Path $script:Repo ".git\codex-automation-v2-snapshot.json"
+$script:Snapshot = ((Invoke-SafeGit @("rev-parse","--git-path","codex-automation-v2-snapshot.json")).Lines -join "").Trim()
+if (-not [IO.Path]::IsPathRooted($script:Snapshot)) { $script:Snapshot = Join-Path $script:Repo $script:Snapshot }
 $state = Read-State
 
 if ($Mode -eq "Publish") { Publish $state; exit 0 }

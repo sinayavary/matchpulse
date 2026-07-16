@@ -1,0 +1,21 @@
+{
+  "schema_version": "matchpulse-phase-pack-hashes-v1",
+  "phase": "P0-SEC-A",
+  "pack_version": "P0-SEC-A-v1",
+  "files": {
+    "AGENTS.md": "1140d0467b81f2ea7d025d8934e27b07bef75b52c23e41c86ef29d6c248f3261",
+    "apps/api/src/internal-auth-boundary.test.ts": "291f34a265e3f88f646c2e469024136208a0611cbc5214a722b4e529f5761eb7",
+    "apps/api/src/internal-auth-boundary.ts": "2141d6f12722fdb49895ea371106f2936fdad3135512e73f8197420791b0e164",
+    "apps/api/src/server.ts": "eb2bcc236192c4f068919cce8c57952cfc874f5474e8ad1d79b6ce56b27de2d0",
+    "docs/codex-master-plan/ACTIVE_PHASE.json": "cd08a089d07ed791c5a156f69ae8cc160a3c55b590b4b1c6667c3bdc39ce7683",
+    "docs/codex-master-plan/CODEX_ENTRYPOINT.md": "e347f29dc96e79cd723e1a36546b37abda34ad7fa365885eccc7149d4c44094d",
+    "docs/codex-master-plan/CODEX_MASTER_PROMPT.md": "35d6e3cb79ef12f0395d67d92b26c861507a17880bd1ded592ad2b555611be75",
+    "docs/codex-master-plan/EXECUTION_PROTOCOL.md": "50967368dcb179130461f5299c16ba443578491eb0c1c9c1c4e87d5f85d4d3fa",
+    "docs/codex-master-plan/PHASE_QUEUE.json": "1a2634d003bd090f428ee3a0f78905ac729c3c8df8bc532310b2f34e1fc7b2bb",
+    "docs/codex-master-plan/phases/phase-p0-sec-a/README.md": "cfaeaeb6e0dab9b8f9deb16e9b46f9bf6b467373e1845aba59950ccc317a8e31",
+    "docs/codex-master-plan/phases/phase-p0-sec-a/manifest.json": "9cbbd04739061978502cd5e49b05a12106446d153b41c804ceae16bb45a83335",
+    "docs/codex-master-plan/phases/phase-p0-sec-a/payload/README.md": "8ae9e792ccab1ae33126800c07ed1a89412c32918bd3c59899cdfdd70fd44b15",
+    "docs/phase-p0-sec-a-internal-route-auth.md": "0e8fb9524b1ae3a89e637b26b5212813927886df95a6458b34c7865b77b70c24",
+    "scripts/codex-automation-v2.ps1": "32c0b352cbb212d83ff54dece967ac3e7d2d28954efc829cefc623e10b18b64d"
+  }
+}

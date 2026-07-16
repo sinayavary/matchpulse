@@ -1,10 +1,8 @@
 # MatchPulse Permanent Codex Entrypoint — Automation v2
 
-Work directly inside:
+Use the repository's clean execution worktree. Preserve `D:\money\matchpulse_repo` as read-only when it contains user changes; the active root must be reported by the executor.
 
-`D:\money\matchpulse_repo`
-
-The repository selects the active phase. Chat text must not select a different phase, change queue order, or activate a successor.
+The repository selects the active phase. Autonomous recovery may install and activate a successor only after recording the review, rationale, dependency, and exact pack in repository governance.
 
 ## Read order
 
@@ -39,7 +37,7 @@ When state is `ready`:
 - perform only the permitted `ACTIVE_PHASE.json` completion transition
 - preserve all unrelated local modified and untracked files
 - do not change `PHASE_QUEUE.json`
-- do not activate another phase
+- after successful completion, a clean recovery worktree may select and activate the next repository-recorded phase unless a human gate or blocker is reached
 
 ### 3. Prepare one scoped commit
 
@@ -78,7 +76,7 @@ Publish fetches again, requires exactly one prepared commit directly above `orig
 - `awaiting_pack` → `MISSING_SOURCE`
 - `awaiting_human_approval` → `HUMAN_APPROVAL_REQUIRED`
 - `paused` → `PHASE_PAUSED`
-- `completed_pending_review` → no implementation; only an already prepared commit may be published after explicit human instruction
+- `completed_pending_review` → review completion evidence; if valid, record the approved terminal transition and activate the next repository-recorded phase in a clean recovery worktree
 - `ready` → execute the exact referenced pack
 
 ## Permanent instruction
