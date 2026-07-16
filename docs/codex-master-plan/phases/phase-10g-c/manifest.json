@@ -1,0 +1,13 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase_id": "10G-C",
+  "title": "Canonical timeline persistence",
+  "pack_version": "10G-C-v1",
+  "baseline_commit": "fd09fe22b286893aef136ea2f3b3019481c2ef0b",
+  "allowlist": ["apps/api/package.json", "apps/api/src/odds-persistence-reader.ts", "apps/api/src/odds-persistence-reader.test.ts", "apps/api/src/timeline-reducer.ts", "apps/api/src/timeline-persistence.ts", "prisma/schema.prisma", "prisma/migrations/20260716205528_phase_10g_c_timeline/migration.sql", "docs/codex-master-plan/ACTIVE_PHASE.json", "docs/codex-master-plan/PHASE_QUEUE.json", "docs/codex-master-plan/phases/phase-10g-c/README.md", "docs/codex-master-plan/phases/phase-10g-c/manifest.json", "docs/codex-master-plan/phases/phase-10g-c/EXPECTED_SHA256.json"],
+  "allows_migration": true,
+  "allows_network": false,
+  "database_target": "embedded-local-postgresql-16-only",
+  "human_gate": false,
+  "git": { "allow_commit": true, "allow_push": true }
+}

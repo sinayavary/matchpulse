@@ -2,13 +2,13 @@
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
   "state": "completed_pending_review",
-  "phase_id": "10E-D",
-  "phase_title": "Odds persistence",
-  "pack_path": "docs/codex-master-plan/phases/phase-10e-d",
-  "pack_version": "10E-D-v1",
-  "baseline_commit": "fda679185ca73d41c8188c5d53e2bde184d3b8c0",
+  "phase_id": "10G-C",
+  "phase_title": "Canonical timeline persistence",
+  "pack_path": "docs/codex-master-plan/phases/phase-10g-c",
+  "pack_version": "10G-C-v1",
+  "baseline_commit": "fd09fe22b286893aef136ea2f3b3019481c2ef0b",
   "human_approved": true,
-  "activation_note": "The project owner explicitly requested continuation through all defined phases. 10E-D odds persistence is complete pending review after local PostgreSQL gate verification; no remote database or network operation was used.",
+  "activation_note": "The project owner explicitly requested continuation through all defined phases. 10G-C canonical timeline persistence is complete pending review after embedded local PostgreSQL migration verification; no remote database or network operation was used.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
@@ -16,17 +16,17 @@
     "stop_after_phase": true
   },
   "last_result": {
-    "status": "10E_D_COMPLETED_PENDING_REVIEW",
-    "reviewed_phase_id": "10N-A",
-    "reviewed_completion_commit": "fda679185ca73d41c8188c5d53e2bde184d3b8c0",
-    "review_evidence": "proof tests 2/2; API typecheck, build, and diff checks passed; its completion was published.",
-    "selected_next_phase": "10E-D",
-    "selected_reason": "The local PostgreSQL gate is now available; existing normalized odds persistence plus bounded reader evidence satisfies the odds persistence phase without remote mutation.",
+    "status": "10G_C_COMPLETED_PENDING_REVIEW",
+    "reviewed_phase_id": "10E-D",
+    "reviewed_completion_commit": "fd09fe22b286893aef136ea2f3b3019481c2ef0b",
+    "review_evidence": "local PostgreSQL 16.14 migrate deploy/status up to date; odds persistence foundation tests 2/2; API regression 943/943; typecheck, build, and diff-check passed.",
+    "selected_next_phase": "10G-C",
+    "selected_reason": "10G-C adds transactional canonical timeline and checkpoint persistence after the local database gate became available; migration is explicitly permitted by the active manifest.",
     "database_verification": "inherited from completed P0-SEC-C gate",
     "migration_sql_review": "inherited from completed P0-SEC-C gate",
     "schema_validated": true,
     "migration_applied": true,
     "network_accessed": false,
-    "validation_evidence": "local PostgreSQL 16.14 migrate deploy/status up to date; odds persistence foundation tests 2/2; API regression 943/943; typecheck, build, and diff-check passed"
+    "validation_evidence": "embedded PostgreSQL 16.14 migration applied; checkpoint and timeline tables queried; persistence foundation tests 3/3; API typecheck, build, and diff-check passed"
   }
 }

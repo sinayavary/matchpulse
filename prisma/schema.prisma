@@ -657,3 +657,37 @@ model InternalAuthAuditEvent {
   @@index([credentialId, occurredAt])
   @@map("internal_auth_audit_events")
 }
+
+model TxlineStreamCheckpoint {
+  id                 String    @id @default(uuid()) @db.Uuid
+  streamKind         String    @map("stream_kind")
+  fixtureId          String    @map("fixture_id")
+  lastEventId        String?   @map("last_event_id")
+  providerTimestamp  DateTime? @map("provider_timestamp") @db.Timestamptz(3)
+  sequence           Int?
+  heartbeatAt        DateTime? @map("heartbeat_at") @db.Timestamptz(3)
+  connectionStatus   String    @map("connection_status")
+  reconnectCount     Int       @default(0) @map("reconnect_count")
+  lastErrorCategory  String?   @map("last_error_category")
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([streamKind, fixtureId])
+  @@index([fixtureId, updatedAt])
+  @@map("txline_stream_checkpoints")
+}
+
+model CanonicalTimelineEvent {
+  id                String    @id @default(uuid()) @db.Uuid
+  eventId           String    @map("event_id")
+  streamKind        String    @map("stream_kind")
+  fixtureId         String    @map("fixture_id")
+  sequence          Int?
+  providerTimestamp DateTime? @map("provider_timestamp") @db.Timestamptz(3)
+  eventType         String    @map("event_type")
+  payload           Json
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([streamKind, fixtureId, eventId])
+  @@index([fixtureId, providerTimestamp, sequence])
+  @@map("canonical_timeline_events")
+}
