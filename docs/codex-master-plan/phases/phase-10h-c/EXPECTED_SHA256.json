@@ -1,0 +1,5 @@
+{
+  "apps/api/package.json": "3feaddd40d87f067b9bf34f422570f25ed1bb08138ea6cfc715dbe99a4d61f19",
+  "apps/api/src/prediction-model-adapter.ts": "c843e9ee15afa57b9ac237e7d653104ee0000c89d381b7d1234ad835f393b7f9",
+  "apps/api/src/prediction-model-adapter.test.ts": "6dd20c2499217e58bcb80f90f2ee3caab83449ddbbea8564de9ea365f5407235"
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase_id": "10H-C",
+  "title": "Private model adapter",
+  "pack_version": "10H-C-v1",
+  "baseline_commit": "f83859b8911be3f2dce758587b5e83b5da0b93fc",
+  "allowlist": ["apps/api/package.json", "apps/api/src/prediction-model-adapter.ts", "apps/api/src/prediction-model-adapter.test.ts", "docs/codex-master-plan/ACTIVE_PHASE.json", "docs/codex-master-plan/PHASE_QUEUE.json", "docs/codex-master-plan/phases/phase-10h-c/README.md", "docs/codex-master-plan/phases/phase-10h-c/manifest.json", "docs/codex-master-plan/phases/phase-10h-c/EXPECTED_SHA256.json"],
+  "allows_migration": false,
+  "allows_network": false,
+  "human_gate": false,
+  "git": { "allow_commit": true, "allow_push": true }
+}

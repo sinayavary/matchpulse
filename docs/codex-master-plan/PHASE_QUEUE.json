@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "10G-A/B",
+  "active_phase_id": "10H-C",
   "updated_at": "2026-07-16T12:00:00Z",
   "items": [
     {
@@ -220,6 +220,15 @@
       "depends_on": ["10F-C"],
       "pack_version": "10G-A/B-v1",
       "baseline_commit": "a67394e759c2510b84f3b6b1e1b652751499ec41",
+      "human_gate": false
+    },
+      {
+      "id": "10H-C",
+      "title": "Private model adapter",
+      "status": "completed",
+      "depends_on": ["10H-B"],
+      "pack_version": "10H-C-v1",
+      "baseline_commit": "f83859b8911be3f2dce758587b5e83b5da0b93fc",
       "human_gate": false
     },
       {
