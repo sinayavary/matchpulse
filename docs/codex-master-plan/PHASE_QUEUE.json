@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "10I",
+  "active_phase_id": "10J-A",
   "updated_at": "2026-07-16T12:00:00Z",
   "items": [
     {
@@ -132,6 +132,15 @@
       "depends_on": [
         "10F-C"
       ],
+      "human_gate": false
+    },
+    {
+      "id": "10J-A",
+      "title": "Temporal labels",
+      "status": "completed",
+      "depends_on": ["10I"],
+      "pack_version": "10J-A-v1",
+      "baseline_commit": "8efe0ae96cff01c2b05229bd79edefe3e4bbace0",
       "human_gate": false
     },
     {

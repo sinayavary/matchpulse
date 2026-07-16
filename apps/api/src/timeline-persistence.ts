@@ -11,7 +11,7 @@ export async function persistTimelineState(db: TimelinePersistenceDatabase, stat
     for (const event of state.events) {
       await tx.canonicalTimelineEvent.upsert({
         where: { streamKind_fixtureId_eventId: { streamKind: event.stream_kind, fixtureId: event.fixture_id, eventId: event.event_id } },
-        create: { eventId: event.event_id, streamKind: event.stream_kind, fixtureId: event.fixture_id, sequence: event.sequence, providerTimestamp: new Date(event.provider_timestamp), eventType: event.stream_kind, payload: structuredClone(event.payload) },
+        create: { eventId: event.event_id, streamKind: event.stream_kind, fixtureId: event.fixture_id, sequence: event.sequence, providerTimestamp: new Date(event.provider_timestamp), eventType: event.event_type ?? event.stream_kind, payload: structuredClone(event.payload) },
         update: { sequence: event.sequence, providerTimestamp: new Date(event.provider_timestamp), payload: structuredClone(event.payload) },
       });
     }

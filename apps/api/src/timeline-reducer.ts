@@ -1,4 +1,4 @@
-export type TimelineEvent = { event_id: string; stream_kind: "scores" | "odds"; fixture_id: string; sequence: number; provider_timestamp: string; payload: unknown };
+export type TimelineEvent = { event_id: string; stream_kind: "scores" | "odds"; fixture_id: string; sequence: number; provider_timestamp: string; event_type?: string; payload: unknown };
 export type TimelineCheckpoint = { stream_kind: "scores" | "odds"; fixture_id: string; sequence: number; provider_timestamp: string; event_id: string; updated_at: string };
 export type TimelineState = { events: TimelineEvent[]; checkpoint: TimelineCheckpoint | null; duplicate_count: number; gap_count: number };
 

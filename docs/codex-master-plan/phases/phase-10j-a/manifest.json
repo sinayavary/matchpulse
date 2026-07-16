@@ -1,0 +1,12 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase_id": "10J-A",
+  "title": "Temporal labels",
+  "pack_version": "10J-A-v1",
+  "baseline_commit": "8efe0ae96cff01c2b05229bd79edefe3e4bbace0",
+  "allowlist": ["apps/api/package.json", "apps/api/src/temporal-labels.ts", "apps/api/src/temporal-labels.test.ts", "apps/api/src/timeline-reducer.ts", "apps/api/src/timeline-persistence.ts", "docs/codex-master-plan/ACTIVE_PHASE.json", "docs/codex-master-plan/PHASE_QUEUE.json", "docs/codex-master-plan/phases/phase-10j-a/README.md", "docs/codex-master-plan/phases/phase-10j-a/manifest.json", "docs/codex-master-plan/phases/phase-10j-a/EXPECTED_SHA256.json"],
+  "allows_migration": false,
+  "allows_network": false,
+  "human_gate": false,
+  "git": { "allow_commit": true, "allow_push": true }
+}
