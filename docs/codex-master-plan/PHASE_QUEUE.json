@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "10N-A",
+  "active_phase_id": "10E-D",
   "updated_at": "2026-07-16T12:00:00Z",
   "items": [
     {
@@ -82,12 +82,14 @@
     {
       "id": "10E-D",
       "title": "Odds DB service and persistence",
-      "status": "planned",
+      "status": "completed",
       "depends_on": [
         "10E-C",
         "gate-1"
       ],
-      "human_gate": true
+      "human_gate": true,
+      "pack_version": "10E-D-v1",
+      "baseline_commit": "fda679185ca73d41c8188c5d53e2bde184d3b8c0"
     },
     {
       "id": "10F-A",

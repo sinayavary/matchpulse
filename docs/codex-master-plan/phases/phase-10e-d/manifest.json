@@ -1,0 +1,12 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase_id": "10E-D",
+  "title": "Odds persistence",
+  "pack_version": "10E-D-v1",
+  "baseline_commit": "fda679185ca73d41c8188c5d53e2bde184d3b8c0",
+  "allowlist": ["apps/api/package.json", "apps/api/src/odds-persistence-reader.ts", "apps/api/src/odds-persistence-reader.test.ts", "apps/api/src/txline-odds-ingestion.ts", "prisma/schema.prisma", "docs/codex-master-plan/ACTIVE_PHASE.json", "docs/codex-master-plan/PHASE_QUEUE.json", "docs/codex-master-plan/phases/phase-10e-d/README.md", "docs/codex-master-plan/phases/phase-10e-d/manifest.json", "docs/codex-master-plan/phases/phase-10e-d/EXPECTED_SHA256.json"],
+  "allows_migration": false,
+  "allows_network": false,
+  "human_gate": false,
+  "git": { "allow_commit": true, "allow_push": true }
+}
