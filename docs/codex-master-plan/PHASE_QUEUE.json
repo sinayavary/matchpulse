@@ -2,7 +2,7 @@
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
   "active_phase_id": "P0-SEC-C",
-  "updated_at": "2026-07-15T10:38:56Z",
+  "updated_at": "2026-07-16T12:00:00Z",
   "items": [
     {
       "id": "P0-SEC-A",
@@ -25,10 +25,11 @@
     {
       "id": "P0-SEC-C",
       "title": "Internal scopes, service identity and audit foundation",
-      "status": "blocked_human_approval",
+      "status": "completed",
       "depends_on": ["P0-SEC-B"],
       "pack_version": "P0-SEC-C-v1",
       "baseline_commit": "e7cf280f3c6b2d55d10269efdc4733f29de6db5f",
+      "completion_commit": "436a30834433b824cfca500c81ea83de6e20ac91",
       "human_gate": true
     },
     {
@@ -71,7 +72,7 @@
     {
       "id": "gate-1",
       "title": "Database readiness and approved development migration",
-      "status": "blocked_human_approval",
+      "status": "completed",
       "depends_on": [],
       "required_before": [
         "10E-D"

@@ -1,14 +1,14 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "paused",
+  "state": "completed_pending_review",
   "phase_id": "P0-SEC-C",
   "phase_title": "Internal Scopes, Service Identity and Audit Foundation",
   "pack_path": "docs/codex-master-plan/phases/phase-p0-sec-c",
   "pack_version": "P0-SEC-C-v1",
   "baseline_commit": "e7cf280f3c6b2d55d10269efdc4733f29de6db5f",
   "human_approved": true,
-  "activation_note": "The project owner approved Gate 1, but the configured Neon database cannot be independently verified as non-production because no explicit development/test marker is present. Schema and migration preparation may be reviewed; migration apply is paused.",
+  "activation_note": "The project owner explicitly confirmed that the configured Neon database is development/test only and not production. P0-SEC-C migration was applied successfully; no successor phase is activated.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
@@ -16,16 +16,17 @@
     "stop_after_phase": true
   },
   "last_result": {
-    "status": "P0_SEC_C_SAFE_DEVELOPMENT_DATABASE_NOT_VERIFIED",
+    "status": "P0_SEC_C_COMPLETED_PENDING_REVIEW",
     "reviewed_phase_id": "P0-SEC-B",
     "reviewed_completion_commit": "e7cf280f3c6b2d55d10269efdc4733f29de6db5f",
     "review_evidence": "P0-SEC-B completion commit published fast-forward with focused 10/10, API 921/921, typecheck/build, empty Prisma diff, and no production network.",
     "selected_next_phase": "P0-SEC-C",
     "selected_reason": "Shared-token role/scope/expiry/revocation/audit findings require persisted service identity and migration.",
-    "database_verification": "failed: Neon host with no explicit development/test marker or development-named database",
+    "database_verification": "passed by explicit project-owner confirmation: development/test only; not production",
     "migration_sql_review": "additive only; no DROP TABLE, DROP COLUMN, TRUNCATE, destructive rename, or data rewrite",
     "schema_validated": true,
-    "migration_applied": false,
-    "network_accessed": false
+    "migration_applied": true,
+    "migration_apply_evidence": "prisma migrate deploy applied 20260716003000_p0_sec_c_service_identity successfully; prisma migrate status reported database schema is up to date",
+    "network_accessed": true
   }
 }

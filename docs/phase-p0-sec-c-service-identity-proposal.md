@@ -21,14 +21,17 @@ authorized by this proposal.
 
 After explicit database approval, activate P0-SEC-C with the exact schema,
 migration, service/auth contracts, negative tests, audit tests, rollback plan,
-and local migration validation. Until then, `P0-SEC-C` remains awaiting human
-approval and no successor phase is activated.
+and local migration validation. The owner explicitly confirmed that the
+configured Neon database is development/test only and not production.
+P0-SEC-C is complete pending review; no successor phase is activated.
 
 ## Execution evidence
 
 The additive schema and migration were authored and validated offline. Prisma
 schema validation and client generation passed; the migration contains only
 one enum, four new tables, indexes, and foreign keys, with no destructive SQL.
-The configured database is a Neon host without an explicit development/test
-environment marker or a development-named database. Migration apply is
-therefore intentionally withheld.
+The configured database is a Neon host, and the owner explicitly confirmed it
+is development/test only and not production. `prisma migrate deploy` applied
+`20260716003000_p0_sec_c_service_identity` successfully, and `prisma migrate
+status` reported that the database schema is up to date. Migration apply was
+performed only after that confirmation.

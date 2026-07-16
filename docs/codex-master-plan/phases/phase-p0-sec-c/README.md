@@ -1,8 +1,8 @@
 # Phase P0-SEC-C v1 — Internal Scopes, Service Identity and Audit Foundation
 
 This phase has explicit owner approval for a development schema and migration.
-It must stop before migration apply unless the target database is independently
-verified as non-production.
+The owner confirmed that the target Neon database is development/test only and
+not production; the approved migration has been applied successfully.
 
 ## Required future scope
 
@@ -26,9 +26,9 @@ verified as non-production.
 
 ## Gate
 
-Prisma schema and migration are required. If the target database cannot be
-verified as local/test/development, stop with
-`P0_SEC_C_SAFE_DEVELOPMENT_DATABASE_NOT_VERIFIED` after schema/SQL validation.
+Prisma schema and migration are required. The target database was explicitly
+confirmed as local/test/development before apply. `prisma migrate deploy` and
+`prisma migrate status` both completed successfully.
 
-No production network, database write, secret acquisition, or breaking public
-contract is authorized by this pack.
+No production network, production database write, secret acquisition, or
+breaking public contract is authorized by this pack.
