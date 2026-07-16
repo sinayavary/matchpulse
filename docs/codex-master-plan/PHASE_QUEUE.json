@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "10H-A",
+  "active_phase_id": "10H-B",
   "updated_at": "2026-07-16T12:00:00Z",
   "items": [
     {
@@ -213,15 +213,24 @@
       "baseline_commit": "f6eca5347f9522d14c75321f29bc0d1700160afe",
       "human_gate": false
     },
-    {
-      "id": "10H-A",
+      {
+        "id": "10H-A",
       "title": "Production prediction composition engine",
       "status": "completed",
       "depends_on": [
         "COMP-QA"
       ],
-      "human_gate": false
-    },
+        "human_gate": false
+      },
+      {
+        "id": "10H-B",
+        "title": "Versioned feature assembly and scenario ensemble",
+        "status": "completed",
+        "depends_on": ["10H-A"],
+        "pack_version": "10H-B-v1",
+        "baseline_commit": "fa30d3362398833b4c232a6c1a7eebcd590392a1",
+        "human_gate": false
+      },
     {
       "id": "10H",
       "title": "Production prediction engine",

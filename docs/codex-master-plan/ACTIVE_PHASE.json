@@ -2,13 +2,13 @@
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
   "state": "completed_pending_review",
-  "phase_id": "10H-A",
-  "phase_title": "Production prediction composition engine",
-  "pack_path": "docs/codex-master-plan/phases/phase-10h-a",
-  "pack_version": "10H-A-v1",
-  "baseline_commit": "b4f1bf28e3ad05d4c796ac52a1383cd918182842",
+  "phase_id": "10H-B",
+  "phase_title": "Versioned feature assembly and scenario ensemble",
+  "pack_path": "docs/codex-master-plan/phases/phase-10h-b",
+  "pack_version": "10H-B-v1",
+  "baseline_commit": "fa30d3362398833b4c232a6c1a7eebcd590392a1",
   "human_approved": true,
-  "activation_note": "The project owner explicitly requested continuation through all defined phases. 10H-A completed its prepared prediction composition implementation and validation; the phase is pending review and no successor is activated under its pack policy.",
+  "activation_note": "The project owner explicitly requested continuation through all defined phases. 10H-B feature assembly and scenario ensemble implementation is complete pending review; no database or network operation was used.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
@@ -16,17 +16,17 @@
     "stop_after_phase": true
   },
   "last_result": {
-    "status": "10H_A_COMPLETED_PENDING_REVIEW",
-    "reviewed_phase_id": "P0-SEC-C",
-    "reviewed_completion_commit": "e0f3cc067f5c711b0163eee1342c5da612391be8",
-    "review_evidence": "P0-SEC-C migration applied successfully on the explicitly confirmed development/test database; Prisma status is up to date and API regression is green.",
-    "selected_next_phase": "10H-A",
-    "selected_reason": "10H-A depends on completed Phase 10E-C and completed Phase 10F-C, has a repository-controlled prepared payload, and has no database or network requirement.",
+    "status": "10H_B_COMPLETED_PENDING_REVIEW",
+    "reviewed_phase_id": "10H-A",
+    "reviewed_completion_commit": "fa30d3362398833b4c232a6c1a7eebcd590392a1",
+    "review_evidence": "10H-A focused prediction tests, API regression, typecheck, build, and diff checks passed; its completion was published.",
+    "selected_next_phase": "10H-B",
+    "selected_reason": "10H-B depends on the completed prediction composition boundary and has a canonical source branch implementation with no database or network requirement.",
     "database_verification": "inherited from completed P0-SEC-C gate",
     "migration_sql_review": "inherited from completed P0-SEC-C gate",
     "schema_validated": true,
     "migration_applied": true,
     "network_accessed": false,
-    "validation_evidence": "focused prediction tests 108/108; API typecheck, build, and full regression 921/921; git diff --check passed; Prisma diff empty"
+    "validation_evidence": "focused feature, specialist, and ensemble tests 22/22; API typecheck, build, and full regression 943/943; git diff --check passed; Prisma diff empty"
   }
 }

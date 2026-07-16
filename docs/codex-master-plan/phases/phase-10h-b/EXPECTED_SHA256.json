@@ -1,0 +1,15 @@
+{
+  "schema_version": "matchpulse-payload-integrity-v2",
+  "verification_mode": "sha256",
+  "files": {
+    "apps/api/package.json": "c2eeea75fd0ea22be3b83dcf4a5ca9c6043fb45813df8b4d68eae2fa161f11de",
+    "apps/api/src/prediction-engine-features.test.ts": "b43ae332ac17cfc56356dee7d16325fdcd839f25cc18b2ee448aa3b9cd3a3d70",
+    "apps/api/src/prediction-engine-features.ts": "76f8a9fa086b869386e2649ecf7b4fec99bbc706b3e23e0d86cf36a43140a6d6",
+    "apps/api/src/prediction-engine.test.ts": "aa2e3a1d654dcbc931bc3dab98af71db9a024946ffdc16b09e5c40ad8c6f6e18",
+    "apps/api/src/prediction-engine.ts": "760bfceb9ad68b6b962afa23c3d964ad09e659627c043dc212f60cd471252aba",
+    "apps/api/src/prediction-specialists.test.ts": "fa8fb720a68b00f057990f3a331aa79a27cabf6cadedb21d43430540bd24e9c1",
+    "apps/api/src/prediction-specialists.ts": "b091bf8d4b5f1b624bda210450d40cfe22f02d2c9a984eb158153e205d9d1965",
+    "docs/codex-prompts/phase-10h-b.md": "0d53f17fa4479054bbe614caae37fa9ed91bf427e02d28b7d4d53b336c7df23a",
+    "docs/phase-10h-b-scenario-ensemble.md": "6b90d37a02768ea91857ce238da3d843d7d4e5477fda19192b7d560c33851426"
+  }
+}

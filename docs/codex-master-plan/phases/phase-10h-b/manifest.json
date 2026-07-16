@@ -1,0 +1,47 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "10H-B",
+  "pack_version": "10H-B-v1",
+  "baseline_commit": "fa30d3362398833b4c232a6c1a7eebcd590392a1",
+  "allowed_target_files": [
+    "apps/api/package.json",
+    "apps/api/src/prediction-engine-features.test.ts",
+    "apps/api/src/prediction-engine-features.ts",
+    "apps/api/src/prediction-engine.test.ts",
+    "apps/api/src/prediction-engine.ts",
+    "apps/api/src/prediction-specialists.test.ts",
+    "apps/api/src/prediction-specialists.ts",
+    "docs/codex-master-plan/ACTIVE_PHASE.json",
+    "docs/codex-master-plan/PHASE_QUEUE.json",
+    "docs/codex-master-plan/phases/phase-10h-b/EXPECTED_SHA256.json",
+    "docs/codex-master-plan/phases/phase-10h-b/README.md",
+    "docs/codex-master-plan/phases/phase-10h-b/manifest.json",
+    "docs/codex-master-plan/phases/phase-10h-b/payload/README.md",
+    "docs/codex-prompts/phase-10h-b.md",
+    "docs/phase-10h-b-scenario-ensemble.md"
+  ],
+  "required_validation_commands": [
+    "pnpm.cmd --filter @matchpulse/api exec tsx --test src/prediction-engine-features.test.ts src/prediction-specialists.test.ts src/prediction-engine.test.ts",
+    "pnpm.cmd --filter @matchpulse/api typecheck",
+    "pnpm.cmd --filter @matchpulse/api build",
+    "pnpm.cmd --filter @matchpulse/api test",
+    "git diff --check",
+    "git diff --name-only -- prisma"
+  ],
+  "expected_results": [
+    "focused feature and ensemble tests pass",
+    "API typecheck/build and full regression pass",
+    "Prisma/migration diff is empty",
+    "no network or database mutation",
+    "no public contract or private model policy change"
+  ],
+  "allows_migration": false,
+  "allows_network": false,
+  "human_gate": false,
+  "git_publish": {
+    "allow_commit": true,
+    "allow_push": true,
+    "require_exact_staged_paths": true,
+    "commit_message": "Complete Phase 10H-B feature assembly and ensemble"
+  }
+}
