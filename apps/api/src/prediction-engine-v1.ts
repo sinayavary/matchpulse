@@ -65,7 +65,6 @@ const ROLE_ORDER: Readonly<Record<SpecialistModelContribution["model_role"], num
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
-
 function round12(value: number): number {
   return Math.round(value * 1_000_000_000_000) / 1_000_000_000_000;
 }

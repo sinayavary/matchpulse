@@ -155,7 +155,6 @@ function baseInput(): PredictionCompositionInput {
     composition_policy: { max_scorelines: 8 },
   };
 }
-
 test("composition is deterministic, valid, and preserves the public safety boundary", () => {
   const input = baseInput();
   const first = composeFinalPredictionSnapshot(input);
