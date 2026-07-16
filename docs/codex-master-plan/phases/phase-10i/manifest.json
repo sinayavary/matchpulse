@@ -4,7 +4,7 @@
   "title": "Prediction runtime orchestration",
   "pack_version": "10I-v1",
   "baseline_commit": "a81744f1279de6471d07652090846de544afff72",
-  "allowlist": ["apps/api/package.json", "apps/api/src/prediction-runtime-orchestrator.ts", "apps/api/src/prediction-runtime-orchestrator.test.ts", "apps/api/src/prediction-runtime-storage.ts", "docs/codex-master-plan/ACTIVE_PHASE.json", "docs/codex-master-plan/PHASE_QUEUE.json", "docs/codex-master-plan/phases/phase-10i/README.md", "docs/codex-master-plan/phases/phase-10i/manifest.json", "docs/codex-master-plan/phases/phase-10i/EXPECTED_SHA256.json"],
+  "allowlist": ["apps/api/package.json", "apps/api/src/prediction-runtime-orchestrator.ts", "apps/api/src/prediction-runtime-orchestrator.test.ts", "apps/api/src/prediction-runtime-storage.ts", "apps/api/src/prediction-runtime-cycle.ts", "apps/api/src/prediction-runtime-cycle.test.ts", "docs/codex-master-plan/ACTIVE_PHASE.json", "docs/codex-master-plan/PHASE_QUEUE.json", "docs/codex-master-plan/phases/phase-10i/README.md", "docs/codex-master-plan/phases/phase-10i/manifest.json", "docs/codex-master-plan/phases/phase-10i/EXPECTED_SHA256.json"],
   "allows_migration": false,
   "allows_network": false,
   "human_gate": false,
