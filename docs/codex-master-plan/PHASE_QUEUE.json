@@ -1,13 +1,13 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "DEPLOY-RAILWAY-WEB-HOTFIX-A",
+  "active_phase_id": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A",
   "updated_at": "2026-07-17T00:00:00Z",
   "items": [
     {
       "id": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A",
       "title": "Generate Prisma Client in the Railway API image build",
-      "status": "planned",
+      "status": "ready",
       "depends_on": ["DEPLOY-RAILWAY-WEB-HOTFIX-A"],
       "pack_version": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A-v2",
       "baseline_commit": "939b29ea4939a36104cf6000ad07137007482cf3",
