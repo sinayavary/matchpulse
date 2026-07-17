@@ -190,18 +190,23 @@ export async function runAutomaticIngestionCycle(now = new Date()) {
   let discoveryFailed = 0;
   let discoveredFixtureCount = 0;
   let persistedFixtureCount = 0;
+  const discoveredFixtureIds = new Set<string>();
+  let lastCycleError: unknown = null;
+  let lastCycleErrorStage = "cycle";
   for (const competition of competitions) {
     for (const startEpochDay of (process.env.MATCHPULSE_COMPETITIONS ? [competition.startEpochDay] : discoveryEpochDays(now))) {
       try {
         const result = await withProviderRetry(() => ingestTxlineFixtures({ competitionId: competition.competitionId, startEpochDay, includeRaw: false }));
         discoveredFixtureCount += result.fetchedCount;
         persistedFixtureCount += result.upsertedCount;
-      } catch { discoveryFailed += 1; }
+        for (const fixture of result.fixtures) discoveredFixtureIds.add(fixture.fixture_id);
+      } catch (error) { discoveryFailed += 1; lastCycleError = error; lastCycleErrorStage = "discovery"; }
     }
   }
   const fixtures = await getDbClient().fixture.findMany({ select: { fixtureId: true, startTimeUtc: true, status: true } });
   let nextWakeMs = config.discoveryIntervalMs;
-  const activeFixtures = fixtures.filter((fixture) => {
+  const discoveredFixtures = fixtures.filter((fixture) => discoveredFixtureIds.has(fixture.fixtureId));
+  const activeFixtures = discoveredFixtures.filter((fixture) => {
     const phase = pollPhase(fixture.startTimeUtc, fixture.status, now, config);
     return phase !== "finished" && phase !== "upcoming";
   });
@@ -215,10 +220,10 @@ export async function runAutomaticIngestionCycle(now = new Date()) {
       const events = extractProviderEvents(historical);
       if (events.length > 0) await ingestTxlineMatchEvents({ fixtureId: fixture.fixtureId, rawEvents: events });
       success += 1;
-    } catch { failed += 1; }
+    } catch (error) { failed += 1; lastCycleError = error; lastCycleErrorStage = "ingestion"; }
   }
   const status = failed === 0 && discoveryFailed === 0 ? "healthy" : success > 0 ? "degraded" : "error";
   const cycle = buildWorkerCycleRecord({ last_cycle_status: status, started_at: startedAt.toISOString(), finished_at: now.toISOString(), discovered_competitions: competitions.length, discovered_fixture_count: discoveredFixtureCount, active_fixture_count: activeFixtures.length, persisted_fixture_count: persistedFixtureCount, successful_fixture_count: success, failed_fixture_count: failed + discoveryFailed, configuration_error: false, lock_acquired: true, leaseExpiresAt: new Date(now.getTime() + LEASE_MS) });
-  await updateWorkerHealth({ status, lastIngestion: success > 0 ? now : undefined, errorCount: failed + discoveryFailed, stage: discoveryFailed > 0 ? "discovery" : failed > 0 ? "ingestion" : "cycle", cycle });
+  await updateWorkerHealth({ status, lastIngestion: success > 0 ? now : undefined, error: lastCycleError, errorCount: failed + discoveryFailed, stage: lastCycleErrorStage, cycle });
   return { success, failed: failed + discoveryFailed, activeFixtures: activeFixtures.length, persistedFixtures: persistedFixtureCount, agentEnabled: config.agentEnabled, discoveredCompetitions: competitions.length, discoveredFixtures: discoveredFixtureCount, discoveryFailed, configurationError: false, nextWakeMs, status };
 }
