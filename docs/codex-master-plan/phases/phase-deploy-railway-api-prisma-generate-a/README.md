@@ -25,9 +25,11 @@ Run every command in `manifest.json` in order. The image test must construct `ne
 
 ## Safety and human gate
 
-This is a governance-only published pack. It is not activated, and no implementation or validation command is authorized in this task. A human must approve activation before execution. Migration, production database access or mutation, Railway deployment, and external service mutation are forbidden.
+This is a governance-only pack amendment. It may use network access only for the explicitly listed dependency install and Docker image build operations. It must not access or mutate a production database, run migrations or seeds, change Railway services, or print secrets.
 
 Execution must occur only in a clean, registered secondary worktree on a non-detached branch. After Automation v2 Validate, that branch's `HEAD` must equal `origin/main`; the branch name does not need to be `main`.
+
+The permitted network scope is limited to `pnpm install --frozen-lockfile` when the offline cache is insufficient and the `docker build -f Dockerfile.api -t matchpulse-api-prisma-generate-a .` operation. No other network operation is authorized by this pack.
 
 ## Completion and rollback
 

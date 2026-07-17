@@ -3,8 +3,8 @@
   "phase": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A",
   "phase_id": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A",
   "title": "Generate Prisma Client in the Railway API image build",
-  "pack_version": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A-v2",
-  "baseline_commit": "939b29ea4939a36104cf6000ad07137007482cf3",
+  "pack_version": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A-v3",
+  "baseline_commit": "4d3a8bf5a542da5495ce52ab3f4ffac06644c025",
   "allowed_target_files": [
     "Dockerfile.api"
   ],
@@ -25,7 +25,11 @@
     "DATABASE_URL, Neon configuration, schema, migrations, dependencies, lockfiles, and deployment configuration remain unchanged"
   ],
   "allows_migration": false,
-  "allows_network": false,
+  "allows_network": true,
+  "network_allowed_operations": [
+    "pnpm install --frozen-lockfile when the offline cache is insufficient",
+    "docker build -f Dockerfile.api -t matchpulse-api-prisma-generate-a ."
+  ],
   "human_gate": true,
   "git": {
     "allow_commit": true,
