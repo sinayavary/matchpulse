@@ -95,7 +95,7 @@ import { registerInternalAuthBoundary } from "./internal-auth-boundary.js";
 import { createPrismaServiceAuthResolver } from "./internal-service-identity-store.js";
 
 const app = Fastify({ logger: true });
-const port = Number(process.env.API_PORT ?? 4000);
+const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);
 const productRuntimeRefreshWorker = createProductRuntimeRefreshWorker({
   logger: app.log
 });

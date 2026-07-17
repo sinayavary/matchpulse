@@ -1,13 +1,13 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "ready",
+  "state": "completed_pending_review",
   "phase_id": "DEPLOY-RAILWAY-A",
   "phase_title": "Railway API and Web deployment foundation",
   "pack_path": "docs/codex-master-plan/phases/phase-deploy-railway-a",
   "pack_version": "DEPLOY-RAILWAY-A-v2",
   "baseline_commit": "a332ab3504a4398932355de2b7a3f861d661f9af",
-  "human_approved": true,
+  "human_approved": false,
   "activation_note": "Human-approved amendment adding deterministic Next.js generated config files to the exact allowlist after a mandatory build produced them.",
   "execution": {
     "continue_until_phase_gate": true,
@@ -16,12 +16,23 @@
     "stop_after_phase": true
   },
   "last_result": {
-    "status": "PHASE_ACTIVATED",
-    "reviewed_phase_id": "10J-B",
-    "reviewed_completion_commit": "fab82a8a4628c33df4126bc1e5281d5d839be130",
-    "review_decision": "approved",
-    "selected_next_phase": "DEPLOY-RAILWAY-A",
-    "selected_reason": "Human-approved Railway API and Web deployment foundation with worker deployment explicitly disabled.",
+    "status": "PHASE_COMPLETE",
+    "phase_id": "DEPLOY-RAILWAY-A",
+    "pack_version": "DEPLOY-RAILWAY-A-v2",
+    "baseline_commit": "a332ab3504a4398932355de2b7a3f861d661f9af",
+    "completed_at": "2026-07-17T12:03:12.3541341Z",
+    "files_changed": [
+      ".dockerignore",
+      "Dockerfile.api",
+      "Dockerfile.web",
+      "Dockerfile.worker",
+      "apps/api/src/server-railway.test.ts",
+      "apps/api/src/server.ts",
+      "apps/web/next-env.d.ts",
+      "apps/web/tsconfig.json",
+      "docs/railway-deployment-runbook.md"
+    ],
+    "validation_summary": "API regression tests 944/944 and Railway startup tests 3/3 passed; API, Web, Worker, and workspace typechecks/builds passed; repeated Next.js build hashes were stable; Docker was unavailable.",
     "migration_applied": false,
     "network_accessed": false
   }
