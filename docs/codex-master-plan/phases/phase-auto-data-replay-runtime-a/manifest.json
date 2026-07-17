@@ -1,0 +1,47 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "AUTO-DATA-REPLAY-RUNTIME-A",
+  "phase_id": "AUTO-DATA-REPLAY-RUNTIME-A",
+  "title": "Always-on automatic match data and historical replay runtime",
+  "pack_version": "AUTO-DATA-REPLAY-RUNTIME-A-v1",
+  "baseline_commit": "b2fa41ac955e2ed4beafe3673cf7f37a889d6aad",
+  "allowed_target_files": [
+    "ACTIVE_PHASE.json",
+    "apps/api/src/automatic-data-runtime.ts",
+    "apps/api/src/automatic-data-runtime.test.ts",
+    "apps/api/src/historical-replay.ts",
+    "apps/api/src/historical-replay.test.ts",
+    "apps/api/src/public-api.ts",
+    "apps/api/src/server.ts",
+    "apps/worker/src/automatic-worker.ts",
+    "apps/worker/src/automatic-worker.test.ts",
+    "apps/worker/src/index.ts",
+    "apps/worker/package.json",
+    "apps/web/lib/public-api.ts",
+    "apps/web/components/matches/MatchesBrowser.tsx",
+    "apps/web/components/matches/MatchDetailView.tsx",
+    "apps/web/components/replay/ReplayViewer.tsx",
+    "apps/web/app/replay/page.tsx",
+    "Dockerfile.worker"
+  ],
+  "required_validation_commands": [
+    "pnpm --filter @matchpulse/worker test",
+    "pnpm --filter @matchpulse/api exec tsx --test src/automatic-data-runtime.test.ts src/historical-replay.test.ts",
+    "pnpm typecheck",
+    "pnpm build",
+    "git diff --check",
+    "pnpm exec prisma migrate diff --from-schema-datamodel prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script"
+  ],
+  "expected_results": [
+    "Worker is independent from API lifecycle and uses one advisory-lock-held replica.",
+    "Discovery and adaptive polling are env-driven and fail closed without real competition configuration.",
+    "Persisted score, odds, events, freshness, and health survive agent-off, API-off, and worker restart scenarios.",
+    "Replay returns HTTP 200 no_data for missing timelines and never exposes future snapshots or raw provider payloads.",
+    "Web refreshes without resetting selected state and keeps stale/error indicators visible.",
+    "Prisma diff is empty and no migration or seed is applied."
+  ],
+  "allows_migration": false,
+  "allows_network": true,
+  "human_gate": true,
+  "git": { "allow_commit": true, "allow_push": true, "forbidden_commands": ["git add .", "git add -A", "git reset", "git clean", "git stash", "git rebase", "git push --force"] }
+}

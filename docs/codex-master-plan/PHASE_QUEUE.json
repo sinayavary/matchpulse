@@ -1,9 +1,18 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A",
-  "updated_at": "2026-07-17T00:00:00Z",
+  "active_phase_id": "AUTO-DATA-REPLAY-RUNTIME-A",
+  "updated_at": "2026-07-18T00:00:00Z",
   "items": [
+    {
+      "id": "AUTO-DATA-REPLAY-RUNTIME-A",
+      "title": "Always-on automatic match data and historical replay runtime",
+      "status": "ready",
+      "depends_on": ["DEPLOY-RAILWAY-API-PRISMA-GENERATE-A"],
+      "pack_version": "AUTO-DATA-REPLAY-RUNTIME-A-v1",
+      "baseline_commit": "b2fa41ac955e2ed4beafe3673cf7f37a889d6aad",
+      "human_gate": true
+    },
     {
       "id": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A",
       "title": "Generate Prisma Client in the Railway API image build",

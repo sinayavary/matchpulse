@@ -1,37 +1,19 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "completed_pending_review",
-  "phase_id": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A",
-  "phase_title": "Generate Prisma Client in the Railway API image build",
-  "pack_path": "docs/codex-master-plan/phases/phase-deploy-railway-api-prisma-generate-a",
-  "pack_version": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A-v5",
-  "baseline_commit": "c3d57b823243855c81e7686ff2991f295d813ebf",
-  "human_approved": false,
-  "activation_note": "Human-approved autonomous Railway remote-build Prisma runtime-copy phase. Execute only in a clean registered secondary worktree, use network and remote mutation only within the manifest Railway scope, and publish only the implementation commit after all gates pass.",
+  "state": "ready",
+  "phase_id": "AUTO-DATA-REPLAY-RUNTIME-A",
+  "phase_title": "Always-on automatic match data and historical replay runtime",
+  "pack_path": "docs/codex-master-plan/phases/phase-auto-data-replay-runtime-a",
+  "pack_version": "AUTO-DATA-REPLAY-RUNTIME-A-v1",
+  "baseline_commit": "b2fa41ac955e2ed4beafe3673cf7f37a889d6aad",
+  "human_approved": true,
+  "activation_note": "Explicit human authorization for autonomous governance, activation, implementation, tests, publish, and scoped API/Web/Worker deployment. No schema or migration change is authorized.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
     "allow_completion_state_update": true,
     "stop_after_phase": true
   },
-  "last_result": {
-    "status": "PHASE_COMPLETE",
-    "phase_id": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A",
-    "pack_version": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A-v5",
-    "baseline_commit": "c3d57b823243855c81e7686ff2991f295d813ebf",
-    "completed_at": "2026-07-17T15:12:24.3474824Z",
-    "files_changed": [
-      "Dockerfile.api"
-    ],
-    "validation_summary": "Offline frozen install passed without manifest changes; workspace typecheck passed; workspace build passed; git diff --check passed; Railway remote Docker build and API-only deployment completed; build logs showed Prisma generate and runtime generated-client copy; Railway SSH new PrismaClient construction passed; /api/health and /api/public/matches returned HTTP 200 live; /api/internal/db/status returned HTTP 200 live with connected=true using an existing token that was not printed; no migration, seed, schema, dependency, lockfile, Neon, Web, Worker, or DATABASE_URL mutation occurred.",
-    "migration_applied": false,
-    "network_accessed": true,
-    "remote_deployment_id": "2394a65b-ef85-47dc-aded-eb06d5b40002",
-    "railway_scope": {
-      "project": "e8540514-d2b9-4585-8d2a-a62fc3c87829",
-      "environment": "704417a2-a89e-45ee-8900-a738149d675e",
-      "api_service": "1fd625ca-6da0-4bfd-a5ad-08230ec6a4be"
-    }
-  }
+  "last_result": null
 }
