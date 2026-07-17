@@ -15,3 +15,10 @@ test("worker releases advisory lock after a failed cycle", async () => {
   assert.equal(result.status, "error");
   assert.equal(released, true);
 });
+
+test("worker reports safe acquisition failures and keeps the loop recoverable", async () => {
+  let reported = false;
+  const result = await runAutomaticWorkerOnce({ acquireLock: async () => { throw new Error("DATABASE_URL=secret"); }, releaseLock: async () => undefined, runCycle: async () => undefined }, { onError: () => { reported = true; } });
+  assert.equal(result.status, "error");
+  assert.equal(reported, true);
+});

@@ -129,14 +129,10 @@ await app.register(cors, {
   origin: process.env.CORS_ORIGIN ?? true
 });
 
-app.get("/api/health", async () =>
-  response({
-    service: "matchpulse-api",
-    ok: true,
-    txline_network: process.env.TXLINE_NETWORK ?? "devnet",
-    service_level_id: Number(process.env.TXLINE_SERVICE_LEVEL_ID ?? 1)
-  })
-);
+app.get("/api/health", async () => ({
+  data: { service: "matchpulse-api", ok: true, txline_network: process.env.TXLINE_NETWORK ?? "unknown", service_level_id: Number(process.env.TXLINE_SERVICE_LEVEL_ID ?? 0) },
+  meta: { status: "live" as const, source: "service" as const, mode: "public" as const }
+}));
 
 app.get("/api/internal/signalcore/contract", async () => ({
   data: getSignalCoreContract(),
@@ -249,14 +245,20 @@ app.get("/api/internal/db/status", async () => {
 });
 
 app.get("/api/internal/worker/status", async () => {
-  const health = await getDbClient().healthStatus.findUnique({ where: { serviceName: "matchpulse-data-worker" }, select: { status: true, lastHeartbeat: true, lastDataReceivedAt: true, errorCount: true, lastError: true } });
-  const [activeFixtureCount, latestScore, latestOdds, latestEvent] = await Promise.all([
-    getDbClient().fixture.count({ where: { status: { not: "finished" } } }),
+  const health = await getDbClient().healthStatus.findUnique({ where: { serviceName: "matchpulse-data-worker" }, select: { status: true, lastHeartbeat: true, lastDataReceivedAt: true, errorCount: true, lastError: true, raw: true } });
+  const now = Date.now();
+  const leadMs = Number(process.env.MATCHPULSE_CAPTURE_LEAD_MINUTES ?? 60) * 60_000;
+  const tailMs = Number(process.env.MATCHPULSE_CAPTURE_TAIL_MINUTES ?? 180) * 60_000;
+  const activeFixtureCount = await getDbClient().fixture.count({ where: { startTimeUtc: { gte: new Date(now - leadMs), lte: new Date(now + tailMs) }, status: { notIn: ["finished", "final", "FT", "completed"] } } });
+  const [latestScore, latestOdds, latestEvent] = await Promise.all([
     getDbClient().matchState.findFirst({ orderBy: { lastDataReceivedAt: "desc" }, select: { lastDataReceivedAt: true } }),
     getDbClient().oddsSnapshot.findFirst({ orderBy: { sourceTimestamp: "desc" }, select: { sourceTimestamp: true } }),
     getDbClient().matchEvent.findFirst({ orderBy: { sourceTimestamp: "desc" }, select: { sourceTimestamp: true } })
   ]);
-  return { data: { worker_running: health?.status === "healthy" || health?.status === "degraded", lock_acquired: health !== null, active_fixture_count: activeFixtureCount, last_cycle: health?.lastHeartbeat?.toISOString() ?? null, successful_target_count: health?.status === "healthy" ? 1 : 0, failed_target_count: health?.errorCount ?? 0, latest_stored_score_timestamp: latestScore?.lastDataReceivedAt?.toISOString() ?? null, latest_stored_odds_timestamp: latestOdds?.sourceTimestamp?.toISOString() ?? null, latest_stored_event_timestamp: latestEvent?.sourceTimestamp?.toISOString() ?? null, safe_last_error: health?.lastError ?? null }, meta: { status: health ? "live" as const : "no_data" as const, source: "database" as const, mode: "internal" as const } };
+  const raw = health?.raw && typeof health.raw === "object" && !Array.isArray(health.raw) ? health.raw as Record<string, unknown> : {};
+  const leaseExpiresAt = typeof raw.lease_expires_at === "string" ? Date.parse(raw.lease_expires_at) : 0;
+  const heartbeatFresh = health?.lastHeartbeat ? now - health.lastHeartbeat.getTime() < Math.max(60_000, Number(process.env.MATCHPULSE_FIXTURE_DISCOVERY_INTERVAL_MS ?? 300000) * 2) : false;
+  return { data: { worker_running: heartbeatFresh, lock_acquired: leaseExpiresAt > now, active_fixture_count: activeFixtureCount, last_cycle_status: raw.status ?? health?.status ?? "unknown", last_cycle_started_at: raw.last_cycle_started_at ?? health?.lastHeartbeat?.toISOString() ?? null, last_cycle_finished_at: raw.last_cycle_finished_at ?? null, successful_fixture_count: raw.successful_fixture_count ?? 0, failed_fixture_count: raw.failed_fixture_count ?? health?.errorCount ?? 0, latest_stored_score_timestamp: latestScore?.lastDataReceivedAt?.toISOString() ?? null, latest_stored_odds_timestamp: latestOdds?.sourceTimestamp?.toISOString() ?? null, latest_stored_event_timestamp: latestEvent?.sourceTimestamp?.toISOString() ?? null, safe_last_error: health?.lastError ?? null }, meta: { status: health ? "live" as const : "no_data" as const, source: "database" as const, mode: "internal" as const } };
 });
 
 app.get("/api/internal/db/demo-seed/status", async () => verifyDemoSeed());

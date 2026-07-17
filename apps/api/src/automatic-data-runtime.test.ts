@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cadenceForPhase, parseCompetitionConfig, pollPhase, withProviderRetry } from "./automatic-data-runtime.js";
+import { cadenceForPhase, discoveryEpochDays, parseCompetitionConfig, pollPhase, toSafeRuntimeError, withProviderRetry } from "./automatic-data-runtime.js";
 
 test("production competition configuration fails closed", () => {
   assert.deepEqual(parseCompetitionConfig("430:20608,431:20609"), [{ competitionId: "430", startEpochDay: 20608 }, { competitionId: "431", startEpochDay: 20609 }]);
@@ -22,4 +22,15 @@ test("provider retry honors retry count without fabricating a result", async () 
   const result = await withProviderRetry(async () => { calls += 1; if (calls < 3) throw new Error("temporary"); return "ok"; }, { sleep: async () => undefined });
   assert.equal(result, "ok");
   assert.equal(calls, 3);
+});
+
+test("discovery uses the UTC yesterday/today/tomorrow window", () => {
+  assert.deepEqual(discoveryEpochDays(new Date("2026-07-18T23:59:00Z")), [20651, 20652, 20653]);
+});
+
+test("runtime errors are safe and stage-labelled", () => {
+  const error = toSafeRuntimeError(new Error("postgresql://user:password@host/db token=secret"), "lock");
+  assert.equal(error.stage, "lock");
+  assert.equal(error.message.includes("password"), false);
+  assert.equal(error.message.includes("postgresql://"), false);
 });

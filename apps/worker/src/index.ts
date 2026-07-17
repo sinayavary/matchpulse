@@ -24,7 +24,13 @@ async function runAutomaticMode() {
     runCycle: apiModule.runAutomaticIngestionCycle,
     acquireLock: apiModule.tryAcquireWorkerLock,
     releaseLock: apiModule.releaseWorkerLock
-  }, { onError: () => console.error("Automatic worker cycle failed; retrying safely.") });
+  }, { onError: (error) => {
+    const record = error && typeof error === "object" ? error as Record<string, unknown> : {};
+    const name = typeof record.name === "string" ? record.name.slice(0, 80) : "Error";
+    const code = typeof record.code === "string" ? record.code.slice(0, 80) : "UNKNOWN";
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(JSON.stringify({ event: "automatic_worker_cycle_failed", error: { name, code, message: message.replace(/(https?:\/\/|postgres(?:ql)?:\/\/|bearer\s+|token|jwt|password|database_url)[^\s]*/gi, "[redacted]").slice(0, 240) } }));
+  } });
 }
 
 async function executeIngestion(input: {

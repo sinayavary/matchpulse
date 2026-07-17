@@ -34,13 +34,14 @@ export async function runAutomaticWorkerOnce(runtime: AutomaticWorkerRuntime, op
 }
 
 export async function runAutomaticWorkerLoop(runtime: AutomaticWorkerRuntime, options: AutomaticWorkerOptions = {}) {
-  const intervalMs = options.intervalMs ?? Number(process.env.MATCHPULSE_UPCOMING_POLL_INTERVAL_MS ?? 300000);
+  const intervalMs = options.intervalMs ?? Number(process.env.MATCHPULSE_FIXTURE_DISCOVERY_INTERVAL_MS ?? 300000);
   const sleep = options.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
   let stopped = false;
   const stop = () => { stopped = true; };
   while (!stopped) {
-    await runAutomaticWorkerOnce(runtime, options);
-    if (!stopped) await sleep(intervalMs);
+    const result = await runAutomaticWorkerOnce(runtime, options);
+    const nextWakeMs = typeof result.result === "object" && result.result !== null && "nextWakeMs" in result.result && typeof result.result.nextWakeMs === "number" ? result.result.nextWakeMs : intervalMs;
+    if (!stopped) await sleep(Math.max(5_000, nextWakeMs));
   }
   return stop;
 }
