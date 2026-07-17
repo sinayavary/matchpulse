@@ -27,9 +27,14 @@ export const automaticRuntimeConfig = () => ({
 });
 
 export function parseCompetitionConfig(value = process.env.MATCHPULSE_COMPETITIONS): CompetitionConfig[] {
-  if (!value?.trim()) return [];
+  const configuredValue = value?.trim() || (() => {
+    const competitionId = process.env.TXLINE_DEFAULT_COMPETITION_ID?.trim();
+    const startEpochDay = process.env.TXLINE_DEFAULT_START_EPOCH_DAY?.trim();
+    return competitionId && startEpochDay ? `${competitionId}:${startEpochDay}` : "";
+  })();
+  if (!configuredValue) return [];
   const items: CompetitionConfig[] = [];
-  for (const token of value.split(",")) {
+  for (const token of configuredValue.split(",")) {
     const [competitionId, rawDay] = token.trim().split(":");
     const startEpochDay = Number(rawDay);
     if (!competitionId || !/^\d+$/.test(competitionId) || !Number.isInteger(startEpochDay) || startEpochDay < 0) {
