@@ -1,13 +1,13 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "ready",
+  "state": "completed_pending_review",
   "phase_id": "DEPLOY-RAILWAY-WEB-HOTFIX-A",
   "phase_title": "Replace TypeScript Next config for production runtime",
   "pack_path": "docs/codex-master-plan/phases/phase-deploy-railway-web-hotfix-a",
   "pack_version": "DEPLOY-RAILWAY-WEB-HOTFIX-A-v1",
   "baseline_commit": "a9c163bc1c8681f035668b489bb99657d0969993",
-  "human_approved": true,
+  "human_approved": false,
   "activation_note": "Human-approved successor phase for the Web Next.js configuration hotfix. It is limited to the two explicitly allowlisted Web configuration files and must stop after Prepare without publishing.",
   "execution": {
     "continue_until_phase_gate": true,
@@ -16,12 +16,16 @@
     "stop_after_phase": true
   },
   "last_result": {
-    "status": "PHASE_ACTIVATED",
-    "reviewed_phase_id": "DEPLOY-RAILWAY-A",
-    "reviewed_completion_commit": "a9c163bc1c8681f035668b489bb99657d0969993",
-    "review_decision": "approved",
-    "selected_next_phase": "DEPLOY-RAILWAY-WEB-HOTFIX-A",
-    "selected_reason": "Human-approved Web runtime hotfix replacing the TypeScript Next config with the equivalent ESM config.",
+    "status": "PHASE_COMPLETE",
+    "phase_id": "DEPLOY-RAILWAY-WEB-HOTFIX-A",
+    "pack_version": "DEPLOY-RAILWAY-WEB-HOTFIX-A-v1",
+    "baseline_commit": "a9c163bc1c8681f035668b489bb99657d0969993",
+    "completed_at": "2026-07-17T13:34:21.7801534Z",
+    "files_changed": [
+      "apps/web/next.config.mjs",
+      "apps/web/next.config.ts"
+    ],
+    "validation_summary": "Web typecheck passed; Web production build passed; workspace typecheck passed; workspace production build passed; git diff --check passed; pnpm install --frozen-lockfile --offline hydrated existing cached dependencies without changing dependency manifests or lockfiles; no migration, database mutation, network access, deployment, or production operation occurred.",
     "migration_applied": false,
     "network_accessed": false
   }
