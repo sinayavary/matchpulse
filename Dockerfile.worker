@@ -1,6 +1,9 @@
 FROM node:22-bookworm-slim AS build
 
 WORKDIR /workspace
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
@@ -14,13 +17,18 @@ RUN pnpm install --frozen-lockfile
 COPY apps apps
 COPY packages packages
 COPY prisma prisma
-RUN pnpm prisma:generate \
+RUN pnpm --filter @matchpulse/shared build \
+  && pnpm --filter @matchpulse/txline-client build \
+  && pnpm prisma:generate \
   && pnpm --filter @matchpulse/worker build \
   && pnpm --filter @matchpulse/worker --prod deploy /app
 
 FROM node:22-bookworm-slim AS runtime
 
 WORKDIR /app
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 COPY --from=build --chown=node:node /app ./
 COPY --from=build --chown=node:node /workspace/apps/worker/dist ./dist
