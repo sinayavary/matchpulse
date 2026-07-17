@@ -13,7 +13,13 @@ export type AutomaticWorkerOptions = {
 };
 
 export async function runAutomaticWorkerOnce(runtime: AutomaticWorkerRuntime, options: AutomaticWorkerOptions = {}) {
-  const locked = await runtime.acquireLock();
+  let locked = false;
+  try {
+    locked = await runtime.acquireLock();
+  } catch (error) {
+    options.onError?.(error);
+    return { status: "error" as const };
+  }
   if (!locked) return { status: "lock_not_acquired" as const };
   try {
     const result = await runtime.runCycle();

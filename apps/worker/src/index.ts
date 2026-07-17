@@ -24,7 +24,7 @@ async function runAutomaticMode() {
     runCycle: apiModule.runAutomaticIngestionCycle,
     acquireLock: apiModule.tryAcquireWorkerLock,
     releaseLock: apiModule.releaseWorkerLock
-  });
+  }, { onError: () => console.error("Automatic worker cycle failed; retrying safely.") });
 }
 
 async function executeIngestion(input: {
