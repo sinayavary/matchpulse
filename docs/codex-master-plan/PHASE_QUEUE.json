@@ -1,9 +1,18 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "AUTO-DATA-REPLAY-RUNTIME-A",
+  "active_phase_id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",
   "updated_at": "2026-07-18T00:00:00Z",
   "items": [
+    {
+      "id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",
+      "title": "Recover production always-on match data runtime",
+      "status": "ready",
+      "depends_on": ["AUTO-DATA-REPLAY-RUNTIME-A"],
+      "pack_version": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A-v1",
+      "baseline_commit": "9c410db9824aef9ed1a6af72bd4b0d98716ae630",
+      "human_gate": true
+    },
     {
       "id": "AUTO-DATA-REPLAY-RUNTIME-A",
       "title": "Always-on automatic match data and historical replay runtime",

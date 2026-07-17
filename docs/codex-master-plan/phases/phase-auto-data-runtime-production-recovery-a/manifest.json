@@ -1,0 +1,44 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",
+  "phase_id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",
+  "title": "Recover production always-on match data runtime",
+  "pack_version": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A-v1",
+  "baseline_commit": "9c410db9824aef9ed1a6af72bd4b0d98716ae630",
+  "allowed_target_files": [
+    "ACTIVE_PHASE.json",
+    "apps/api/src/automatic-data-runtime.ts",
+    "apps/api/src/automatic-data-runtime.test.ts",
+    "apps/api/src/server.ts",
+    "apps/worker/src/automatic-worker.ts",
+    "apps/worker/src/automatic-worker.test.ts",
+    "apps/worker/src/index.ts"
+  ],
+  "required_validation_commands": [
+    "pnpm --filter @matchpulse/worker test",
+    "pnpm --filter @matchpulse/api exec tsx --test src/automatic-data-runtime.test.ts src/historical-replay.test.ts",
+    "pnpm typecheck",
+    "pnpm build",
+    "git diff --check",
+    "pnpm exec prisma migrate diff --from-schema-datamodel prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script"
+  ],
+  "production_validation": [
+    "Scoped Railway API and Worker deployment only",
+    "Worker logs show two cycles with safe heartbeat/error state and no secret/raw payload output",
+    "API health source is service/runtime, never mock",
+    "Internal worker status is checked with an existing token without printing it",
+    "No migration or seed"
+  ],
+  "expected_results": [
+    "Worker has runtime DB and TxLINE references without exposing their values.",
+    "Transient provider/DB failures produce safe structured diagnostics and do not terminate the loop.",
+    "HealthStatus records starting, cycle, success/no_data/degraded/failure, heartbeat, counts, and safe last error.",
+    "Discovery uses configured real competition IDs and dynamic UTC day windows; absent config fails closed.",
+    "Public health has an explicit non-mock service envelope.",
+    "Prisma diff is empty and migration_applied=false, seed_applied=false."
+  ],
+  "allows_migration": false,
+  "allows_network": true,
+  "human_gate": true,
+  "git": { "allow_commit": true, "allow_push": true, "forbidden_commands": ["git add .", "git add -A", "git reset", "git clean", "git stash", "git rebase", "git push --force"] }
+}
