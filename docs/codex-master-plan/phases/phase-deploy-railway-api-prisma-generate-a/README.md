@@ -31,6 +31,8 @@ Execution must occur only in a clean, registered secondary worktree on a non-det
 
 The permitted network scope is limited to `pnpm install --frozen-lockfile --offline` (or the same frozen install against `registry.npmjs.org` only when the cache is insufficient), Railway's remote Docker build/deploy for the scoped API service, Railway SSH for the scoped API container smoke check, and read-only requests to the scoped API health, internal DB-status, and public matches endpoints. No local Docker installation or local Docker build/run is required or authorized.
 
+The implementation must run `pnpm exec prisma generate --schema=prisma/schema.prisma` immediately after `COPY prisma prisma`, before the build/deploy step. Because the production deploy can replace the generated client with an uninitialized stub, it must then copy the generated `.prisma/client` directory from the build-stage pnpm store into the matching production dependency path after `pnpm --filter @matchpulse/api --prod deploy /app`. This remains a Dockerfile-only change and must not modify package manifests, the lockfile, schema, or migrations.
+
 ## Completion and rollback
 
 After a separately approved implementation run, record exact completion metadata and stop at the repository's human review gate. Roll back only the scoped phase commit if required; do not reset, clean, stash, or alter unrelated work.

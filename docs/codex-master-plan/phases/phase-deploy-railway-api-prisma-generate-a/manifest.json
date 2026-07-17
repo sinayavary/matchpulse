@@ -3,8 +3,8 @@
   "phase": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A",
   "phase_id": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A",
   "title": "Generate Prisma Client in the Railway API image build",
-  "pack_version": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A-v4",
-  "baseline_commit": "576a56a4334eaced1696f4f64847f04618db49a8",
+  "pack_version": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A-v5",
+  "baseline_commit": "c3d57b823243855c81e7686ff2991f295d813ebf",
   "allowed_target_files": [
     "Dockerfile.api"
   ],
@@ -38,7 +38,7 @@
   ],
   "expected_remote_results": [
     "Railway remote Docker build uses Dockerfile.api successfully",
-    "Railway build logs show Prisma generate succeeds",
+    "Railway build logs show Prisma generate succeeds and the generated client is copied into the production dependency tree",
     "new PrismaClient() constructs in the deployed API container without the initialize error",
     "No migration or seed runs",
     "Only the scoped API service is redeployed"

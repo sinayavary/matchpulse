@@ -9,8 +9,8 @@
       "title": "Generate Prisma Client in the Railway API image build",
       "status": "ready",
       "depends_on": ["DEPLOY-RAILWAY-WEB-HOTFIX-A"],
-      "pack_version": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A-v4",
-      "baseline_commit": "576a56a4334eaced1696f4f64847f04618db49a8",
+      "pack_version": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A-v5",
+      "baseline_commit": "c3d57b823243855c81e7686ff2991f295d813ebf",
       "human_gate": true
     },
     {
