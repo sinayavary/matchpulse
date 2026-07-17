@@ -1,13 +1,13 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "completed_pending_review",
-  "phase_id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",
-  "phase_title": "Recover production always-on match data runtime",
-  "pack_path": "docs/codex-master-plan/phases/phase-auto-data-runtime-production-recovery-a",
-  "pack_version": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A-v1",
-  "baseline_commit": "9c410db9824aef9ed1a6af72bd4b0d98716ae630",
-  "human_approved": false,
+  "state": "ready",
+  "phase_id": "AUTO-DATA-HEALTH-REPORTING-A",
+  "phase_title": "Repair automatic worker health reporting",
+  "pack_path": "docs/codex-master-plan/phases/phase-auto-data-health-reporting-a",
+  "pack_version": "AUTO-DATA-HEALTH-REPORTING-A-v1",
+  "baseline_commit": "bf452e4",
+  "human_approved": true,
   "activation_note": "Explicit human authorization for successor governance, diagnostics, activation, implementation, Publish, and scoped API/Worker deployment. No schema, migration, seed, or fabricated data is authorized.",
   "execution": {
     "continue_until_phase_gate": true,
@@ -16,22 +16,11 @@
     "stop_after_phase": true
   },
   "last_result": {
-    "status": "PHASE_COMPLETE",
-    "phase_id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",
-    "pack_version": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A-v1",
-    "baseline_commit": "9c410db9824aef9ed1a6af72bd4b0d98716ae630",
-    "completed_at": "2026-07-18T00:00:00Z",
-    "files_changed": [
-      "apps/api/src/automatic-data-runtime.test.ts",
-      "apps/api/src/automatic-data-runtime.ts",
-      "apps/api/src/server.ts",
-      "apps/worker/src/automatic-worker.test.ts",
-      "apps/worker/src/automatic-worker.ts",
-      "apps/worker/src/index.ts",
-      "Dockerfile.worker"
-    ],
-    "validation_summary": "Worker tests 74/74 passed; focused API runtime/replay tests 6/6 passed; workspace typecheck passed; workspace build passed; git diff --check passed; Prisma migrate diff reported an empty migration; no migration or seed was applied. Published b1de68b and verified Railway API/Worker online; Worker completed two no_data heartbeat cycles at 2026-07-17T23:13:11.367Z and 2026-07-17T23:13:58.493Z; API health returned live/service/public with mainnet and service level 12.",
+    "status": "NOT_STARTED",
+    "phase_id": "AUTO-DATA-HEALTH-REPORTING-A",
+    "pack_version": "AUTO-DATA-HEALTH-REPORTING-A-v1",
+    "baseline_commit": "bf452e4",
     "migration_applied": false,
-    "network_accessed": true
+    "network_accessed": false
   }
 }

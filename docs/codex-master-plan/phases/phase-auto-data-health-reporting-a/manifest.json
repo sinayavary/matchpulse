@@ -1,0 +1,13 @@
+{
+  "schema_version": "matchpulse-phase-manifest-v1",
+  "phase_id": "AUTO-DATA-HEALTH-REPORTING-A",
+  "pack_version": "AUTO-DATA-HEALTH-REPORTING-A-v1",
+  "scope": [
+    "apps/api/src/automatic-data-runtime.ts",
+    "apps/api/src/automatic-data-runtime.test.ts",
+    "apps/api/src/server.ts",
+    "apps/worker/src/automatic-worker.test.ts"
+  ],
+  "prohibitions": ["schema", "migration", "seed", "mock", "fabricated_data", "agent_config", "lock_semantics"],
+  "deployment_scope": ["API", "Worker"]
+}
