@@ -5,6 +5,15 @@
   "updated_at": "2026-07-17T00:00:00Z",
   "items": [
     {
+      "id": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A",
+      "title": "Generate Prisma Client in the Railway API image build",
+      "status": "planned",
+      "depends_on": ["DEPLOY-RAILWAY-WEB-HOTFIX-A"],
+      "pack_version": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A-v1",
+      "baseline_commit": "e5ce83c3a7a1e5fa212dd9cb1a724adffbddcfda",
+      "human_gate": true
+    },
+    {
       "id": "DEPLOY-RAILWAY-WEB-HOTFIX-A",
       "title": "Replace TypeScript Next config for production runtime",
       "status": "ready",

@@ -1,0 +1,43 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A",
+  "phase_id": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A",
+  "title": "Generate Prisma Client in the Railway API image build",
+  "pack_version": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A-v1",
+  "baseline_commit": "e5ce83c3a7a1e5fa212dd9cb1a724adffbddcfda",
+  "allowed_target_files": [
+    "Dockerfile.api"
+  ],
+  "required_validation_commands": [
+    "pnpm typecheck",
+    "pnpm build",
+    "docker build -f Dockerfile.api -t matchpulse-api-prisma-generate-a .",
+    "docker run --rm --entrypoint node matchpulse-api-prisma-generate-a -e \"const { PrismaClient } = require('@prisma/client'); new PrismaClient(); console.log('PrismaClient constructed');\"",
+    "git diff --check"
+  ],
+  "expected_results": [
+    "Workspace typecheck passes",
+    "Workspace production build passes",
+    "Dockerfile.api builds successfully",
+    "new PrismaClient() constructs inside the image without the initialize error",
+    "git diff --check passes",
+    "No migration runs and no database connection or mutation occurs",
+    "DATABASE_URL, Neon configuration, schema, migrations, dependencies, lockfiles, and deployment configuration remain unchanged"
+  ],
+  "allows_migration": false,
+  "allows_network": false,
+  "human_gate": true,
+  "git": {
+    "allow_commit": true,
+    "allow_push": false,
+    "forbidden_commands": [
+      "git add .",
+      "git add -A",
+      "git stash",
+      "git reset",
+      "git clean",
+      "git rebase",
+      "git push --force"
+    ]
+  }
+}
