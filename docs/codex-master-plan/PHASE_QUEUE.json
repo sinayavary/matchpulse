@@ -9,8 +9,8 @@
       "title": "Railway API and Web deployment foundation",
       "status": "ready",
       "depends_on": ["10J-B"],
-      "pack_version": "DEPLOY-RAILWAY-A-v1",
-      "baseline_commit": "fab82a8a4628c33df4126bc1e5281d5d839be130",
+      "pack_version": "DEPLOY-RAILWAY-A-v2",
+      "baseline_commit": "a332ab3504a4398932355de2b7a3f861d661f9af",
       "human_gate": true
     },
     {

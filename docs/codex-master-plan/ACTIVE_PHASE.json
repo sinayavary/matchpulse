@@ -5,10 +5,10 @@
   "phase_id": "DEPLOY-RAILWAY-A",
   "phase_title": "Railway API and Web deployment foundation",
   "pack_path": "docs/codex-master-plan/phases/phase-deploy-railway-a",
-  "pack_version": "DEPLOY-RAILWAY-A-v1",
-  "baseline_commit": "fab82a8a4628c33df4126bc1e5281d5d839be130",
+  "pack_version": "DEPLOY-RAILWAY-A-v2",
+  "baseline_commit": "a332ab3504a4398932355de2b7a3f861d661f9af",
   "human_approved": true,
-  "activation_note": "Human review approved 10J-B completion at fab82a8a4628c33df4126bc1e5281d5d839be130 and explicitly authorized DEPLOY-RAILWAY-A as a human-approved, no-network, no-migration deployment foundation phase.",
+  "activation_note": "Human-approved amendment adding deterministic Next.js generated config files to the exact allowlist after a mandatory build produced them.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,

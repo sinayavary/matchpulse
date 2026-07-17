@@ -14,15 +14,17 @@ Prepare the root-monorepo build definitions and operator runbook for the approve
 
 ## Exact implementation allowlist
 
-`.dockerignore`, `Dockerfile.api`, `Dockerfile.web`, `Dockerfile.worker`, `apps/api/src/server.ts`, `apps/api/src/server-railway.test.ts`, and `docs/railway-deployment-runbook.md`.
+`.dockerignore`, `Dockerfile.api`, `Dockerfile.web`, `Dockerfile.worker`, `apps/api/src/server.ts`, `apps/api/src/server-railway.test.ts`, `apps/web/next-env.d.ts`, `apps/web/tsconfig.json`, and `docs/railway-deployment-runbook.md`.
+
+The mandatory Next.js production build deterministically updates the two tracked Web configuration files above. They must not be restored: they are now part of the exact phase scope. Their changes must be limited to canonical Next.js type references, generated route type references, required compiler options, generated include paths, and standard JSON formatting. No application behavior, custom unrelated path, intentional TypeScript-safety reduction, or compiler-protection removal is permitted.
 
 ## Required validation
 
-Run every `required_validation_commands` entry in `manifest.json`, then `git diff --check`. If Docker is available, build each Dockerfile from the repository root. Docker absence is recorded as `NETWORK_ACCESS_REQUIRED` only for image validation; it does not authorize a scope change.
+Run every `required_validation_commands` entry in `manifest.json`, then `git diff --check`. For Next.js idempotence, record SHA256 hashes for `apps/web/next-env.d.ts` and `apps/web/tsconfig.json`, run `pnpm --filter @matchpulse/web build` a second time, and require the same hashes afterwards. If Docker is available, build each Dockerfile from the repository root. Docker absence is recorded as `NETWORK_ACCESS_REQUIRED` only for image validation; it does not authorize a scope change.
 
 ## Expected result
 
-The API startup test proves port precedence, `0.0.0.0` binding, and unauthenticated `/api/health`. Builds must succeed without migration, seed, live-provider calls, or secrets. The runbook must explicitly keep the worker disabled.
+The API startup test proves port precedence, `0.0.0.0` binding, and unauthenticated `/api/health`. Builds must succeed without migration, seed, live-provider calls, or secrets. The canonical Next.js generated configuration must be stable across a repeated production build. The runbook must explicitly keep the worker disabled.
 
 ## Restrictions
 

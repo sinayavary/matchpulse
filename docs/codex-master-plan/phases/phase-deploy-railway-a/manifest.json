@@ -3,8 +3,8 @@
   "phase": "DEPLOY-RAILWAY-A",
   "phase_id": "DEPLOY-RAILWAY-A",
   "title": "Railway API and Web deployment foundation",
-  "pack_version": "DEPLOY-RAILWAY-A-v1",
-  "baseline_commit": "fab82a8a4628c33df4126bc1e5281d5d839be130",
+  "pack_version": "DEPLOY-RAILWAY-A-v2",
+  "baseline_commit": "a332ab3504a4398932355de2b7a3f861d661f9af",
   "allowed_target_files": [
     ".dockerignore",
     "Dockerfile.api",
@@ -12,6 +12,8 @@
     "Dockerfile.worker",
     "apps/api/src/server-railway.test.ts",
     "apps/api/src/server.ts",
+    "apps/web/next-env.d.ts",
+    "apps/web/tsconfig.json",
     "docs/railway-deployment-runbook.md"
   ],
   "required_validation_commands": [
@@ -33,7 +35,8 @@
     "API health endpoint remains public and internal authentication remains fail-closed.",
     "API, Web, and Worker Dockerfiles build from the monorepo root without migrations, seeds, or secrets.",
     "Web container starts Next on 0.0.0.0 using PORT with a 3000 fallback.",
-    "Worker has no public domain, deployment, or cron enabled in the runbook."
+    "Worker has no public domain, deployment, or cron enabled in the runbook.",
+    "The canonical Next.js generated configuration is stable across a repeated production build."
   ],
   "allows_migration": false,
   "allows_network": false,
