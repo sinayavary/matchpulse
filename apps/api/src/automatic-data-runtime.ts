@@ -11,6 +11,21 @@ export type CompetitionConfig = { competitionId: string; startEpochDay: number }
 export type PollPhase = "upcoming" | "prematch" | "live" | "postmatch" | "finished";
 export type PollConfig = { leadMinutes: number; tailMinutes: number; upcomingMs: number; prematchMs: number; liveMs: number; postmatchMs: number };
 export type SafeRuntimeError = { name: string; code: string; message: string; stage: string };
+export type WorkerCycleRecord = {
+  owner_id: string;
+  last_cycle_status: string;
+  started_at: string;
+  finished_at: string | null;
+  discovered_competitions: number;
+  discovered_fixture_count: number;
+  active_fixture_count: number;
+  persisted_fixture_count: number;
+  successful_fixture_count: number;
+  failed_fixture_count: number;
+  configuration_error: boolean;
+  lock_acquired: boolean;
+  lease_expires_at: string;
+};
 
 const envNumber = (name: string, fallback: number) => {
   const value = Number(process.env[name]);
@@ -41,6 +56,11 @@ function safeError(error: unknown, stage: string): SafeRuntimeError {
 }
 
 export function toSafeRuntimeError(error: unknown, stage: string): SafeRuntimeError { return safeError(error, stage); }
+
+export function normalizeWorkerHealthState(input: { error?: unknown; errorCount?: number; stage?: string }) {
+  const safe = input.error === undefined || input.error === null ? null : safeError(input.error, input.stage ?? "runtime");
+  return { lastError: safe ? JSON.stringify(safe) : null, errorCount: input.errorCount ?? 0 };
+}
 
 function utcEpochDay(date: Date): number { return Math.floor(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) / 86_400_000); }
 
@@ -123,43 +143,70 @@ export async function tryAcquireWorkerLock(): Promise<boolean> {
 }
 
 export async function releaseWorkerLock(): Promise<void> {
-  await getDbClient().$executeRaw(Prisma.sql`UPDATE health_status SET status = 'idle', updated_at = CURRENT_TIMESTAMP, raw = jsonb_build_object('owner_id', ${workerOwnerId}, 'lease_expires_at', CURRENT_TIMESTAMP) WHERE service_name = 'matchpulse-data-worker' AND raw->>'owner_id' = ${workerOwnerId}`);
+  await getDbClient().$executeRaw(Prisma.sql`UPDATE health_status SET status = 'idle', updated_at = CURRENT_TIMESTAMP, raw = jsonb_set(jsonb_set(COALESCE(raw, '{}'::jsonb), '{lock_acquired}', 'false'::jsonb, true), '{lease_expires_at}', to_jsonb(CURRENT_TIMESTAMP), true) WHERE service_name = 'matchpulse-data-worker' AND raw->>'owner_id' = ${workerOwnerId}`);
 }
 
 export async function updateWorkerHealth(input: { status: string; lastIngestion?: Date; error?: unknown; errorCount?: number; stage?: string; cycle?: Record<string, unknown> }) {
-  const safe = input.error === undefined || input.error === null ? null : safeError(input.error, input.stage ?? "runtime");
+  const healthState = normalizeWorkerHealthState(input);
   const cycleJson = input.cycle === undefined ? undefined : JSON.parse(JSON.stringify(input.cycle)) as Prisma.InputJsonValue;
   await getDbClient().healthStatus.upsert({
     where: { serviceName: "matchpulse-data-worker" },
-    create: { serviceName: "matchpulse-data-worker", status: input.status, lastHeartbeat: new Date(), lastDataReceivedAt: input.lastIngestion ?? null, errorCount: input.errorCount ?? 0, lastError: safe ? JSON.stringify(safe) : null, raw: cycleJson },
-    update: { status: input.status, lastHeartbeat: new Date(), ...(input.lastIngestion ? { lastDataReceivedAt: input.lastIngestion } : {}), ...(safe ? { lastError: JSON.stringify(safe) } : {}), ...(input.errorCount === undefined ? {} : { errorCount: input.errorCount }), ...(cycleJson ? { raw: cycleJson } : {}) }
+    create: { serviceName: "matchpulse-data-worker", status: input.status, lastHeartbeat: new Date(), lastDataReceivedAt: input.lastIngestion ?? null, errorCount: healthState.errorCount, lastError: healthState.lastError, raw: cycleJson },
+    update: { status: input.status, lastHeartbeat: new Date(), ...(input.lastIngestion ? { lastDataReceivedAt: input.lastIngestion } : {}), lastError: healthState.lastError, errorCount: healthState.errorCount, ...(cycleJson ? { raw: cycleJson } : {}) }
   });
+}
+
+export function buildWorkerCycleRecord(input: Omit<WorkerCycleRecord, "owner_id" | "lease_expires_at"> & { leaseExpiresAt: Date }): WorkerCycleRecord {
+  const { leaseExpiresAt, ...cycle } = input;
+  return {
+    owner_id: workerOwnerId,
+    ...cycle,
+    lease_expires_at: leaseExpiresAt.toISOString()
+  };
 }
 
 export async function runAutomaticIngestionCycle(now = new Date()) {
   const startedAt = now;
   const config = automaticRuntimeConfig();
-  await updateWorkerHealth({ status: "starting", stage: "startup" });
-  const competitions = parseCompetitionConfig();
+  const startCycle = buildWorkerCycleRecord({ last_cycle_status: "starting", started_at: startedAt.toISOString(), finished_at: null, discovered_competitions: 0, discovered_fixture_count: 0, active_fixture_count: 0, persisted_fixture_count: 0, successful_fixture_count: 0, failed_fixture_count: 0, configuration_error: false, lock_acquired: true, leaseExpiresAt: new Date(startedAt.getTime() + LEASE_MS) });
+  await updateWorkerHealth({ status: "starting", errorCount: 0, stage: "startup", cycle: startCycle });
+  let competitions: CompetitionConfig[];
+  try {
+    competitions = parseCompetitionConfig();
+  } catch (error) {
+    const finishedAt = now;
+    const cycle = buildWorkerCycleRecord({ ...startCycle, last_cycle_status: "error", finished_at: finishedAt.toISOString(), configuration_error: true, lock_acquired: true, leaseExpiresAt: new Date(finishedAt.getTime() + LEASE_MS) });
+    await updateWorkerHealth({ status: "error", error, errorCount: 1, stage: "configuration", cycle });
+    return { success: 0, failed: 0, activeFixtures: 0, persistedFixtures: 0, agentEnabled: config.agentEnabled, discoveredCompetitions: 0, discoveredFixtures: 0, nextWakeMs: config.discoveryIntervalMs, configurationError: true, status: "error" as const };
+  }
   if (competitions.length === 0) {
-    const error = new Error("No production competition configuration is available.");
-    await updateWorkerHealth({ status: "no_data", error, errorCount: 1, stage: "configuration" });
-    return { success: 0, failed: 0, activeFixtures: 0, agentEnabled: config.agentEnabled, discoveredCompetitions: 0, nextWakeMs: config.discoveryIntervalMs, status: "no_data" as const };
+    const cycle = buildWorkerCycleRecord({ ...startCycle, last_cycle_status: "no_data", finished_at: now.toISOString(), configuration_error: true, lock_acquired: true, leaseExpiresAt: new Date(now.getTime() + LEASE_MS) });
+    await updateWorkerHealth({ status: "no_data", errorCount: 0, stage: "configuration", cycle });
+    return { success: 0, failed: 0, activeFixtures: 0, persistedFixtures: 0, agentEnabled: config.agentEnabled, discoveredCompetitions: 0, discoveredFixtures: 0, nextWakeMs: config.discoveryIntervalMs, configurationError: true, status: "no_data" as const };
   }
   const client = createTxlineLiveClient();
   let success = 0;
   let failed = 0;
   let discoveryFailed = 0;
+  let discoveredFixtureCount = 0;
+  let persistedFixtureCount = 0;
   for (const competition of competitions) {
     for (const startEpochDay of (process.env.MATCHPULSE_COMPETITIONS ? [competition.startEpochDay] : discoveryEpochDays(now))) {
-      try { await withProviderRetry(() => ingestTxlineFixtures({ competitionId: competition.competitionId, startEpochDay, includeRaw: false })); } catch { discoveryFailed += 1; }
+      try {
+        const result = await withProviderRetry(() => ingestTxlineFixtures({ competitionId: competition.competitionId, startEpochDay, includeRaw: false }));
+        discoveredFixtureCount += result.fetchedCount;
+        persistedFixtureCount += result.upsertedCount;
+      } catch { discoveryFailed += 1; }
     }
   }
   const fixtures = await getDbClient().fixture.findMany({ select: { fixtureId: true, startTimeUtc: true, status: true } });
   let nextWakeMs = config.discoveryIntervalMs;
-  for (const fixture of fixtures) {
+  const activeFixtures = fixtures.filter((fixture) => {
     const phase = pollPhase(fixture.startTimeUtc, fixture.status, now, config);
-    if (phase === "finished" || phase === "upcoming") continue;
+    return phase !== "finished" && phase !== "upcoming";
+  });
+  for (const fixture of activeFixtures) {
+    const phase = pollPhase(fixture.startTimeUtc, fixture.status, now, config);
     nextWakeMs = Math.min(nextWakeMs, cadenceForPhase(phase, config));
     try {
       await withProviderRetry(() => ingestTxlineScoreSnapshot({ fixtureId: fixture.fixtureId, asOf: now.getTime(), includeRaw: false }));
@@ -171,6 +218,7 @@ export async function runAutomaticIngestionCycle(now = new Date()) {
     } catch { failed += 1; }
   }
   const status = failed === 0 && discoveryFailed === 0 ? "healthy" : success > 0 ? "degraded" : "error";
-  await updateWorkerHealth({ status, lastIngestion: success > 0 ? now : undefined, errorCount: failed + discoveryFailed, stage: discoveryFailed > 0 ? "discovery" : failed > 0 ? "ingestion" : "cycle", cycle: { owner_id: workerOwnerId, status, discovery_failed: discoveryFailed, successful_fixture_count: success, failed_fixture_count: failed, active_fixture_count: fixtures.length, last_cycle_started_at: startedAt.toISOString(), last_cycle_finished_at: now.toISOString(), lease_expires_at: new Date(now.getTime() + 90_000).toISOString() } });
-  return { success, failed, activeFixtures: fixtures.length, agentEnabled: config.agentEnabled, discoveredCompetitions: competitions.length, discoveryFailed, nextWakeMs, status };
+  const cycle = buildWorkerCycleRecord({ last_cycle_status: status, started_at: startedAt.toISOString(), finished_at: now.toISOString(), discovered_competitions: competitions.length, discovered_fixture_count: discoveredFixtureCount, active_fixture_count: activeFixtures.length, persisted_fixture_count: persistedFixtureCount, successful_fixture_count: success, failed_fixture_count: failed + discoveryFailed, configuration_error: false, lock_acquired: true, leaseExpiresAt: new Date(now.getTime() + LEASE_MS) });
+  await updateWorkerHealth({ status, lastIngestion: success > 0 ? now : undefined, errorCount: failed + discoveryFailed, stage: discoveryFailed > 0 ? "discovery" : failed > 0 ? "ingestion" : "cycle", cycle });
+  return { success, failed: failed + discoveryFailed, activeFixtures: activeFixtures.length, persistedFixtures: persistedFixtureCount, agentEnabled: config.agentEnabled, discoveredCompetitions: competitions.length, discoveredFixtures: discoveredFixtureCount, discoveryFailed, configurationError: false, nextWakeMs, status };
 }

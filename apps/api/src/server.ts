@@ -247,9 +247,6 @@ app.get("/api/internal/db/status", async () => {
 app.get("/api/internal/worker/status", async () => {
   const health = await getDbClient().healthStatus.findUnique({ where: { serviceName: "matchpulse-data-worker" }, select: { status: true, lastHeartbeat: true, lastDataReceivedAt: true, errorCount: true, lastError: true, raw: true } });
   const now = Date.now();
-  const leadMs = Number(process.env.MATCHPULSE_CAPTURE_LEAD_MINUTES ?? 60) * 60_000;
-  const tailMs = Number(process.env.MATCHPULSE_CAPTURE_TAIL_MINUTES ?? 180) * 60_000;
-  const activeFixtureCount = await getDbClient().fixture.count({ where: { startTimeUtc: { gte: new Date(now - leadMs), lte: new Date(now + tailMs) }, status: { notIn: ["finished", "final", "FT", "completed"] } } });
   const [latestScore, latestOdds, latestEvent] = await Promise.all([
     getDbClient().matchState.findFirst({ orderBy: { lastDataReceivedAt: "desc" }, select: { lastDataReceivedAt: true } }),
     getDbClient().oddsSnapshot.findFirst({ orderBy: { sourceTimestamp: "desc" }, select: { sourceTimestamp: true } }),
@@ -258,7 +255,27 @@ app.get("/api/internal/worker/status", async () => {
   const raw = health?.raw && typeof health.raw === "object" && !Array.isArray(health.raw) ? health.raw as Record<string, unknown> : {};
   const leaseExpiresAt = typeof raw.lease_expires_at === "string" ? Date.parse(raw.lease_expires_at) : 0;
   const heartbeatFresh = health?.lastHeartbeat ? now - health.lastHeartbeat.getTime() < Math.max(60_000, Number(process.env.MATCHPULSE_FIXTURE_DISCOVERY_INTERVAL_MS ?? 300000) * 2) : false;
-  return { data: { worker_running: heartbeatFresh, lock_acquired: leaseExpiresAt > now, active_fixture_count: activeFixtureCount, last_cycle_status: raw.status ?? health?.status ?? "unknown", last_cycle_started_at: raw.last_cycle_started_at ?? health?.lastHeartbeat?.toISOString() ?? null, last_cycle_finished_at: raw.last_cycle_finished_at ?? null, successful_fixture_count: raw.successful_fixture_count ?? 0, failed_fixture_count: raw.failed_fixture_count ?? health?.errorCount ?? 0, latest_stored_score_timestamp: latestScore?.lastDataReceivedAt?.toISOString() ?? null, latest_stored_odds_timestamp: latestOdds?.sourceTimestamp?.toISOString() ?? null, latest_stored_event_timestamp: latestEvent?.sourceTimestamp?.toISOString() ?? null, safe_last_error: health?.lastError ?? null }, meta: { status: health ? "live" as const : "no_data" as const, source: "database" as const, mode: "internal" as const } };
+  const hasCycle = typeof raw.started_at === "string" && typeof raw.last_cycle_status === "string";
+  const configurationError = hasCycle && typeof raw.configuration_error === "boolean" ? raw.configuration_error : null;
+  return { data: {
+    worker_running: heartbeatFresh,
+    lock_acquired: typeof raw.lock_acquired === "boolean" ? raw.lock_acquired : leaseExpiresAt > now,
+    active_fixture_count: hasCycle ? raw.active_fixture_count ?? 0 : 0,
+    last_cycle_status: hasCycle ? raw.last_cycle_status : "unknown",
+    last_cycle_started_at: hasCycle ? raw.started_at : null,
+    last_cycle_finished_at: hasCycle ? raw.finished_at ?? null : null,
+    discovered_competitions: hasCycle ? raw.discovered_competitions ?? 0 : 0,
+    discovered_fixture_count: hasCycle ? raw.discovered_fixture_count ?? 0 : 0,
+    persisted_fixture_count: hasCycle ? raw.persisted_fixture_count ?? 0 : 0,
+    successful_fixture_count: hasCycle ? raw.successful_fixture_count ?? 0 : 0,
+    failed_fixture_count: hasCycle ? raw.failed_fixture_count ?? 0 : 0,
+    configuration_error: configurationError,
+    configuration_error_resolved: configurationError === false,
+    latest_stored_score_timestamp: latestScore?.lastDataReceivedAt?.toISOString() ?? null,
+    latest_stored_odds_timestamp: latestOdds?.sourceTimestamp?.toISOString() ?? null,
+    latest_stored_event_timestamp: latestEvent?.sourceTimestamp?.toISOString() ?? null,
+    safe_last_error: configurationError === false ? null : health?.lastError ?? null
+  }, meta: { status: health ? "live" as const : "no_data" as const, source: "database" as const, mode: "internal" as const } };
 });
 
 app.get("/api/internal/db/demo-seed/status", async () => verifyDemoSeed());

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cadenceForPhase, discoveryEpochDays, parseCompetitionConfig, pollPhase, toSafeRuntimeError, withProviderRetry } from "./automatic-data-runtime.js";
+import { buildWorkerCycleRecord, cadenceForPhase, discoveryEpochDays, normalizeWorkerHealthState, parseCompetitionConfig, pollPhase, toSafeRuntimeError, withProviderRetry } from "./automatic-data-runtime.js";
 
 test("production competition configuration fails closed", () => {
   assert.deepEqual(parseCompetitionConfig("430:20608,431:20609"), [{ competitionId: "430", startEpochDay: 20608 }, { competitionId: "431", startEpochDay: 20609 }]);
@@ -33,4 +33,24 @@ test("runtime errors are safe and stage-labelled", () => {
   assert.equal(error.stage, "lock");
   assert.equal(error.message.includes("password"), false);
   assert.equal(error.message.includes("postgresql://"), false);
+});
+
+test("successful health state clears stale errors and resets the cycle count", () => {
+  assert.deepEqual(normalizeWorkerHealthState({ errorCount: 0 }), { lastError: null, errorCount: 0 });
+  assert.deepEqual(normalizeWorkerHealthState({ errorCount: 0 }), { lastError: null, errorCount: 0 });
+});
+
+test("discovery with no active fixtures is a healthy, non-failed cycle", () => {
+  const cycle = buildWorkerCycleRecord({ last_cycle_status: "healthy", started_at: "2026-07-18T00:00:00.000Z", finished_at: "2026-07-18T00:00:01.000Z", discovered_competitions: 1, discovered_fixture_count: 6, active_fixture_count: 0, persisted_fixture_count: 6, successful_fixture_count: 0, failed_fixture_count: 0, configuration_error: false, lock_acquired: true, leaseExpiresAt: new Date("2026-07-18T00:01:31.000Z") });
+  assert.equal(cycle.last_cycle_status, "healthy");
+  assert.equal(cycle.active_fixture_count, 0);
+  assert.equal(cycle.failed_fixture_count, 0);
+  assert.equal(cycle.configuration_error, false);
+});
+
+test("new cycle errors remain cycle-local", () => {
+  const error = normalizeWorkerHealthState({ error: new Error("new failure"), errorCount: 1, stage: "ingestion" });
+  assert.equal(error.errorCount, 1);
+  assert.match(error.lastError ?? "", /new failure/);
+  assert.equal(normalizeWorkerHealthState({ errorCount: 0 }).lastError, null);
 });
