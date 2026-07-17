@@ -1,9 +1,18 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "DEPLOY-RAILWAY-A",
+  "active_phase_id": "DEPLOY-RAILWAY-WEB-HOTFIX-A",
   "updated_at": "2026-07-17T00:00:00Z",
   "items": [
+    {
+      "id": "DEPLOY-RAILWAY-WEB-HOTFIX-A",
+      "title": "Replace TypeScript Next config for production runtime",
+      "status": "ready",
+      "depends_on": ["DEPLOY-RAILWAY-A"],
+      "pack_version": "DEPLOY-RAILWAY-WEB-HOTFIX-A-v1",
+      "baseline_commit": "a9c163bc1c8681f035668b489bb99657d0969993",
+      "human_gate": true
+    },
     {
       "id": "DEPLOY-RAILWAY-A",
       "title": "Railway API and Web deployment foundation",

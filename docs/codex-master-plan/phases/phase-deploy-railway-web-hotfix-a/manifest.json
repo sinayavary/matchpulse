@@ -1,0 +1,44 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "DEPLOY-RAILWAY-WEB-HOTFIX-A",
+  "phase_id": "DEPLOY-RAILWAY-WEB-HOTFIX-A",
+  "title": "Replace TypeScript Next config for production runtime",
+  "pack_version": "DEPLOY-RAILWAY-WEB-HOTFIX-A-v1",
+  "baseline_commit": "a9c163bc1c8681f035668b489bb99657d0969993",
+  "allowed_target_files": [
+    "apps/web/next.config.ts",
+    "apps/web/next.config.mjs"
+  ],
+  "required_validation_commands": [
+    "pnpm --filter @matchpulse/web typecheck",
+    "pnpm --filter @matchpulse/web build",
+    "pnpm typecheck",
+    "pnpm build",
+    "git diff --check"
+  ],
+  "expected_results": [
+    "Web typecheck passes",
+    "Web production build passes",
+    "Workspace typecheck passes",
+    "Workspace production build passes",
+    "git diff --check passes",
+    "No dependency, lockfile, or Dockerfile changes occur",
+    "No migration, database mutation, network access, deployment, or production operation occurs"
+  ],
+  "allows_migration": false,
+  "allows_network": false,
+  "human_gate": true,
+  "git": {
+    "allow_commit": true,
+    "allow_push": false,
+    "forbidden_commands": [
+      "git add .",
+      "git add -A",
+      "git stash",
+      "git reset",
+      "git clean",
+      "git rebase",
+      "git push --force"
+    ]
+  }
+}

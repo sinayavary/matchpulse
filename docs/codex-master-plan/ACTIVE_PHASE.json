@@ -1,14 +1,14 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "completed_pending_review",
-  "phase_id": "DEPLOY-RAILWAY-A",
-  "phase_title": "Railway Docker build hotfix",
-  "pack_path": "docs/codex-master-plan/phases/phase-deploy-railway-a",
-  "pack_version": "DEPLOY-RAILWAY-A-v2",
-  "baseline_commit": "a332ab3504a4398932355de2b7a3f861d661f9af",
-  "human_approved": false,
-  "activation_note": "Human-approved amendment adding deterministic Next.js generated config files to the exact allowlist after a mandatory build produced them.",
+  "state": "ready",
+  "phase_id": "DEPLOY-RAILWAY-WEB-HOTFIX-A",
+  "phase_title": "Replace TypeScript Next config for production runtime",
+  "pack_path": "docs/codex-master-plan/phases/phase-deploy-railway-web-hotfix-a",
+  "pack_version": "DEPLOY-RAILWAY-WEB-HOTFIX-A-v1",
+  "baseline_commit": "a9c163bc1c8681f035668b489bb99657d0969993",
+  "human_approved": true,
+  "activation_note": "Human-approved successor phase for the Web Next.js configuration hotfix. It is limited to the two explicitly allowlisted Web configuration files and must stop after Prepare without publishing.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
@@ -16,17 +16,12 @@
     "stop_after_phase": true
   },
   "last_result": {
-    "status": "PHASE_COMPLETE",
-    "phase_id": "DEPLOY-RAILWAY-A",
-    "pack_version": "DEPLOY-RAILWAY-A-v2",
-    "baseline_commit": "a332ab3504a4398932355de2b7a3f861d661f9af",
-    "completed_at": "2026-07-17T15:20:00.0000000Z",
-    "files_changed": [
-      "Dockerfile.api",
-      "Dockerfile.web",
-      "Dockerfile.worker"
-    ],
-    "validation_summary": "Hotfix on commit 03f079495c7c6d7cadcaeb064b2db72c23e9a3f1: API regression tests 944/944 passed; API, Web, Worker, and workspace typechecks/builds passed; Docker builds attempted for all three images but Docker was unavailable; Railway startup test was unavailable because tsx is not installed; no migration or seed executed.",
+    "status": "PHASE_ACTIVATED",
+    "reviewed_phase_id": "DEPLOY-RAILWAY-A",
+    "reviewed_completion_commit": "a9c163bc1c8681f035668b489bb99657d0969993",
+    "review_decision": "approved",
+    "selected_next_phase": "DEPLOY-RAILWAY-WEB-HOTFIX-A",
+    "selected_reason": "Human-approved Web runtime hotfix replacing the TypeScript Next config with the equivalent ESM config.",
     "migration_applied": false,
     "network_accessed": false
   }
