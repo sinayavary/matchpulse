@@ -27,10 +27,11 @@
       "apps/api/src/server.ts",
       "apps/worker/src/automatic-worker.test.ts",
       "apps/worker/src/automatic-worker.ts",
-      "apps/worker/src/index.ts"
+      "apps/worker/src/index.ts",
+      "Dockerfile.worker"
     ],
-    "validation_summary": "Worker tests 74/74 passed; focused API runtime/replay tests 6/6 passed; workspace typecheck passed; workspace build passed; git diff --check passed; Prisma migrate diff reported an empty migration; no migration or seed was applied.",
+    "validation_summary": "Worker tests 74/74 passed; focused API runtime/replay tests 6/6 passed; workspace typecheck passed; workspace build passed; git diff --check passed; Prisma migrate diff reported an empty migration; no migration or seed was applied. Published b1de68b and verified Railway API/Worker online; Worker completed two no_data heartbeat cycles at 2026-07-17T23:13:11.367Z and 2026-07-17T23:13:58.493Z; API health returned live/service/public with mainnet and service level 12.",
     "migration_applied": false,
-    "network_accessed": false
+    "network_accessed": true
   }
 }
