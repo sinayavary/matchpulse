@@ -3,33 +3,64 @@
   "phase": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A",
   "phase_id": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A",
   "title": "Generate Prisma Client in the Railway API image build",
-  "pack_version": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A-v3",
-  "baseline_commit": "4d3a8bf5a542da5495ce52ab3f4ffac06644c025",
+  "pack_version": "DEPLOY-RAILWAY-API-PRISMA-GENERATE-A-v4",
+  "baseline_commit": "576a56a4334eaced1696f4f64847f04618db49a8",
   "allowed_target_files": [
     "Dockerfile.api"
   ],
   "required_validation_commands": [
+    "pnpm install --frozen-lockfile --offline",
     "pnpm typecheck",
     "pnpm build",
-    "docker build -f Dockerfile.api -t matchpulse-api-prisma-generate-a .",
-    "docker run --rm --entrypoint node matchpulse-api-prisma-generate-a -e \"const { PrismaClient } = require('@prisma/client'); new PrismaClient(); console.log('PrismaClient constructed');\"",
     "git diff --check"
   ],
+  "remote_validation_commands": [
+    "railway.cmd up --project=e8540514-d2b9-4585-8d2a-a62fc3c87829 --environment=704417a2-a89e-45ee-8900-a738149d675e --service=1fd625ca-6da0-4bfd-a5ad-08230ec6a4be --ci",
+    "Railway SSH new PrismaClient construction smoke check in the scoped API service",
+    "Scoped API GET /api/health",
+    "Scoped API GET /api/internal/db/status with an existing token supplied without printing it",
+    "Scoped API GET /api/public/matches"
+  ],
+  "railway_scope": {
+    "project": "e8540514-d2b9-4585-8d2a-a62fc3c87829",
+    "environment": "704417a2-a89e-45ee-8900-a738149d675e",
+    "api_service": "1fd625ca-6da0-4bfd-a5ad-08230ec6a4be",
+    "forbidden_services": ["Web", "Worker"],
+    "forbidden_external_systems": ["Neon", "production database outside the scoped API runtime"]
+  },
+  "local_docker_required": false,
+  "local_docker_forbidden": true,
+  "network_allowed_operations": [
+    "pnpm install --frozen-lockfile --offline",
+    "pnpm install --frozen-lockfile using registry.npmjs.org only when the offline cache is insufficient",
+    "Railway remote Docker build/deploy for the scoped API service",
+    "Railway SSH and read-only scoped API endpoint checks"
+  ],
+  "expected_remote_results": [
+    "Railway remote Docker build uses Dockerfile.api successfully",
+    "Railway build logs show Prisma generate succeeds",
+    "new PrismaClient() constructs in the deployed API container without the initialize error",
+    "No migration or seed runs",
+    "Only the scoped API service is redeployed"
+  ],
+  "post_deploy_checks": [
+    "/api/health",
+    "/api/internal/db/status with token redacted from all output",
+    "/api/public/matches"
+  ],
   "expected_results": [
+    "Workspace dependencies install without changing package or lock manifests",
     "Workspace typecheck passes",
     "Workspace production build passes",
-    "Dockerfile.api builds successfully",
-    "new PrismaClient() constructs inside the image without the initialize error",
+    "Railway remote Docker build using Dockerfile.api succeeds",
+    "Railway build logs show Prisma generate succeeds",
+    "new PrismaClient() constructs in the deployed API container without the initialize error",
     "git diff --check passes",
     "No migration runs and no database connection or mutation occurs",
     "DATABASE_URL, Neon configuration, schema, migrations, dependencies, lockfiles, and deployment configuration remain unchanged"
   ],
   "allows_migration": false,
   "allows_network": true,
-  "network_allowed_operations": [
-    "pnpm install --frozen-lockfile when the offline cache is insufficient",
-    "docker build -f Dockerfile.api -t matchpulse-api-prisma-generate-a ."
-  ],
   "human_gate": true,
   "git": {
     "allow_commit": true,

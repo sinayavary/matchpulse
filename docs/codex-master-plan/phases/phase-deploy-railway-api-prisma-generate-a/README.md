@@ -21,15 +21,15 @@ Do not change `DATABASE_URL`, Neon configuration, Prisma schema, migrations, app
 
 ## Required validation
 
-Run every command in `manifest.json` in order. The image test must construct `new PrismaClient()` without the initialization error and must not connect to or mutate any database.
+Run every command in `manifest.json` in order. The Railway remote build must use `Dockerfile.api` and show successful Prisma generation. The Railway SSH smoke test must construct `new PrismaClient()` without the initialization error and must not connect to or mutate any database.
 
 ## Safety and human gate
 
-This is a governance-only pack amendment. It may use network access only for the explicitly listed dependency install and Docker image build operations. It must not access or mutate a production database, run migrations or seeds, change Railway services, or print secrets.
+This is a governance-only pack amendment for Railway remote Docker validation and API redeployment. It may use network access and remote mutation only for the explicitly scoped Railway project, environment, and API service in `manifest.json`. It must not access or mutate Neon or any other database, run migrations or seeds, change Web or Worker services, or print secrets.
 
 Execution must occur only in a clean, registered secondary worktree on a non-detached branch. After Automation v2 Validate, that branch's `HEAD` must equal `origin/main`; the branch name does not need to be `main`.
 
-The permitted network scope is limited to `pnpm install --frozen-lockfile` when the offline cache is insufficient and the `docker build -f Dockerfile.api -t matchpulse-api-prisma-generate-a .` operation. No other network operation is authorized by this pack.
+The permitted network scope is limited to `pnpm install --frozen-lockfile --offline` (or the same frozen install against `registry.npmjs.org` only when the cache is insufficient), Railway's remote Docker build/deploy for the scoped API service, Railway SSH for the scoped API container smoke check, and read-only requests to the scoped API health, internal DB-status, and public matches endpoints. No local Docker installation or local Docker build/run is required or authorized.
 
 ## Completion and rollback
 
