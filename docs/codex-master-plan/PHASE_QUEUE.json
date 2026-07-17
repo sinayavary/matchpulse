@@ -7,7 +7,7 @@
     {
       "id": "AUTO-DATA-HEALTH-REPORTING-A",
       "title": "Repair automatic worker health reporting",
-      "status": "ready",
+      "status": "completed",
       "depends_on": ["AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A"],
       "pack_version": "AUTO-DATA-HEALTH-REPORTING-A-v1",
       "baseline_commit": "bf452e4",

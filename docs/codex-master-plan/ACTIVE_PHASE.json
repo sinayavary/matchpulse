@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "ready",
+  "state": "completed_pending_review",
   "phase_id": "AUTO-DATA-HEALTH-REPORTING-A",
   "phase_title": "Repair automatic worker health reporting",
   "pack_path": "docs/codex-master-plan/phases/phase-auto-data-health-reporting-a",
@@ -16,11 +16,18 @@
     "stop_after_phase": true
   },
   "last_result": {
-    "status": "NOT_STARTED",
+    "status": "PHASE_COMPLETE",
     "phase_id": "AUTO-DATA-HEALTH-REPORTING-A",
     "pack_version": "AUTO-DATA-HEALTH-REPORTING-A-v1",
     "baseline_commit": "bf452e4",
+    "completed_at": "2026-07-18T00:00:00Z",
+    "files_changed": [
+      "apps/api/src/automatic-data-runtime.ts",
+      "apps/api/src/automatic-data-runtime.test.ts",
+      "apps/api/src/server.ts"
+    ],
+    "validation_summary": "Focused health tests 8/8 passed; Worker tests 74/74 passed; API regression 944/944 passed; workspace build and typecheck passed; git diff --check passed; Prisma schema diff reported no difference; no migration or seed was applied. Published 60068eb and 900a1f5. API and Worker production deployments are Online. Two healthy production cycles at 2026-07-17T23:48:33.824Z and 2026-07-17T23:49:37.451Z reported configuration_error_resolved=true, safe_last_error=null, failed_fixture_count=0, discovered_competitions=1, persisted_fixture_count=18, active_fixture_count=0, lock_acquired=false.",
     "migration_applied": false,
-    "network_accessed": false
+    "network_accessed": true
   }
 }
