@@ -137,6 +137,7 @@ export async function updateWorkerHealth(input: { status: string; lastIngestion?
 }
 
 export async function runAutomaticIngestionCycle(now = new Date()) {
+  const startedAt = now;
   const config = automaticRuntimeConfig();
   await updateWorkerHealth({ status: "starting", stage: "startup" });
   const competitions = parseCompetitionConfig();
@@ -170,6 +171,6 @@ export async function runAutomaticIngestionCycle(now = new Date()) {
     } catch { failed += 1; }
   }
   const status = failed === 0 && discoveryFailed === 0 ? "healthy" : success > 0 ? "degraded" : "error";
-  await updateWorkerHealth({ status, lastIngestion: success > 0 ? now : undefined, errorCount: failed + discoveryFailed, stage: discoveryFailed > 0 ? "discovery" : failed > 0 ? "ingestion" : "cycle", cycle: { owner_id: workerOwnerId, status, discovery_failed: discoveryFailed, successful_fixture_count: success, failed_fixture_count: failed, active_fixture_count: fixtures.length, last_cycle_finished_at: now.toISOString() } });
+  await updateWorkerHealth({ status, lastIngestion: success > 0 ? now : undefined, errorCount: failed + discoveryFailed, stage: discoveryFailed > 0 ? "discovery" : failed > 0 ? "ingestion" : "cycle", cycle: { owner_id: workerOwnerId, status, discovery_failed: discoveryFailed, successful_fixture_count: success, failed_fixture_count: failed, active_fixture_count: fixtures.length, last_cycle_started_at: startedAt.toISOString(), last_cycle_finished_at: now.toISOString(), lease_expires_at: new Date(now.getTime() + 90_000).toISOString() } });
   return { success, failed, activeFixtures: fixtures.length, agentEnabled: config.agentEnabled, discoveredCompetitions: competitions.length, discoveryFailed, nextWakeMs, status };
 }
