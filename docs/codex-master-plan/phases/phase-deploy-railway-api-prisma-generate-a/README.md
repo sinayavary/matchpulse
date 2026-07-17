@@ -27,6 +27,8 @@ Run every command in `manifest.json` in order. The image test must construct `ne
 
 This is a governance-only published pack. It is not activated, and no implementation or validation command is authorized in this task. A human must approve activation before execution. Migration, production database access or mutation, Railway deployment, and external service mutation are forbidden.
 
+Execution must occur only in a clean, registered secondary worktree on a non-detached branch. After Automation v2 Validate, that branch's `HEAD` must equal `origin/main`; the branch name does not need to be `main`.
+
 ## Completion and rollback
 
 After a separately approved implementation run, record exact completion metadata and stop at the repository's human review gate. Roll back only the scoped phase commit if required; do not reset, clean, stash, or alter unrelated work.
