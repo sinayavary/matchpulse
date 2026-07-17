@@ -1,9 +1,18 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "10J-B",
-  "updated_at": "2026-07-16T12:00:00Z",
+  "active_phase_id": "DEPLOY-RAILWAY-A",
+  "updated_at": "2026-07-17T00:00:00Z",
   "items": [
+    {
+      "id": "DEPLOY-RAILWAY-A",
+      "title": "Railway API and Web deployment foundation",
+      "status": "ready",
+      "depends_on": ["10J-B"],
+      "pack_version": "DEPLOY-RAILWAY-A-v1",
+      "baseline_commit": "fab82a8a4628c33df4126bc1e5281d5d839be130",
+      "human_gate": true
+    },
     {
       "id": "P0-SEC-A",
       "title": "Internal route authentication boundary",

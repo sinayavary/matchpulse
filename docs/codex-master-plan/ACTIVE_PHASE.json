@@ -1,14 +1,14 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "completed_pending_review",
-  "phase_id": "10J-B",
-  "phase_title": "Evaluation metrics",
-  "pack_path": "docs/codex-master-plan/phases/phase-10j-b",
-  "pack_version": "10J-B-v1",
-  "baseline_commit": "ecd146dfe3c20f1f4d469026dd54cd0f3363fcd5",
+  "state": "ready",
+  "phase_id": "DEPLOY-RAILWAY-A",
+  "phase_title": "Railway API and Web deployment foundation",
+  "pack_path": "docs/codex-master-plan/phases/phase-deploy-railway-a",
+  "pack_version": "DEPLOY-RAILWAY-A-v1",
+  "baseline_commit": "fab82a8a4628c33df4126bc1e5281d5d839be130",
   "human_approved": true,
-  "activation_note": "The project owner explicitly requested continuation through all defined phases. 10J-B evaluation metrics are complete pending review; no network or database mutation was used.",
+  "activation_note": "Human review approved 10J-B completion at fab82a8a4628c33df4126bc1e5281d5d839be130 and explicitly authorized DEPLOY-RAILWAY-A as a human-approved, no-network, no-migration deployment foundation phase.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
@@ -16,17 +16,13 @@
     "stop_after_phase": true
   },
   "last_result": {
-    "status": "10J_B_COMPLETED_PENDING_REVIEW",
-    "reviewed_phase_id": "10J-A",
-    "reviewed_completion_commit": "ecd146dfe3c20f1f4d469026dd54cd0f3363fcd5",
-    "review_evidence": "temporal label tests 2/2; domain label validation; API typecheck/build and diff-check passed.",
-    "selected_next_phase": "10J-B",
-    "selected_reason": "10J-B consumes temporal labels and provides deterministic evaluation metrics and segmented reports without a new database migration.",
-    "database_verification": "inherited from completed P0-SEC-C gate",
-    "migration_sql_review": "inherited from completed P0-SEC-C gate",
-    "schema_validated": true,
-    "migration_applied": true,
-    "network_accessed": false,
-    "validation_evidence": "evaluation tests 2/2; domain evaluation validation; API typecheck/build and diff-check passed; no network or database mutation"
+    "status": "PHASE_ACTIVATED",
+    "reviewed_phase_id": "10J-B",
+    "reviewed_completion_commit": "fab82a8a4628c33df4126bc1e5281d5d839be130",
+    "review_decision": "approved",
+    "selected_next_phase": "DEPLOY-RAILWAY-A",
+    "selected_reason": "Human-approved Railway API and Web deployment foundation with worker deployment explicitly disabled.",
+    "migration_applied": false,
+    "network_accessed": false
   }
 }

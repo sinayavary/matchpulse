@@ -1,0 +1,46 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "DEPLOY-RAILWAY-A",
+  "phase_id": "DEPLOY-RAILWAY-A",
+  "title": "Railway API and Web deployment foundation",
+  "pack_version": "DEPLOY-RAILWAY-A-v1",
+  "baseline_commit": "fab82a8a4628c33df4126bc1e5281d5d839be130",
+  "allowed_target_files": [
+    ".dockerignore",
+    "Dockerfile.api",
+    "Dockerfile.web",
+    "Dockerfile.worker",
+    "apps/api/src/server-railway.test.ts",
+    "apps/api/src/server.ts",
+    "docs/railway-deployment-runbook.md"
+  ],
+  "required_validation_commands": [
+    "pnpm install --frozen-lockfile",
+    "pnpm --filter @matchpulse/api test",
+    "pnpm --filter @matchpulse/api typecheck",
+    "pnpm --filter @matchpulse/api build",
+    "pnpm exec tsx --test apps/api/src/server-railway.test.ts",
+    "pnpm --filter @matchpulse/web typecheck",
+    "pnpm --filter @matchpulse/web build",
+    "pnpm --filter @matchpulse/worker typecheck",
+    "pnpm --filter @matchpulse/worker build",
+    "pnpm typecheck",
+    "pnpm build",
+    "git diff --check"
+  ],
+  "expected_results": [
+    "API resolves PORT before API_PORT before 4000 and binds 0.0.0.0.",
+    "API health endpoint remains public and internal authentication remains fail-closed.",
+    "API, Web, and Worker Dockerfiles build from the monorepo root without migrations, seeds, or secrets.",
+    "Web container starts Next on 0.0.0.0 using PORT with a 3000 fallback.",
+    "Worker has no public domain, deployment, or cron enabled in the runbook."
+  ],
+  "allows_migration": false,
+  "allows_network": false,
+  "human_gate": true,
+  "git": {
+    "allow_commit": true,
+    "allow_push": false,
+    "forbidden_commands": ["git add .", "git add -A", "git stash", "git reset", "git clean", "git rebase", "git push --force"]
+  }
+}
