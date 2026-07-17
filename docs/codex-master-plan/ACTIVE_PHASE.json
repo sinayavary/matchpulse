@@ -1,13 +1,13 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "ready",
+  "state": "completed_pending_review",
   "phase_id": "AUTO-DATA-REPLAY-RUNTIME-A",
   "phase_title": "Always-on automatic match data and historical replay runtime",
   "pack_path": "docs/codex-master-plan/phases/phase-auto-data-replay-runtime-a",
   "pack_version": "AUTO-DATA-REPLAY-RUNTIME-A-v1",
   "baseline_commit": "b2fa41ac955e2ed4beafe3673cf7f37a889d6aad",
-  "human_approved": true,
+  "human_approved": false,
   "activation_note": "Explicit human authorization for autonomous governance, activation, implementation, tests, publish, and scoped API/Web/Worker deployment. No schema or migration change is authorized.",
   "execution": {
     "continue_until_phase_gate": true,
@@ -15,5 +15,31 @@
     "allow_completion_state_update": true,
     "stop_after_phase": true
   },
-  "last_result": null
+  "last_result": {
+    "status": "PHASE_COMPLETE",
+    "phase_id": "AUTO-DATA-REPLAY-RUNTIME-A",
+    "pack_version": "AUTO-DATA-REPLAY-RUNTIME-A-v1",
+    "baseline_commit": "b2fa41ac955e2ed4beafe3673cf7f37a889d6aad",
+    "completed_at": "2026-07-18T00:00:00Z",
+    "files_changed": [
+      "Dockerfile.worker",
+      "apps/api/src/automatic-data-runtime.test.ts",
+      "apps/api/src/automatic-data-runtime.ts",
+      "apps/api/src/historical-replay.test.ts",
+      "apps/api/src/historical-replay.ts",
+      "apps/api/src/server.ts",
+      "apps/web/app/replay/page.tsx",
+      "apps/web/components/matches/MatchDetailView.tsx",
+      "apps/web/components/matches/MatchesBrowser.tsx",
+      "apps/web/components/replay/ReplayViewer.tsx",
+      "apps/web/lib/public-api.ts",
+      "apps/worker/package.json",
+      "apps/worker/src/automatic-worker.test.ts",
+      "apps/worker/src/automatic-worker.ts",
+      "apps/worker/src/index.ts"
+    ],
+    "validation_summary": "Worker tests 73/73 passed; focused API runtime/replay tests 4/4 passed; workspace typecheck passed; workspace build passed; git diff --check passed; Prisma migrate diff reported an empty migration; no migration or seed was applied.",
+    "migration_applied": false,
+    "network_accessed": false
+  }
 }

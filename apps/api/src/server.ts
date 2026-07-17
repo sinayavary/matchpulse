@@ -91,6 +91,7 @@ import {
 import { registerPublicApiRoutes } from "./public-api.js";
 import { registerTxlineRuntimeAuditRoutes } from "./txline-runtime-audit-routes.js";
 import { registerCompetitionPredictionRoutes } from "./server-competition-prediction-route.js";
+import { registerHistoricalReplayRoute } from "./historical-replay.js";
 import { registerInternalAuthBoundary } from "./internal-auth-boundary.js";
 import { createPrismaServiceAuthResolver } from "./internal-service-identity-store.js";
 
@@ -150,6 +151,7 @@ registerInternalSignalCoreRoute(app);
 registerInternalAgentPresenterRoute(app);
 registerInternalProductAgentRoute(app);
 registerCompetitionPredictionRoutes(app);
+registerHistoricalReplayRoute(app);
 
 app.get("/api/internal/demo/matches/:fixtureId/bundle", async (request) => {
   const { fixtureId } = request.params as { fixtureId: string };
@@ -244,6 +246,17 @@ app.get("/api/internal/db/status", async () => {
       source: "database"
     }
   };
+});
+
+app.get("/api/internal/worker/status", async () => {
+  const health = await getDbClient().healthStatus.findUnique({ where: { serviceName: "matchpulse-data-worker" }, select: { status: true, lastHeartbeat: true, lastDataReceivedAt: true, errorCount: true, lastError: true } });
+  const [activeFixtureCount, latestScore, latestOdds, latestEvent] = await Promise.all([
+    getDbClient().fixture.count({ where: { status: { not: "finished" } } }),
+    getDbClient().matchState.findFirst({ orderBy: { lastDataReceivedAt: "desc" }, select: { lastDataReceivedAt: true } }),
+    getDbClient().oddsSnapshot.findFirst({ orderBy: { sourceTimestamp: "desc" }, select: { sourceTimestamp: true } }),
+    getDbClient().matchEvent.findFirst({ orderBy: { sourceTimestamp: "desc" }, select: { sourceTimestamp: true } })
+  ]);
+  return { data: { worker_running: health?.status === "healthy" || health?.status === "degraded", lock_acquired: health !== null, active_fixture_count: activeFixtureCount, last_cycle: health?.lastHeartbeat?.toISOString() ?? null, successful_target_count: health?.status === "healthy" ? 1 : 0, failed_target_count: health?.errorCount ?? 0, latest_stored_score_timestamp: latestScore?.lastDataReceivedAt?.toISOString() ?? null, latest_stored_odds_timestamp: latestOdds?.sourceTimestamp?.toISOString() ?? null, latest_stored_event_timestamp: latestEvent?.sourceTimestamp?.toISOString() ?? null, safe_last_error: health?.lastError ?? null }, meta: { status: health ? "live" as const : "no_data" as const, source: "database" as const, mode: "internal" as const } };
 });
 
 app.get("/api/internal/db/demo-seed/status", async () => verifyDemoSeed());

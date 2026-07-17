@@ -64,6 +64,11 @@ export default function MatchesBrowser() {
     };
   }, [range, refreshKey]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setRefreshKey((value) => value + 1), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <main className="container matches-page">
       <div className="matches-header">
@@ -127,7 +132,7 @@ export default function MatchesBrowser() {
           {matches.map((match) => (
             <Link className="card match-card" href={`/matches/${match.fixture_id}`} key={match.fixture_id}>
               <div className="match-card-top">
-                <span className="status">{match.status ?? "unknown"}</span>
+                <span className="status">{match.status ?? "unknown"}{String(match.status).toLowerCase().includes("live") ? " · LIVE" : ""}</span>
                 <span className="muted match-card-time">
                   {match.start_time_utc ?? "Start time unavailable"}
                 </span>

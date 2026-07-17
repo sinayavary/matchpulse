@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import RawJsonToggle from "../public/RawJsonToggle";
 import {
@@ -70,6 +71,11 @@ export default function MatchDetailView({ fixtureId }: { fixtureId: string }) {
     };
   }, [fixtureId, refreshKey]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setRefreshKey((value) => value + 1), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const state = bundle?.state ?? match;
   const identity = state?.identity;
   const scoreText = state ? formatScoreboard(state.scoreboard) : "Scoreboard missing";
@@ -96,6 +102,7 @@ export default function MatchDetailView({ fixtureId }: { fixtureId: string }) {
         <button className="button" onClick={() => setRefreshKey((value) => value + 1)} type="button">
           Refresh
         </button>
+        <Link className="button" href={`/replay?fixtureId=${encodeURIComponent(fixtureId)}`}>Replay</Link>
       </div>
 
       {phase === "loading" ? (

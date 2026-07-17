@@ -1,11 +1,14 @@
-export default function ReplayPage() {
+import ReplayViewer from "../../components/replay/ReplayViewer";
+
+export default async function ReplayPage({ searchParams }: { searchParams: Promise<{ fixtureId?: string }> }) {
+  const { fixtureId } = await searchParams;
+  if (fixtureId) return <main className="container"><ReplayViewer fixtureId={fixtureId} /></main>;
   return (
     <main className="container">
       <div className="badge">Replay</div>
-      <h1>Use the demo fallback for replay-safe viewing.</h1>
+      <h1>Historical replay</h1>
       <p className="subtitle">
-        This phase keeps non-demo frontend flows on the public API. For deterministic
-        replay behavior, use the Demo page instead of a separate replay fetch route.
+        Choose Replay from a persisted match room to inspect the stored timeline.
       </p>
       <section className="card">
         <h3>Replay path</h3>

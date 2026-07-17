@@ -11,6 +11,21 @@ import {
   runScheduleExecute,
   ScheduleRunnerError
 } from "./schedule-runner.js";
+import { runAutomaticWorkerLoop } from "./automatic-worker.js";
+
+async function runAutomaticMode() {
+  const runtimePath = process.env.MATCHPULSE_API_RUNTIME_PATH ?? "../../api/src/automatic-data-runtime.js";
+  const apiModule = await import(runtimePath) as {
+    runAutomaticIngestionCycle: () => Promise<unknown>;
+    tryAcquireWorkerLock: () => Promise<boolean>;
+    releaseWorkerLock: () => Promise<void>;
+  };
+  await runAutomaticWorkerLoop({
+    runCycle: apiModule.runAutomaticIngestionCycle,
+    acquireLock: apiModule.tryAcquireWorkerLock,
+    releaseLock: apiModule.releaseWorkerLock
+  });
+}
 
 async function executeIngestion(input: {
   fixtureId: string;
@@ -53,6 +68,11 @@ async function runSchedule(args: string[]) {
 
 async function main() {
   const args = process.argv.slice(2);
+
+  if (process.env.MATCHPULSE_DATA_WORKER_ENABLED === "true" && args.length === 0) {
+    try { await runAutomaticMode(); } catch { process.exitCode = 1; }
+    return;
+  }
 
   if (isScheduleInvocation(args)) {
     await runSchedule(args);

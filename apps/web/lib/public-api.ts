@@ -147,6 +147,24 @@ export type PublicFetchResult<T> = {
   meta: ApiMeta | null;
 };
 
+export type PublicReplayPoint = {
+  as_of: string; minute: number | null; phase: string | null;
+  score: { home: number | null; away: number | null };
+  odds: Array<{ market_id: string; selection_name: string; odds: number; source_timestamp: string | null }>;
+  probabilities: { home: number; draw: number; away: number } | null;
+  next_goal: { home: number; none: number; away: number } | null;
+  momentum: { home: number; neutral: number; away: number } | null;
+  confidence: { level: string; score: number } | null; risk: string | null;
+  events: Array<{ event_type: string; title: string; minute: number | null; team_side: string; source_timestamp: string | null }>;
+};
+
+export type PublicReplay = {
+  status: "ok" | "no_data";
+  fixture: { fixture_id: string; competition: string; home_team: string; away_team: string; start_time_utc: string | null; status: string } | null;
+  coverage: { start: string | null; end: string | null };
+  timeline: PublicReplayPoint[]; gaps: string[]; source: string; model_version: string | null;
+};
+
 export type PublicMatchesParams = {
   range?: "past" | "upcoming" | "live" | "all";
   limit?: number;
@@ -198,6 +216,11 @@ export async function fetchPublicMatches(
   search.set("range", params.range ?? "all");
   search.set("limit", String(params.limit ?? 50));
   return fetchPublic<PublicMatchSummary[]>(`/api/public/matches?${search.toString()}`);
+}
+
+export async function fetchPublicReplay(fixtureId: string, selectedTime?: string): Promise<PublicFetchResult<PublicReplay>> {
+  const query = selectedTime ? `?selectedTime=${encodeURIComponent(selectedTime)}` : "";
+  return fetchPublic<PublicReplay>(`/api/public/matches/${encodeURIComponent(fixtureId)}/replay${query}`);
 }
 
 export async function fetchPublicMatch(

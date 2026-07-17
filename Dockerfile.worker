@@ -20,6 +20,8 @@ COPY prisma prisma
 RUN pnpm --filter @matchpulse/shared build \
   && pnpm --filter @matchpulse/txline-client build \
   && pnpm prisma:generate \
+  && pnpm --filter @matchpulse/api build \
+  && pnpm --filter @matchpulse/api --prod deploy /api-app \
   && pnpm --filter @matchpulse/worker build \
   && pnpm --filter @matchpulse/worker --prod deploy /app
 
@@ -32,5 +34,7 @@ RUN apt-get update \
 ENV NODE_ENV=production
 COPY --from=build --chown=node:node /app ./
 COPY --from=build --chown=node:node /workspace/apps/worker/dist ./dist
+COPY --from=build --chown=node:node /api-app /api-app
+ENV MATCHPULSE_API_RUNTIME_PATH=/api-app/dist/automatic-data-runtime.js
 USER node
-CMD ["node", "dist/index.js", "schedule", "--dry-run"]
+CMD ["node", "dist/index.js"]
