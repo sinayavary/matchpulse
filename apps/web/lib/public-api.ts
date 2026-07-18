@@ -297,7 +297,8 @@ export async function fetchPublicMatch(
 
 export async function fetchPublicMatchBundle(
   fixtureId: string,
-  options: PublicBundleOptions = {}
+  options: PublicBundleOptions = {},
+  signal?: AbortSignal
 ): Promise<PublicFetchResult<PublicMatchBundle>> {
   const search = new URLSearchParams();
   if (options.includeState !== undefined) search.set("includeState", String(options.includeState));
@@ -312,7 +313,8 @@ export async function fetchPublicMatchBundle(
 
   const query = search.toString();
   return fetchPublic<PublicMatchBundle>(
-    `/api/public/matches/${fixtureId}/bundle${query ? `?${query}` : ""}`
+    `/api/public/matches/${fixtureId}/bundle${query ? `?${query}` : ""}`,
+    signal
   );
 }
 
