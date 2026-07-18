@@ -91,7 +91,7 @@
     "database_connection_allowed": false,
     "migration_applied_expected": false
   },
-  "human_gate": "HUMAN_GATE_FREE_ACCESS_SECURITY_B_IMPLEMENTATION_AND_DATABASE_MIGRATION_REQUIRED",
+  "human_gate": "HUMAN_GATE_FREE_ACCESS_SECURITY_B_IMPLEMENTATION_REVIEW_REQUIRED",
   "remediates_phase": "FREE-ACCESS-SECURITY-A",
   "remediates_commit": "b913afadb6610506d34e794b9d0f0c454f0606d1",
   "new_dependency_allowed": false,
