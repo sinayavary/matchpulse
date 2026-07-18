@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "MATCHES-EXPERIENCE-A",
+  "active_phase_id": "MATCHES-CATALOG-RELIABILITY-B",
   "updated_at": "2026-07-18T00:00:00Z",
   "items": [
     {
@@ -70,6 +70,17 @@
       "pack_version": "PROD-LIVE-E2E-ACCEPTANCE-B-v1",
       "baseline_commit": "32a1447f2e3f9f80c82bc1eb0e3cb69fba9cb4ef",
       "human_gate": true
+    },
+    {
+      "id": "MATCHES-CATALOG-RELIABILITY-B",
+      "title": "End-to-end Matches catalog reliability and experience remediation",
+      "status": "ready",
+      "depends_on": ["PROD-LIVE-E2E-ACCEPTANCE-B"],
+      "pack_version": "MATCHES-CATALOG-RELIABILITY-B-v1",
+      "baseline_commit": "df9d8cfd7d8076f6ffc2924823ee9b78c4e4cb74",
+      "human_gate": true,
+      "resume_after": "PROD-LIVE-E2E-ACCEPTANCE-B",
+      "reason": "remediation of production-visible Matches catalog defects before resuming acceptance"
     },
     {
       "id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",

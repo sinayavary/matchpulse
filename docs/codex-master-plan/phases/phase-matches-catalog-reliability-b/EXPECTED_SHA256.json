@@ -1,0 +1,8 @@
+{
+  "schema_version": "matchpulse-phase-hashes-v1",
+  "files": {
+    "README.md": "42ab81ec3c5859957025c7cdaff4fef63b080b1cd97e65529dda182e4f06b4fd",
+    "manifest.json": "91d11e37c1dca805cc6d7f37f656813d25e7809fd9b7e21624904442413a5803",
+    "payload/README.md": "0986b03ab548928478af7683d1237188c109f4ef59fb24a871396812173f63e8"
+  }
+}
