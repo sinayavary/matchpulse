@@ -1,0 +1,23 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "LOCAL-OPERATIONS-RELIABILITY-A",
+  "pack_version": "LOCAL-OPERATIONS-RELIABILITY-A-v1",
+  "program_alignment": "10O-B",
+  "baseline_commit": "9c2c7ea5230781a4942b7a7ce6ccc01f1a69745c",
+  "allowed_target_files": ["apps/api/src/server.ts", "apps/api/src/db-health.ts", "apps/api/src/db-health.test.ts", "apps/api/src/operational-observability.ts", "apps/api/src/operational-observability.test.ts", "apps/api/src/operational-reliability.test.ts", "apps/worker/src/index.ts", "apps/worker/src/health-contract.ts", "apps/worker/src/health-contract.test.ts", "scripts/local-postgres-backup-restore.ps1", "docs/security/local-operations-reliability-runbook.md"],
+  "required_validation_commands": ["powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local-postgres-backup-restore.ps1 -Mode Validate", "pnpm.cmd --filter @matchpulse/api test", "pnpm.cmd --filter @matchpulse/api typecheck", "pnpm.cmd --filter @matchpulse/web typecheck", "pnpm.cmd --filter @matchpulse/web build", "pnpm.cmd --filter @matchpulse/worker test", "pnpm.cmd typecheck", "pnpm.cmd build", "git diff --check", "exact changed-path and canonical hash verification"],
+  "expected_results": ["liveness remains true when the database is unavailable", "readiness is false on bounded database failure and never calls an external provider", "worker heartbeat is explicit and stale heartbeat is degraded", "responses and logs contain no secrets, credentials, tokens, signatures, cookies, URLs, or raw provider payloads", "metric labels are bounded and operational metrics are internal-only", "backup and restore use only loopback PostgreSQL 16 and required disposable prefixes", "checksum, schema, row-count, corrupt-backup, wrong-target, restart/reconnect, and cleanup validations pass", "no migration, Docker, registry, external network, deployment, or production acceptance occurs"],
+  "allows_migration": false,
+  "allows_network": false,
+  "database_connection_allowed": true,
+  "database_target": "isolated-disposable-loopback-postgresql-16-only",
+  "source_database_prefix": "matchpulse_ops_source_",
+  "restore_database_prefix": "matchpulse_ops_restore_",
+  "production_database_allowed": false,
+  "shared_database_allowed": false,
+  "remote_database_allowed": false,
+  "new_dependency_allowed": false,
+  "deployment_allowed": false,
+  "production_acceptance_allowed": false,
+  "human_gate": "LOCAL_POSTGRES_16_TOOLS_REQUIRED"
+}

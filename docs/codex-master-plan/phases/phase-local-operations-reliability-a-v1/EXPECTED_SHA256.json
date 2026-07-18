@@ -1,0 +1,6 @@
+{
+  "hash_algorithm": "SHA-256",
+  "canonicalization": "UTF-8 with LF line endings",
+  "payload": "payload/local-operations-reliability-a-contract.md",
+  "payload_sha256": "5e44ea8bb5d9f55578c9801ab8ca146428046522b52d1086b62199e5211d4d3f"
+}

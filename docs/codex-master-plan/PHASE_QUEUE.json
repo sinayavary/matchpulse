@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "FREE-ACCESS-LOCAL-DB-VALIDATION-A",
+  "active_phase_id": "LOCAL-OPERATIONS-RELIABILITY-A",
   "updated_at": "2026-07-18T10:06:00Z",
   "items": [
     {
@@ -134,13 +134,25 @@
     {
       "id": "FREE-ACCESS-LOCAL-DB-VALIDATION-A",
       "title": "Isolated local PostgreSQL validation for Free Access security",
-      "status": "ready",
+      "status": "completed",
       "depends_on": ["FREE-ACCESS-SECURITY-B"],
       "pack_version": "FREE-ACCESS-LOCAL-DB-VALIDATION-A-v1",
       "baseline_commit": "2fc45285a5e39c48f4a1e6ed7d97f0e70b8f8256",
       "human_gate": true,
       "program_alignment": "10O-B",
-      "reason": "Validate the Free Access migration and durable security repositories against isolated disposable PostgreSQL 16 before Docker release or production deployment."
+      "reason": "Validate the Free Access migration and durable security repositories against isolated disposable PostgreSQL 16 before Docker release or production deployment.",
+      "completion_commit": "9c2c7ea5230781a4942b7a7ce6ccc01f1a69745c"
+    },
+    {
+      "id": "LOCAL-OPERATIONS-RELIABILITY-A",
+      "title": "Local operations reliability closure",
+      "status": "ready",
+      "depends_on": ["FREE-ACCESS-LOCAL-DB-VALIDATION-A"],
+      "pack_version": "LOCAL-OPERATIONS-RELIABILITY-A-v1",
+      "baseline_commit": "9c2c7ea5230781a4942b7a7ce6ccc01f1a69745c",
+      "human_gate": true,
+      "program_alignment": "10O-B",
+      "reason": "Close the remaining executable health, observability, backup/restore, and failure-recovery requirements before 10O-C."
     },
     {
       "id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",
