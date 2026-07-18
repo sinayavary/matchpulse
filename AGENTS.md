@@ -81,7 +81,7 @@ Automation v2 records unrelated modified and untracked state before implementati
 - Do not upgrade dependencies unless explicitly instructed.
 - Do not edit frontend, Prisma, migrations, workers, routes, or documentation unless they are listed.
 - `ACTIVE_PHASE.json` is the only global metadata exception, and only the exact successful-completion transition defined by `EXECUTION_PROTOCOL.md` is allowed.
-- Governance transition exception: on a separately authorized governance branch, the exact FREE-ACCESS-SECURITY-B / FREE-ACCESS-SECURITY-B-v1 transition may update the listed governance, review, architecture, and phase-pack files. This does not authorize implementation, migration, database, network, deployment, secret access, or phase execution.
+- Governance transition exception: on a separately authorized clean governance branch, an explicit human instruction that names the successor phase ID, pack version, baseline, rollout order and human-gate boundaries may update only `AGENTS.md`, `ACTIVE_PHASE.json`, `PHASE_QUEUE.json`, `CODEX_ENTRYPOINT.md`, `EXECUTION_PROTOCOL.md`, and the new phase-pack directory. The transition must begin at `awaiting_human_approval` unless execution is separately authorized. It does not authorize implementation, migration, database access, network access, deployment, secret access, or phase execution.
 - Never modify `PHASE_QUEUE.json` during phase execution.
 
 ## Safety and confidentiality
@@ -132,7 +132,15 @@ Do not:
 
 ### Production live E2E acceptance exception
 
-The only production exception is the exact identity `PROD-LIVE-E2E-ACCEPTANCE-A` / `PROD-LIVE-E2E-ACCEPTANCE-A-v1`, with `human_approved=true`, `allows_network=true`, and `allows_migration=false`. It permits only Railway status and sanitized logs, public GETs, authenticated internal status GETs without printing secrets, read-only TxLINE level-12 validation, public-Web browser automation, waiting for a real fixture, and public-safe evidence written to the allowlisted repository file. It is not reusable by another phase.
+The only read-only production acceptance exception is the exact identity `PROD-LIVE-E2E-ACCEPTANCE-A` / `PROD-LIVE-E2E-ACCEPTANCE-A-v1`, with `human_approved=true`, `allows_network=true`, and `allows_migration=false`. It permits only Railway status and sanitized logs, public GETs, authenticated internal status GETs without printing secrets, read-only TxLINE level-12 validation, public-Web browser automation, waiting for a real fixture, and public-safe evidence written to the allowlisted repository file. It is not reusable by another phase.
+
+### Matches production rollout exception
+
+The exact identity `MATCHES-PRODUCTION-ROLLOUT-A` / `MATCHES-PRODUCTION-ROLLOUT-A-v1`, baseline `03f308be14a330d269c484efc853e307ffb9c7ce`, is the only exception that may orchestrate the approved Matches staging and production rollout. Installing or publishing its governance pack authorizes no external action. The phase must begin `awaiting_human_approval` with `human_approved=false`.
+
+Every scope-discovery, staging preflight, staging migration, staging deployment, staging backfill, staging acceptance, production preflight, production migration, production deployment, production backfill, and production acceptance gate requires its own explicit human instruction. A gate authorizes only its named operation and environment. Exact Railway project, environment, service and public-origin identifiers must be verified and recorded before any environment action. Secrets may be consumed only from existing secure environment or platform storage and must never be printed, copied into Git, or returned to the user.
+
+The only permitted migration is the already committed additive `20260718210000_fixture_competition_id`; migration preflight must prove it is the sole expected pending migration before one non-retried apply attempt. Rollback must be forward-only and must never drop `competition_id` or delete source/raw data. Deployment order is API, ingestion worker, agent worker, evaluation worker, then Web, one service at a time. Backfill is the evidence-only, resumable competition-ID reconciliation; unknown values remain null. Learning remains `shadow_only`, and watchlist and Telegram remain disabled. Production acceptance is read-only and cannot be declared without deployed-SHA, migration-version, component-heartbeat, today/tomorrow coverage and E2E evidence.
 
 ### Free Access security governance exception
 

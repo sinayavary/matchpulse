@@ -50,7 +50,9 @@ Implements Automation v2 with three explicit modes:
 - `completed_pending_review` → no implementation; only a previously prepared commit may be published
 - `ready` → the approved pack may be implemented
 
-The mandatory production stop condition remains for every phase except the exact `PROD-LIVE-E2E-ACCEPTANCE-A-v1` exception. Production access requires the exact active phase identity, `state=ready`, `human_approved=true`, manifest `allows_network=true`, manifest `allows_migration=false`, and a README read-only allowlist. A missing condition produces `NETWORK_ACCESS_REQUIRED`; all writes, deployments, migrations, configuration changes, and manual ingestion remain stopped.
+The mandatory production stop condition remains for every phase except the exact `PROD-LIVE-E2E-ACCEPTANCE-A-v1` read-only exception and the exact gated `MATCHES-PRODUCTION-ROLLOUT-A-v1` exception. The rollout exception begins `awaiting_human_approval`; governance publication authorizes no external action. It may become executable only after explicit approval and then requires a separate explicit human instruction for every gate named in its README and manifest. Each instruction authorizes only one environment and one operation. Missing scope identity, gate approval, evidence, or secret availability produces the applicable stop code without broadening access.
+
+For `MATCHES-PRODUCTION-ROLLOUT-A-v1`, migration, deployment, backfill and production acceptance are never inferred from `state=ready` or `human_approved=true`. They require their own gate instruction. Mutation attempts are single-attempt unless the pack explicitly classifies the operation as read-only. The migration is limited to `20260718210000_fixture_competition_id`, and rollback is forward-only without dropping source data.
 
 Only `ready` authorizes implementation.
 

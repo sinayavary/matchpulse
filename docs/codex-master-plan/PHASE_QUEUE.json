@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "MATCHES-FULL-PRODUCTION-REMEDIATION-A",
+  "active_phase_id": "MATCHES-PRODUCTION-ROLLOUT-A",
   "updated_at": "2026-07-18T16:45:00Z",
   "items": [
     {
@@ -146,12 +146,23 @@
     {
       "id": "MATCHES-FULL-PRODUCTION-REMEDIATION-A",
       "title": "Complete Matches production remediation and release gates",
-      "status": "ready",
+      "status": "completed",
       "depends_on": ["FREE-ACCESS-LOCAL-DB-VALIDATION-A", "MATCHES-PRODUCTION-DEFECT-ERADICATION-A"],
       "pack_version": "MATCHES-FULL-PRODUCTION-REMEDIATION-A-v1",
       "baseline_commit": "9c2c7ea5230781a4942b7a7ce6ccc01f1a69745c",
       "human_gate": true,
-      "reason": "Human-authorized implementation of the complete reviewed Matches production remediation plan."
+      "completion_commit": "03f308be14a330d269c484efc853e307ffb9c7ce",
+      "reason": "Human-reviewed completion at 03f308be14a330d269c484efc853e307ffb9c7ce: exact 39-file implementation scope, pack hashes, Prisma source validation, lint, tests, typecheck, production build, Playwright and safety scans passed; migration, database connection, external network, deployment and production acceptance remained false."
+    },
+    {
+      "id": "MATCHES-PRODUCTION-ROLLOUT-A",
+      "title": "Gated Matches staging and production rollout",
+      "status": "awaiting_human_approval",
+      "depends_on": ["MATCHES-FULL-PRODUCTION-REMEDIATION-A"],
+      "pack_version": "MATCHES-PRODUCTION-ROLLOUT-A-v1",
+      "baseline_commit": "03f308be14a330d269c484efc853e307ffb9c7ce",
+      "human_gate": true,
+      "reason": "Human-selected rollout identity and order. Every environment operation remains behind its own explicit human gate."
     },
     {
       "id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",

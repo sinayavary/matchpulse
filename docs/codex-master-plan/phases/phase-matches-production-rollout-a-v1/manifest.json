@@ -1,0 +1,99 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "MATCHES-PRODUCTION-ROLLOUT-A",
+  "phase_id": "MATCHES-PRODUCTION-ROLLOUT-A",
+  "title": "Gated Matches staging and production rollout",
+  "pack_version": "MATCHES-PRODUCTION-ROLLOUT-A-v1",
+  "baseline_commit": "03f308be14a330d269c484efc853e307ffb9c7ce",
+  "depends_on": ["MATCHES-FULL-PRODUCTION-REMEDIATION-A"],
+  "allowed_target_files": [
+    "docs/operations/matches-production-rollout-evidence.md"
+  ],
+  "required_validation_commands": [
+    "phase-pack SHA-256 validation",
+    "gate approval and exact Railway scope binding validation",
+    "deployed SHA and migration-status validation at every environment gate",
+    "sanitized public/status and independent worker-heartbeat validation",
+    "today/tomorrow, competition, UTC range, refresh, pagination, error and match-detail read-only E2E",
+    "forbidden secret, raw-payload, private-field and fabricated-evidence scan",
+    "git diff --check",
+    "exact changed-path verification"
+  ],
+  "expected_results": [
+    "governance publication performs no rollout operation",
+    "every external operation has its own explicit human gate",
+    "staging completes before any production mutation",
+    "only migration 20260718210000_fixture_competition_id is applied",
+    "deployment order is API, ingestion worker, agent worker, evaluation worker, Web",
+    "backfill is dry-run-first, resumable, evidence-only and leaves unknown IDs null",
+    "readiness remains degraded until migration, backfill and three fresh worker heartbeats are proven",
+    "production acceptance is based on deployed SHA, migration version, health, coverage and read-only E2E"
+  ],
+  "allows_migration": true,
+  "allows_network": true,
+  "allows_deployment": true,
+  "allows_database_connection": true,
+  "human_gate": true,
+  "initial_authorized_operations": [],
+  "railway_scope": {
+    "project_id": "e8540514-d2b9-4585-8d2a-a62fc3c87829",
+    "previous_production_environment_hint": "704417a2-a89e-45ee-8900-a738149d675e",
+    "previous_production_api_service_hint": "1fd625ca-6da0-4bfd-a5ad-08230ec6a4be",
+    "required_bindings_before_environment_action": [
+      "staging_environment_id",
+      "staging_api_service_id",
+      "staging_ingestion_worker_service_id",
+      "staging_agent_worker_service_id",
+      "staging_evaluation_worker_service_id",
+      "staging_web_service_id",
+      "production_environment_id",
+      "production_api_service_id",
+      "production_ingestion_worker_service_id",
+      "production_agent_worker_service_id",
+      "production_evaluation_worker_service_id",
+      "production_web_service_id",
+      "staging_api_origin",
+      "staging_web_origin",
+      "production_api_origin",
+      "production_web_origin"
+    ]
+  },
+  "credential_policy": {
+    "allowed_local_names": ["RAILWAY_TOKEN"],
+    "allowed_secure_runtime_names": ["DATABASE_URL", "MATCHPULSE_INTERNAL_TOKEN"],
+    "printing_or_copying_values_forbidden": true
+  },
+  "operation_policy": {
+    "mutation_attempts": 1,
+    "read_timeout_seconds": 30,
+    "read_max_attempts": 3,
+    "concurrency": 1,
+    "retryable_reads": ["network", "timeout", "429", "5xx"],
+    "honor_retry_after": true
+  },
+  "migration_policy": {
+    "authorized_migration": "20260718210000_fixture_competition_id",
+    "sole_expected_pending_required": true,
+    "startup_migration_forbidden": true,
+    "seed_forbidden": true,
+    "drop_or_delete_rollback_forbidden": true
+  },
+  "gate_order": [
+    "SCOPE-DISCOVERY-READONLY",
+    "STAGING-PREFLIGHT-READONLY",
+    "STAGING-MIGRATION-APPLY",
+    "STAGING-DEPLOY",
+    "STAGING-BACKFILL-APPLY",
+    "STAGING-ACCEPTANCE-READONLY",
+    "PRODUCTION-PREFLIGHT-READONLY",
+    "PRODUCTION-MIGRATION-APPLY",
+    "PRODUCTION-DEPLOY",
+    "PRODUCTION-BACKFILL-APPLY",
+    "PRODUCTION-ACCEPTANCE-READONLY"
+  ],
+  "git": {
+    "allow_commit": true,
+    "allow_push": false,
+    "forbidden_commands": ["git add .", "git add -A", "git stash", "git reset", "git clean", "git rebase", "git push --force"]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "algorithm": "SHA-256",
+  "canonical_encoding": "UTF-8 with LF line endings",
+  "files": {
+    "README.md": "ed570e53b809fdcff3aa9b7d1ac941a69b6971c7710bea39a1b2f4f629035834",
+    "manifest.json": "2c0614f575b9a960bd0f51cdc697312764520c1d6ec9fb48b87ce9ab462fd5ab",
+    "payload/MATCHES_PRODUCTION_ROLLOUT_EVIDENCE.md": "79067427af1167cc9759f9631059f6edcccf3fb7b31dd45315f80db1acb5afd1"
+  }
+}
