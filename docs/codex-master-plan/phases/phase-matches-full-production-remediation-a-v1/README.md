@@ -26,6 +26,7 @@ while closing the remaining data-contract, runtime, security, Web UX, CI, and re
 - Learning remains `shadow_only`; no automatic model promotion.
 - Watchlist and Telegram remain unavailable until their dedicated production phase.
 - Source and derived sports records are not deleted or destructively rewritten.
+- The additive Fixture competitionId migration is source-only and must use 20260718210000_fixture_competition_id so clean databases and previously migrated databases preserve one canonical forward migration history.
 
 ## Completion
 
