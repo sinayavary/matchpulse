@@ -154,6 +154,8 @@ The exact identity `MATCHES-RAILWAY-TOPOLOGY-RETRY-A` / `MATCHES-RAILWAY-TOPOLOG
 
 The exact identity `MATCHES-RAILWAY-TOPOLOGY-RETRY-B` / `MATCHES-RAILWAY-TOPOLOGY-RETRY-B-v1`, baseline `e8908ddfbfd4dee67174b921f1f7bd272c1b9ae3`, permits only its separately approved authorization preflight and one separately approved third staging-create attempt.
 
+The exact identity `MATCHES-RAILWAY-PROJECT-BINDING-A` / `MATCHES-RAILWAY-PROJECT-BINDING-A-v1`, baseline `b597c0720bec6539c8b22c33c6a6ecc43882e94e`, permits only separate approved explicit-project binding diagnosis and create gates.
+
 ### Free Access security governance exception
 
 The exact future identity `FREE-ACCESS-SECURITY-A` / `FREE-ACCESS-SECURITY-A-v4` is a source-governance exception only. During its explicitly approved implementation it permits only the exact manifest allowlist, source-level Prisma schema edits, SQL migration source creation, Prisma format/validate/generate without a database connection, offline-only lockfile resolution, and local tests. It does not permit applying migrations, database connection or writes, registry or application network access, production/Railway access, deployment, secret access, blockchain transactions or wallet-asset authorization, payment/billing/paywall behavior, private keys or seed phrases, or public leakage.

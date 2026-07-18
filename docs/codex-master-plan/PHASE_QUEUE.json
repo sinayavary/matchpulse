@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "MATCHES-RAILWAY-TOPOLOGY-RETRY-B",
+  "active_phase_id": "MATCHES-RAILWAY-PROJECT-BINDING-A",
   "updated_at": "2026-07-18T19:57:52Z",
   "items": [
     {
@@ -191,6 +191,15 @@
       "depends_on": ["MATCHES-RAILWAY-TOPOLOGY-RETRY-A"],
       "pack_version": "MATCHES-RAILWAY-TOPOLOGY-RETRY-B-v1",
       "baseline_commit": "e8908ddfbfd4dee67174b921f1f7bd272c1b9ae3",
+      "human_gate": true
+    },
+    {
+      "id": "MATCHES-RAILWAY-PROJECT-BINDING-A",
+      "title": "Explicit Railway project binding diagnosis and creation",
+      "status": "awaiting_human_approval",
+      "depends_on": ["MATCHES-RAILWAY-TOPOLOGY-RETRY-B"],
+      "pack_version": "MATCHES-RAILWAY-PROJECT-BINDING-A-v1",
+      "baseline_commit": "b597c0720bec6539c8b22c33c6a6ecc43882e94e",
       "human_gate": true
     },
     {
