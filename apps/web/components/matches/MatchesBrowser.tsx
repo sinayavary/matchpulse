@@ -191,7 +191,8 @@ export default function MatchesBrowser() {
     setHasMore(result.meta?.has_more === true);
   }
 
-  const degraded = (status?.readiness.overall !== undefined && status.readiness.overall !== "ready") || meta?.status === "stale" || meta?.status === "degraded";
+  const readiness = status?.readiness;
+  const degraded = (readiness?.overall !== undefined && readiness.overall !== "ready") || meta?.status === "stale" || meta?.status === "degraded";
   const noDataReason = meta?.message ?? meta?.missing_day_warnings?.[0] ?? (dateFilter === "custom" && !dateBounds ? "Choose a valid custom date." : "No verified catalog rows match the selected filters.");
 
   const groupedMatches = useMemo(() => {
@@ -237,9 +238,9 @@ export default function MatchesBrowser() {
           <span>source: {meta?.source ?? "unknown"}</span>
           <span>results: {meta?.result_count ?? matches.length}</span>
           <span>deduplicated: {meta?.deduplicated_count ?? 0}</span>
-          <span>readiness: {status?.readiness.overall ?? "unknown"}</span>
+          <span>readiness: {readiness?.overall ?? "unknown"}</span>
           <span>last refresh: {lastSuccessfulRefresh ? localTime(lastSuccessfulRefresh.toISOString()) : "not yet"}</span>
-          {degraded ? <span>stale/degraded: {Object.values(status?.readiness.components ?? {}).find((component) => component.status !== "ready")?.reason_code ?? meta?.message ?? meta?.status ?? "degraded"}</span> : null}
+          {degraded ? <span>stale/degraded: {Object.values(readiness?.components ?? {}).find((component) => component.status !== "ready")?.reason_code ?? meta?.message ?? meta?.status ?? "degraded"}</span> : null}
         </div>
       </section>
 

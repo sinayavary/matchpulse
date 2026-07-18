@@ -1,4 +1,5 @@
 export function resolveApiBaseUrl(environment: Record<string, string | undefined> = process.env, browser = typeof window !== "undefined"): string {
+  if (browser && environment.NODE_ENV === "production") return "/api/bff";
   const candidate = browser
     ? environment.NEXT_PUBLIC_API_BASE_URL
     : environment.MATCHPULSE_API_BASE_URL ?? environment.NEXT_PUBLIC_API_BASE_URL;
@@ -232,7 +233,10 @@ export type PublicBundleOptions = {
 
 async function fetchPublic<T>(path: string, signal?: AbortSignal): Promise<PublicFetchResult<T>> {
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, { cache: "no-store", signal });
+    const targetPath = API_BASE_URL === "/api/bff"
+      ? path.replace(/^\/api\/public(?=\/|$)/, "/public")
+      : path;
+    const response = await fetch(`${API_BASE_URL}${targetPath}`, { cache: "no-store", signal });
     const json = (await response.json()) as Partial<PublicResponse<T>>;
 
     return {
