@@ -20,17 +20,16 @@
   ],
   "required_validation_commands": [
     "JSON parse and phase-pack hash validation",
-    "focused lifecycle, provider-status, discovery, catalog identity, reconciliation, cursor, API, query-count, security, Web, and accessibility tests",
+    "focused match lifecycle, public API, fixture ingestion, TxLINE normalizer, odds discovery window, and public-contract leakage tests",
     "full API regression",
-    "full Web regression",
+    "Web validation consists of @matchpulse/web typecheck and production build. No Web test runner exists at the declared baseline. Record WEB_TEST_RUNNER_UNAVAILABLE and do not claim that Web regression tests ran.",
     "API typecheck",
     "Web typecheck",
     "production build",
     "Prisma validate",
     "Prisma diff",
     "git diff --check",
-    "forbidden public-field scan",
-    "read-only production verification when authorized"
+    "forbidden public-field scan"
   ],
   "expected_results": [
     "Upcoming contains no past, terminal, postponed, cancelled, abandoned, or non-representative row",
@@ -39,8 +38,9 @@
     "bounded batch enrichment with no per-fixture list query",
     "precise availability reasons are present for incomplete data",
     "no source or derived match data is deleted",
-    "no migration, seed, deployment, or production write is applied by this phase",
-    "production result is either verified read-only evidence or IMPLEMENTATION_COMPLETE_WAITING_FOR_PRODUCTION_VERIFICATION"
+    "no Prisma schema change, migration creation, migration application, database write, seed, deployment, or production write is applied by this phase",
+    "WEB_TEST_RUNNER_UNAVAILABLE is recorded and no Web regression test claim is made",
+    "production network access and production verification are prohibited by this phase"
   ],
   "allows_migration": false,
   "allows_network": false

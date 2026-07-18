@@ -15,16 +15,5 @@
     "allow_completion_state_update": true,
     "stop_after_phase": true
   },
-  "last_result": {
-    "status": "WAITING_FOR_REAL_FIXTURE",
-    "evidence_commit": "f85c6b64495cbeab00c93f8758e1904f4ffdcb7f",
-    "evidence_path": "docs/production-live-e2e-acceptance-evidence.md",
-    "competition": 430,
-    "fixture_observed": false,
-    "production_network_accessed": false,
-    "migration_applied": false,
-    "fabricated_data": false,
-    "success_claimed": false,
-    "next_action": "resume read-only acceptance when a real competition 430 fixture and authorized production origin are available"
-  }
+  "last_result": null
 }
