@@ -1,15 +1,15 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "ready",
-  "phase_id": "MATCHES-RAILWAY-PROJECT-BINDING-A",
-  "phase_title": "Explicit Railway project binding diagnosis and creation",
-  "pack_path": "docs/codex-master-plan/phases/phase-matches-railway-project-binding-a-v1",
-  "pack_version": "MATCHES-RAILWAY-PROJECT-BINDING-A-v1",
-  "baseline_commit": "b597c0720bec6539c8b22c33c6a6ecc43882e94e",
-  "human_approved": true,
-  "activation_note": "Human-approved execution of STAGING-ENVIRONMENT-CREATE-EXPLICIT only. One explicitly project-scoped environment-create mutation for the exact environment staging is authorized; no other Railway operation is authorized.",
-  "authorized_gate": {"id":"STAGING-ENVIRONMENT-CREATE-EXPLICIT","approved_at":"2026-07-18T20:18:00.000Z","project_id":"e8540514-d2b9-4585-8d2a-a62fc3c87829","read_only":false,"allowed_credential_name":"RAILWAY_TOKEN","allowed_mutation":{"resource":"environment","operation":"create","name":"staging","attempts":1,"transport":"Railway GraphQL explicit project ID"},"forbidden_mutations":["service","variable","domain","database","deployment","migration","source_connection"]},
+  "state": "awaiting_human_approval",
+  "phase_id": "MATCHES-RAILWAY-ENVIRONMENT-AUTH-A",
+  "phase_title": "Account-token authorization for explicit Railway environment creation",
+  "pack_path": "docs/codex-master-plan/phases/phase-matches-railway-environment-auth-a-v1",
+  "pack_version": "MATCHES-RAILWAY-ENVIRONMENT-AUTH-A-v1",
+  "baseline_commit": "f491c805c659d860e41351bb231f606603743132",
+  "human_approved": false,
+  "activation_note": "Governance publication installs the successor only and authorizes no network or Railway operation. The only gate eligible for separate approval first is ACCOUNT-TOKEN-PROJECT-PREFLIGHT-READONLY.",
+  "authorized_gate": null,
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
@@ -17,12 +17,17 @@
     "stop_after_phase": true
   },
   "last_result": {
-    "status": "MISSING_SOURCE",
-    "phase_id": "MATCHES-PRODUCTION-ROLLOUT-A",
-    "pack_version": "MATCHES-PRODUCTION-ROLLOUT-A-v1",
-    "baseline_commit": "03f308be14a330d269c484efc853e307ffb9c7ce",
-    "summary": "Read-only scope discovery found no staging environment, no provable distinct worker bindings and no provable public origins. The successor topology phase is required before rollout can resume.",
+    "status": "STAGING_SCOPE_VIOLATION",
+    "phase_id": "MATCHES-RAILWAY-PROJECT-BINDING-A",
+    "pack_version": "MATCHES-RAILWAY-PROJECT-BINDING-A-v1",
+    "baseline_commit": "b597c0720bec6539c8b22c33c6a6ecc43882e94e",
+    "summary": "The project-scoped RAILWAY_TOKEN could not establish project-wide environment identity through the Railway Public GraphQL API. No create mutation was attempted. A successor using an account/workspace-scoped API token is required.",
+    "network_accessed": true,
+    "mutation_attempts": 0,
     "migration_applied": false,
-    "network_accessed": true
+    "database_accessed": false,
+    "deployment_performed": false,
+    "backfill_performed": false,
+    "secrets_exposed": false
   }
 }

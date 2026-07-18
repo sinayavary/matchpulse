@@ -58,6 +58,8 @@ For `MATCHES-RAILWAY-TOPOLOGY-A-v1`, staging environment and service creation, p
 
 For `MATCHES-RAILWAY-TOPOLOGY-RETRY-A-v1`, diagnosis is read-only and a retry is one separately approved, non-retried `staging` environment-create attempt. No other Railway mutation is inferred or authorized.
 
+For `MATCHES-RAILWAY-ENVIRONMENT-AUTH-A-v1`, `ACCOUNT-TOKEN-PROJECT-PREFLIGHT-READONLY` and `STAGING-ENVIRONMENT-CREATE-ACCOUNT-TOKEN` are independent human gates. Governance publication authorizes no Railway access. The first gate is read-only; the second may be approved only after a successful first gate and allows at most one non-retried, concurrent-single explicit create for project `e8540514-d2b9-4585-8d2a-a62fc3c87829` and environment `staging`. Existing `staging` forbids creation. Raw GraphQL responses and errors must be reduced to only `transport_error`, `authentication_failed`, `authorization_failed`, `schema_contract_failed`, `project_not_found`, `project_identity_mismatch`, or `ambiguous_result` in evidence and reports.
+
 Only `ready` authorizes implementation.
 
 ## 5. Pack manifest contract
