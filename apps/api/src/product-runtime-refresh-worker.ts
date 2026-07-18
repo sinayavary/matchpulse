@@ -1,4 +1,5 @@
 import { runTargetIngestionCycle } from "./ingestion-runner.js";
+import { runBackgroundIntelligenceCycle } from "./background-intelligence-runtime.js";
 
 export type ProductRuntimeRefreshWorkerEnv = {
   MATCHPULSE_RUNTIME_REFRESH_ENABLED?: unknown;
@@ -146,7 +147,11 @@ export function createProductRuntimeRefreshWorker(
   const logger = options.logger ?? console;
   const setTimeoutImpl = options.setTimeoutFn ?? setTimeout;
   const clearTimeoutImpl = options.clearTimeoutFn ?? clearTimeout;
-  const predictionRunner = options.predictionRunner;
+  const predictionRunner = options.predictionRunner ?? (
+    process.env.MATCHPULSE_AGENT_ENABLED === "true"
+      ? () => runBackgroundIntelligenceCycle()
+      : undefined
+  );
 
   let started = false;
   let stopped = false;
