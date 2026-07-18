@@ -4,11 +4,11 @@ Public-safe metadata only. No secrets, tokens, authorization headers, database U
 
 ## Run metadata
 
-- phase_id: `PROD-LIVE-E2E-ACCEPTANCE-A`
-- pack_version: `PROD-LIVE-E2E-ACCEPTANCE-A-v1`
-- baseline_commit: `f3caf00fc05ac8616b6e49061a987dddc117c343`
-- run_started_at_utc: `2026-07-18T00:37:38Z`
-- run_ended_at_utc: `2026-07-18T00:39:02Z`
+- phase_id: `PROD-LIVE-E2E-ACCEPTANCE-B`
+- pack_version: `PROD-LIVE-E2E-ACCEPTANCE-B-v1`
+- baseline_commit: `32a1447f2e3f9f80c82bc1eb0e3cb69fba9cb4ef`
+- run_started_at_utc: `2026-07-18T00:00:00Z`
+- run_ended_at_utc: `2026-07-18T00:00:00Z`
 - production/network accessed: no
 - migration_applied: false
 
@@ -42,4 +42,4 @@ Public-safe metadata only. No secrets, tokens, authorization headers, database U
 ## Result
 
 - final status: `WAITING_FOR_REAL_FIXTURE`
-- notes: The canonical pack requires a real competition 430 fixture to enter the natural capture window. No production origin or real fixture endpoint is provided by the tracked governance pack or repository configuration. The permitted read-only Railway status check could not identify a service because no project is linked; no production GET or runtime command was issued. The Definition of Done is not satisfied; no completion metadata was recorded and Prepare was not run.
+- notes: The canonical pack requires a real competition 430 fixture to enter the natural capture window. No production credentials or linked production origin are present in this environment, so no production GET, runtime command, migration, or write was issued. The Definition of Done is not satisfied and acceptance is not claimed.
