@@ -3,7 +3,7 @@
   "canonical_encoding": "UTF-8 with LF line endings",
   "files": {
     "README.md": "2258f33a3e3937e6131fbb6b6c8dbbfa78fffafc58edf615283f3198ee0fa8a6",
-    "manifest.json": "d909cf858801be20818939ac805e5c27d886f09c9742ba83fb1170dead701759",
+    "manifest.json": "0c1b5efb6b50c396ab50f68f8d7429e4b2c726e9031f985dd9ccca0ec2980b35",
     "payload/FREE_ACCESS_LOCAL_DB_VALIDATION.md": "b178565b770c0ce09eb84f721a3746bb486964da6ebcb36ad681db5dda215d83"
   }
 }

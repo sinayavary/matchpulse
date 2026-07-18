@@ -20,8 +20,7 @@
     "apps/api/src/security/security-routes.test.ts",
     "apps/api/src/security/free-access-postgres.integration.test.ts",
     "scripts/free-access-local-db-validation.ps1",
-    "docs/security/free-access-local-db-validation-report.md",
-    "docs/codex-master-plan/ACTIVE_PHASE.json"
+    "docs/security/free-access-local-db-validation-report.md"
   ],
   "required_validation_commands": [
     "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/free-access-local-db-validation.ps1",
