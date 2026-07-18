@@ -4,10 +4,10 @@ import { buildOddsAsOfCandidates } from "./txline-odds-discovery.js";
 import { mapTxlineOddsSnapshotToOddsRows } from "./txline-odds-ingestion.js";
 
 const DEFAULT_COMPETITION_ID = 72;
-const DEFAULT_START_EPOCH_DAY_FROM = 20600;
-const DEFAULT_START_EPOCH_DAY_TO = 20630;
+const DEFAULT_BACKFILL_DAYS = 1;
+const DEFAULT_FUTURE_DAYS = 14;
 const DEFAULT_LIMIT_PER_DAY = 10;
-const MAX_DAYS = 14;
+const MAX_DAYS = 31;
 const MAX_LIMIT_PER_DAY = 20;
 const MAX_CANDIDATE_CHECKS = 800;
 const CHECK_DELAY_MS = 300;
@@ -106,17 +106,29 @@ function toPositiveInteger(value: unknown, fallback: number): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function envPositiveInteger(name: string, fallback: number): number {
+  const value = Number(process.env[name]);
+  return Number.isInteger(value) && value >= 0 ? value : fallback;
+}
+
+function currentUtcEpochDay(): number {
+  return Math.floor(Date.now() / 86_400_000);
+}
+
 export function normalizeDiscoveryWindowInput(
   input: DiscoveryWindowInput = {}
 ): NormalizedDiscoveryWindowInput {
   const competitionId = toNonNegativeInteger(input.competitionId, DEFAULT_COMPETITION_ID);
+  const today = currentUtcEpochDay();
+  const defaultBackfill = envPositiveInteger("MATCHPULSE_DISCOVERY_BACKFILL_DAYS", DEFAULT_BACKFILL_DAYS);
+  const defaultFuture = envPositiveInteger("MATCHPULSE_DISCOVERY_FUTURE_DAYS", DEFAULT_FUTURE_DAYS);
   const startEpochDayFrom = toNonNegativeInteger(
     input.startEpochDayFrom,
-    DEFAULT_START_EPOCH_DAY_FROM
+    Math.max(0, today - defaultBackfill)
   );
   const requestedTo = toNonNegativeInteger(
     input.startEpochDayTo,
-    DEFAULT_START_EPOCH_DAY_TO
+    today + defaultFuture
   );
   const startEpochDayTo = Math.min(
     Math.max(startEpochDayFrom, requestedTo),

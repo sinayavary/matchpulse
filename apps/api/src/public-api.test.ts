@@ -575,7 +575,7 @@ test("invalid public matches range is handled safely", async () => {
     });
 
     assert.equal(response.statusCode, 400);
-    assert.equal(response.json().meta.message, "range must be one of: past, upcoming, live, all.");
+    assert.equal(response.json().meta.message, "range must be one of: live, starting_soon, upcoming, recently_finished, interrupted, all.");
     await app.close();
   });
 });
@@ -1139,18 +1139,20 @@ test("public upcoming range filters before bounded take and returns nearest futu
     const body = response.json();
     assert.equal(response.statusCode, 200);
     assert.deepEqual(body.data.map((item: { fixture_id: string }) => item.fixture_id), ["future-near"]);
-    assert.deepEqual(body.meta, {
-      status: "live",
-      source: "database",
-      mode: "public"
-    });
+    assert.equal(body.meta.status, "live");
+    assert.equal(body.meta.range, "upcoming");
+    assert.equal(body.meta.has_more, true);
+    assert.equal(typeof body.meta.next_cursor, "string");
     assert.deepEqual(Object.keys(body.data[0]).sort(), [
+      "availability",
       "away_team",
       "competition",
       "fixture_id",
       "home_team",
       "latest_data_timestamp",
+      "lifecycle",
       "odds",
+      "provider_status_safe",
       "quality",
       "scoreboard",
       "start_time_utc",
@@ -1160,7 +1162,7 @@ test("public upcoming range filters before bounded take and returns nearest futu
     assert.equal(findManyArgs?.where?.startTimeUtc?.gte, now);
     assert.equal(findManyArgs?.where?.startTimeUtc?.lt, undefined);
     assert.equal(findManyArgs?.orderBy.startTimeUtc, "asc");
-    assert.equal(findManyArgs?.take, 5);
+    assert.equal(findManyArgs?.take, 10000);
     await app.close();
   });
 });
@@ -1219,7 +1221,7 @@ test("public past range filters before bounded take and returns the most recent 
     assert.equal(findManyArgs?.where?.startTimeUtc?.gte, undefined);
     assert.equal(findManyArgs?.where?.startTimeUtc?.lt, now);
     assert.equal(findManyArgs?.orderBy.startTimeUtc, "desc");
-    assert.equal(findManyArgs?.take, 10);
+    assert.equal(findManyArgs?.take, 10000);
     await app.close();
   });
 });
@@ -1230,7 +1232,8 @@ test("public matches list remains lightweight and returns the requested limit", 
     registerPublicApiRoutes(app, {
       getDbClient: () => makeDbClient(makeFixtureRows(30)),
       getDbBackedMatchState: async () => makeState(),
-      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState())
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState()),
+      now: () => new Date("2026-07-18T12:00:00.000Z")
     });
 
     const response = await app.inject({
@@ -1294,7 +1297,8 @@ test("public matches list can include compact insight summaries when includeInsi
         }
       }),
       getDbBackedMatchState: async () => makeState(),
-      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState())
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState()),
+      now: () => new Date("2026-07-18T12:00:00.000Z")
     });
 
     const response = await app.inject({
@@ -1324,6 +1328,21 @@ test("public matches list can include compact insight summaries when includeInsi
         issues: ["odds_missing"]
       },
       latest_data_timestamp: "2026-06-04T18:04:23.367Z",
+      provider_status_safe: "finished",
+      lifecycle: {
+        lifecycle: "finished",
+        source: "provider_terminal",
+        reason_code: "provider_terminal_ft",
+        normalized_phase: "fulltime",
+        is_active: false,
+        is_terminal: true,
+        updated_at: "2026-07-18T12:00:00.000Z"
+      },
+      availability: {
+        score: "available",
+        odds: "upstream_no_data",
+        events: "not_attempted"
+      },
       insight_summary: {
         agent_version: "product-agent-v1",
         status: "stale",
@@ -1828,4 +1847,85 @@ test("public API helpers do not disturb legacy /api/matches or /api/demo routes"
   });
 
   await app.close();
+});
+
+test("upcoming excludes future terminal rows and exposes lifecycle plus availability", async () => {
+  await withDatabaseUrl(async () => {
+    const now = new Date("2026-07-18T12:00:00.000Z");
+    const rows: PublicFixtureRow[] = [
+      { fixtureId: "future-finished", competition: "Cup", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-18T14:00:00.000Z"), status: "FT" },
+      { fixtureId: "future-scheduled", competition: "Cup", homeTeam: "C", awayTeam: "D", startTimeUtc: new Date("2026-07-18T15:00:00.000Z"), status: "Scheduled" }
+    ];
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => makeDbClient(rows),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState()),
+      now: () => now
+    });
+    const response = await app.inject({ method: "GET", url: "/api/public/matches?range=upcoming&limit=10" });
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json().data.map((item: { fixture_id: string }) => item.fixture_id), ["future-scheduled"]);
+    assert.equal(response.json().data[0].lifecycle.lifecycle, "scheduled");
+    assert.equal(response.json().data[0].availability.score, "available");
+    await app.close();
+  });
+});
+
+test("catalog deduplicates equivalent source fixtures before cursor pagination", async () => {
+  await withDatabaseUrl(async () => {
+    const now = new Date("2026-07-18T12:00:00.000Z");
+    const rows: PublicFixtureRow[] = [
+      { fixtureId: "duplicate-weak", competition: "Cup", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-18T15:00:00.000Z"), status: "UNKNOWN" },
+      { fixtureId: "duplicate-strong", competition: "Cup", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-18T15:02:00.000Z"), status: "Scheduled" },
+      { fixtureId: "next-match", competition: "Cup", homeTeam: "C", awayTeam: "D", startTimeUtc: new Date("2026-07-18T16:00:00.000Z"), status: "Scheduled" }
+    ];
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => makeDbClient(rows),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState()),
+      now: () => now
+    });
+    const first = await app.inject({ method: "GET", url: "/api/public/matches?range=upcoming&limit=1" });
+    assert.equal(first.json().meta.deduplicated_count, 1);
+    assert.deepEqual(first.json().data.map((item: { fixture_id: string }) => item.fixture_id), ["duplicate-strong"]);
+    const second = await app.inject({ method: "GET", url: `/api/public/matches?range=upcoming&limit=1&cursor=${encodeURIComponent(first.json().meta.next_cursor)}` });
+    assert.deepEqual(second.json().data.map((item: { fixture_id: string }) => item.fixture_id), ["next-match"]);
+    await app.close();
+  });
+});
+
+test("public list uses bounded batch enrichment instead of per-fixture reads", async () => {
+  await withDatabaseUrl(async () => {
+    const rows: PublicFixtureRow[] = [
+      { fixtureId: "batch-a", competition: "Cup", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-19T15:00:00.000Z"), status: "Scheduled" },
+      { fixtureId: "batch-b", competition: "Cup", homeTeam: "C", awayTeam: "D", startTimeUtc: new Date("2026-07-19T16:00:00.000Z"), status: "Scheduled" }
+    ];
+    let stateBatchCalls = 0;
+    let oddsBatchCalls = 0;
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => ({
+        fixture: { findMany: async () => rows },
+        matchState: {
+          findUnique: async () => { throw new Error("per-fixture state query is forbidden"); },
+          findMany: async () => { stateBatchCalls += 1; return []; }
+        },
+        oddsSnapshot: {
+          count: async () => { throw new Error("per-fixture odds query is forbidden"); },
+          groupBy: async () => { oddsBatchCalls += 1; return []; }
+        }
+      }),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState()),
+      now: () => new Date("2026-07-18T12:00:00.000Z")
+    });
+    const response = await app.inject({ method: "GET", url: "/api/public/matches?range=upcoming&limit=20" });
+    assert.equal(response.statusCode, 200);
+    assert.equal(stateBatchCalls, 1);
+    assert.equal(oddsBatchCalls, 1);
+    assert.equal(response.json().data.length, 2);
+    await app.close();
+  });
 });

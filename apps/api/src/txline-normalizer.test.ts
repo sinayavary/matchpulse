@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   hasFiniteGoalScore,
   normalizeTxlineFixture,
+  normalizeProviderStatus,
   normalizeTxlineMatchPreview,
   normalizeTxlineScore,
   normalizeAsOfToEpochMs,
@@ -39,10 +40,20 @@ test("normalizes fixtures and preserves only confirmed values", () => {
   assert.equal(normalized?.raw_game_state, 7);
   assert.equal(normalized?.status, "UNKNOWN");
   assert.equal(normalized?.phase, "unknown");
+  assert.equal(normalized?.provider_status, null);
 
   const reversed = normalizeTxlineFixture({ ...fixture, Participant1IsHome: false });
   assert.equal(reversed?.home_team, "Beta");
   assert.equal(reversed?.away_team, "Alpha");
+});
+
+test("normalizes real provider status fields without guessing from unrelated fields", () => {
+  assert.deepEqual(normalizeProviderStatus("FT"), { provider_status: "FT", normalized_status: "finished" });
+  assert.deepEqual(normalizeProviderStatus("first-half"), { provider_status: "first-half", normalized_status: "first half" });
+  const scheduled = normalizeTxlineFixture({ ...fixture, Status: "Scheduled" });
+  assert.equal(scheduled?.status, "scheduled");
+  assert.equal(scheduled?.provider_status, "Scheduled");
+  assert.equal(normalizeTxlineFixture({ ...fixture, GameState: 7 })?.status, "UNKNOWN");
 });
 
 test("rejects invalid fixture IDs and handles missing fixture fields", () => {

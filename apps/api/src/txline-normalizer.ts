@@ -14,7 +14,8 @@ export type NormalizedTxlineFixturePreview = {
   start_time_utc: string | null;
   home_team: string;
   away_team: string;
-  status: "UNKNOWN";
+  status: string;
+  provider_status: string | null;
   is_live: boolean | null;
   score: NullableScore;
   has_odds: boolean | null;
@@ -40,6 +41,33 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+const PROVIDER_STATUS_FIELDS = ["Status", "status", "ProviderStatus", "providerStatus", "GameStatus", "gameStatus"] as const;
+const PROVIDER_STATUS_ALIASES: Record<string, string> = {
+  scheduled: "scheduled", pre_match: "prematch", prematch: "prematch", upcoming: "scheduled",
+  live: "live", inplay: "live", in_running: "live", running: "live", "1h": "first half", first_half: "first half",
+  ht: "halftime", halftime: "halftime", half_time: "halftime", "2h": "second half", second_half: "second half",
+  et: "extra time", extra_time: "extra time", pen: "penalties", penalties: "penalties",
+  finished: "finished", complete: "finished", completed: "finished", final: "finished", fulltime: "finished", ft: "finished", ended: "finished",
+  postponed: "postponed", delayed: "postponed", cancelled: "cancelled", canceled: "cancelled", abandoned: "abandoned", suspended: "abandoned"
+};
+
+export function normalizeProviderStatus(value: unknown): { provider_status: string | null; normalized_status: string } {
+  const providerStatus = readString(value);
+  if (providerStatus === null) return { provider_status: null, normalized_status: "UNKNOWN" };
+  const key = providerStatus.toLowerCase().replace(/[\s-]+/g, "_");
+  return { provider_status: providerStatus, normalized_status: PROVIDER_STATUS_ALIASES[key] ?? "UNKNOWN" };
+}
+
+function readProviderStatus(fixture: Record<string, unknown>): { provider_status: string | null; normalized_status: string } {
+  for (const field of PROVIDER_STATUS_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(fixture, field)) {
+      const normalized = normalizeProviderStatus(fixture[field]);
+      if (normalized.provider_status !== null) return normalized;
+    }
+  }
+  return normalizeProviderStatus(null);
 }
 
 export function readFiniteNumber(value: unknown): number | null {
@@ -120,6 +148,7 @@ export function normalizeTxlineFixture(
   const fixtureId = parseFixtureId(rawFixture.FixtureId);
   if (fixtureId === null) return null;
   const teams = participantNames(rawFixture);
+  const providerStatus = readProviderStatus(rawFixture);
 
   return {
     fixture_id: fixtureId,
@@ -128,7 +157,8 @@ export function normalizeTxlineFixture(
     start_time_utc: parseEpochMsToIso(rawFixture.StartTime),
     home_team: teams.home,
     away_team: teams.away,
-    status: "UNKNOWN",
+    status: providerStatus.normalized_status,
+    provider_status: providerStatus.provider_status,
     is_live: null,
     score: { home: null, away: null },
     has_odds: null,

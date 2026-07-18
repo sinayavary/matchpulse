@@ -7,6 +7,13 @@ export type ApiMeta = {
   source: string;
   mode: string;
   message?: string;
+  next_cursor?: string | null;
+  has_more?: boolean;
+  range?: string;
+  generated_at?: string;
+  result_count?: number;
+  deduplicated_count?: number;
+  data_status?: "complete" | "partial" | "unavailable";
 };
 
 export type PublicStatus = {
@@ -65,7 +72,12 @@ export type PublicMatchSummary = {
   odds: PublicOddsSummary;
   quality: PublicQuality;
   latest_data_timestamp: string | null;
-  lifecycle?: { lifecycle: string; source: string; reason_code: string; normalized_phase: string; is_active: boolean; is_terminal: boolean; updated_at: string };
+  lifecycle: { lifecycle: string; source: string; reason_code: string; normalized_phase: string | null; is_active: boolean; is_terminal: boolean; updated_at: string };
+  availability: {
+    score: "available" | "not_expected_yet" | "not_attempted" | "upstream_no_data" | "stale" | "upstream_error" | "unsupported";
+    odds: "available" | "not_expected_yet" | "not_attempted" | "upstream_no_data" | "stale" | "upstream_error" | "unsupported";
+    events: "available" | "not_expected_yet" | "not_attempted" | "upstream_no_data" | "stale" | "upstream_error" | "unsupported";
+  };
 };
 
 export type PublicMatchState = {
@@ -167,7 +179,7 @@ export type PublicReplay = {
 };
 
 export type PublicMatchesParams = {
-  range?: "past" | "upcoming" | "live" | "all";
+  range?: "past" | "upcoming" | "live" | "starting_soon" | "recently_finished" | "interrupted" | "all";
   limit?: number;
   cursor?: string;
 };
@@ -186,9 +198,9 @@ export type PublicBundleOptions = {
   staleAfterMinutes?: number;
 };
 
-async function fetchPublic<T>(path: string): Promise<PublicFetchResult<T>> {
+async function fetchPublic<T>(path: string, signal?: AbortSignal): Promise<PublicFetchResult<T>> {
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, { cache: "no-store" });
+    const response = await fetch(`${API_BASE_URL}${path}`, { cache: "no-store", signal });
     const json = (await response.json()) as Partial<PublicResponse<T>>;
 
     return {
@@ -212,13 +224,14 @@ export async function fetchPublicStatus(): Promise<PublicFetchResult<PublicStatu
 }
 
 export async function fetchPublicMatches(
-  params: PublicMatchesParams = {}
+  params: PublicMatchesParams = {},
+  signal?: AbortSignal
 ): Promise<PublicFetchResult<PublicMatchSummary[]>> {
   const search = new URLSearchParams();
   search.set("range", params.range ?? "all");
   search.set("limit", String(params.limit ?? 50));
   if (params.cursor) search.set("cursor", params.cursor);
-  return fetchPublic<PublicMatchSummary[]>(`/api/public/matches?${search.toString()}`);
+  return fetchPublic<PublicMatchSummary[]>(`/api/public/matches?${search.toString()}`, signal);
 }
 
 export async function fetchPublicReplay(fixtureId: string, selectedTime?: string): Promise<PublicFetchResult<PublicReplay>> {

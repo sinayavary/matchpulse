@@ -5,6 +5,7 @@ import {
   type AgentPresenterResponse
 } from "./agent-presenter-v0.js";
 import { lifecycleIsLive, lifecycleIsUpcoming, resolveMatchLifecycle, lifecycleIsRecentlyFinished } from "./match-lifecycle.js";
+import { normalizeProviderStatus } from "./txline-normalizer.js";
 import { buildDemoReadiness } from "./demo-bundle.js";
 import { getDbClient } from "./db.js";
 import {
@@ -36,7 +37,9 @@ import { getProductAgentV1ForFixture } from "./product-agent-v1.js";
 
 export type PublicApiMode = "public";
 export type PublicMetaStatus = "live" | "no_data" | "stale" | "degraded";
-export type PublicMatchesRange = "past" | "upcoming" | "live" | "all";
+export type PublicMatchesRange = "past" | "live" | "starting_soon" | "upcoming" | "recently_finished" | "interrupted" | "all";
+
+export type PublicAvailabilityStatus = "available" | "not_expected_yet" | "not_attempted" | "upstream_no_data" | "stale" | "upstream_error" | "unsupported";
 
 type PublicFixtureRow = {
   fixtureId: string;
@@ -86,6 +89,22 @@ type PublicApiDbClient = {
       phase: string | null;
       lastDataReceivedAt: Date | null;
     } | null>;
+    findMany?: (args: {
+      where: { fixtureId: { in: string[] } };
+      select: {
+        fixtureId: true;
+        homeScore: true;
+        awayScore: true;
+        phase: true;
+        lastDataReceivedAt: true;
+      };
+    }) => Promise<Array<{
+      fixtureId: string;
+      homeScore: number | null;
+      awayScore: number | null;
+      phase: string | null;
+      lastDataReceivedAt: Date | null;
+    }>>;
   };
   oddsSnapshot: {
     count(args: { where: { fixtureId: string } }): Promise<number>;
@@ -113,7 +132,13 @@ export type PublicMatchSummary = {
     issues: string[];
   };
   latest_data_timestamp: string | null;
-  lifecycle?: CanonicalMatchState["lifecycle"];
+  lifecycle: CanonicalMatchState["lifecycle"];
+  provider_status_safe: string;
+  availability: {
+    score: PublicAvailabilityStatus;
+    odds: PublicAvailabilityStatus;
+    events: PublicAvailabilityStatus;
+  };
   insight_summary?: ProductAgentV1InsightSummary;
 };
 
@@ -148,6 +173,13 @@ export type PublicMatchesResponse = {
     status: PublicMetaStatus;
     source: "database";
     mode: PublicApiMode;
+    next_cursor?: string | null;
+    has_more?: boolean;
+    range?: PublicMatchesRange;
+    generated_at?: string;
+    result_count?: number;
+    deduplicated_count?: number;
+    data_status?: "complete" | "partial" | "unavailable";
   };
 };
 
@@ -402,14 +434,14 @@ export function normalizePublicMatchesQuery(query: {
   competitionId?: string;
   limit: number;
   includeInsight: boolean;
-  cursor?: number;
+  cursor?: string;
 } {
   const range = typeof query.range === "string" && query.range.trim() !== ""
     ? query.range.trim().toLowerCase()
     : "all";
 
-  if (!["past", "upcoming", "live", "all"].includes(range)) {
-    throw new PublicApiValidationError("range must be one of: past, upcoming, live, all.");
+  if (!["past", "upcoming", "live", "starting_soon", "recently_finished", "interrupted", "all"].includes(range)) {
+    throw new PublicApiValidationError("range must be one of: live, starting_soon, upcoming, recently_finished, interrupted, all.");
   }
 
   const competitionId = typeof query.competitionId === "string" && query.competitionId.trim() !== ""
@@ -418,7 +450,7 @@ export function normalizePublicMatchesQuery(query: {
       ? String(query.competitionId)
     : undefined;
 
-  const cursor = typeof query.cursor === "string" && /^\d+$/.test(query.cursor) ? Number(query.cursor) : undefined;
+  const cursor = typeof query.cursor === "string" && query.cursor.trim() !== "" ? query.cursor.trim() : undefined;
   return {
     range: range as PublicMatchesRange,
     competitionId,
@@ -637,6 +669,72 @@ function parseTimestamp(value: string | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+type PublicSeekCursor = { version: 1; range: PublicMatchesRange; start_time_utc: number | null; fixture_id: string };
+
+function encodePublicSeekCursor(cursor: PublicSeekCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+function decodePublicSeekCursor(value: string | undefined, range: PublicMatchesRange): PublicSeekCursor | undefined {
+  if (value === undefined) return undefined;
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as Partial<PublicSeekCursor>;
+    if (parsed.version !== 1 || parsed.range !== range || typeof parsed.fixture_id !== "string" ||
+      (parsed.start_time_utc !== null && typeof parsed.start_time_utc !== "number")) {
+      throw new Error("invalid cursor");
+    }
+    return parsed as PublicSeekCursor;
+  } catch {
+    throw new PublicApiValidationError("cursor is invalid or belongs to another range.");
+  }
+}
+
+function normalizedCatalogText(value: string | null): string {
+  return (value ?? "").normalize("NFKC").trim().toLocaleLowerCase().replace(/\s+/g, " ");
+}
+
+function fixtureCatalogKey(fixture: PublicFixtureRow): string {
+  const start = fixture.startTimeUtc?.getTime();
+  const bucket = start === undefined || !Number.isFinite(start) ? "unknown" : String(Math.floor(start / 300_000));
+  return [normalizedCatalogText(fixture.competition), normalizedCatalogText(fixture.homeTeam), normalizedCatalogText(fixture.awayTeam), bucket].join("|");
+}
+
+function chooseCatalogRepresentative(current: PublicFixtureRow, candidate: PublicFixtureRow): PublicFixtureRow {
+  const completeness = (fixture: PublicFixtureRow) => (
+    (fixture.competition !== null && fixture.homeTeam !== null && fixture.awayTeam !== null ? 4 : 0) +
+    (resolveMatchLifecycle({ providerStatus: fixture.status, startTimeUtc: fixture.startTimeUtc }).is_terminal ? 2 : 0) +
+    (fixture.startTimeUtc !== null ? 1 : 0)
+  );
+  const left = completeness(current);
+  const right = completeness(candidate);
+  if (right !== left) return right > left ? candidate : current;
+  return candidate.fixtureId < current.fixtureId ? candidate : current;
+}
+
+function deduplicatePublicFixtures(fixtures: PublicFixtureRow[]): { fixtures: PublicFixtureRow[]; deduplicatedCount: number } {
+  const representatives = new Map<string, PublicFixtureRow>();
+  for (const fixture of fixtures) {
+    const key = fixtureCatalogKey(fixture);
+    const current = representatives.get(key);
+    representatives.set(key, current === undefined ? fixture : chooseCatalogRepresentative(current, fixture));
+  }
+  return { fixtures: [...representatives.values()], deduplicatedCount: Math.max(0, fixtures.length - representatives.size) };
+}
+
+function comparePublicFixtures(left: PublicFixtureRow, right: PublicFixtureRow, descending: boolean): number {
+  const leftStart = left.startTimeUtc?.getTime() ?? (descending ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
+  const rightStart = right.startTimeUtc?.getTime() ?? (descending ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
+  if (leftStart !== rightStart) return descending ? rightStart - leftStart : leftStart - rightStart;
+  return descending ? right.fixtureId.localeCompare(left.fixtureId) : left.fixtureId.localeCompare(right.fixtureId);
+}
+
+function fixtureIsAfterCursor(fixture: PublicFixtureRow, cursor: PublicSeekCursor, descending: boolean): boolean {
+  const cursorStart = cursor.start_time_utc ?? (descending ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
+  const fixtureStart = fixture.startTimeUtc?.getTime() ?? (descending ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
+  if (fixtureStart !== cursorStart) return descending ? fixtureStart < cursorStart : fixtureStart > cursorStart;
+  return descending ? fixture.fixtureId < cursor.fixture_id : fixture.fixtureId > cursor.fixture_id;
+}
+
 function isStateStale(state: CanonicalMatchState, staleAfterMinutes: number, now: Date): boolean {
   const latestTimestamp = parseTimestamp(state.freshness.latest_data_timestamp);
   if (latestTimestamp === null) return false;
@@ -676,7 +774,7 @@ function isUpcomingState(state: CanonicalMatchState, now: Date): boolean {
   if (state.lifecycle) return lifecycleIsUpcoming(state.lifecycle);
   if (isLiveState(state) || isPastState(state, now)) return false;
   const startTime = parseTimestamp(state.identity.start_time_utc);
-  return startTime === null || startTime >= now.getTime();
+  return startTime !== null && startTime > now.getTime();
 }
 
 function matchesRequestedRange(
@@ -697,14 +795,19 @@ function fixtureMatchesRequestedRange(
 ): boolean {
   if (range === "all") return true;
   const token = (fixture.status ?? "").trim().toLowerCase();
-  const startTime = parseTimestamp(toIsoTimestamp(fixture.startTimeUtc));
   const lifecycle = resolveMatchLifecycle({ providerStatus: fixture.status, startTimeUtc: fixture.startTimeUtc, now, captureLeadMinutes: 60 });
   const isLive = lifecycleIsLive(lifecycle);
   const isPast = lifecycleIsRecentlyFinished(lifecycle) || lifecycle.is_terminal;
   const isUpcoming = lifecycleIsUpcoming(lifecycle);
+  const isInterrupted = lifecycle.lifecycle === "postponed" || lifecycle.lifecycle === "cancelled" || lifecycle.lifecycle === "abandoned";
 
   if (range === "live") return isLive;
-  if (range === "past") return isPast;
+  if (range === "starting_soon") {
+    const start = fixture.startTimeUtc?.getTime() ?? Number.NaN;
+    return isUpcoming && Number.isFinite(start) && start <= now.getTime() + 2 * 60 * 60_000;
+  }
+  if (range === "past" || range === "recently_finished") return isPast && !isInterrupted;
+  if (range === "interrupted") return isInterrupted;
   return isUpcoming;
 }
 
@@ -713,9 +816,9 @@ function buildPublicFixtureWhere(
   competitionId: string | undefined,
   now: Date
 ): PublicFixtureWhere | undefined {
-  const startTimeUtc = range === "upcoming"
+  const startTimeUtc = ["upcoming", "starting_soon"].includes(range)
     ? { gte: now }
-    : range === "past"
+    : ["past", "recently_finished"].includes(range)
       ? { lt: now }
       : undefined;
 
@@ -750,6 +853,10 @@ export function buildPublicStatusResponse(): PublicStatusResponse {
 export function buildPublicMatchSummary(
   state: CanonicalMatchState
 ): PublicMatchSummary {
+  const lifecycle = state.lifecycle ?? resolveMatchLifecycle({
+    providerStatus: state.identity.status,
+    startTimeUtc: state.identity.start_time_utc
+  });
   const output: PublicMatchSummary = {
     fixture_id: state.fixture_id,
     competition: state.identity.competition,
@@ -771,7 +878,13 @@ export function buildPublicMatchSummary(
       issues: [...state.quality.issues]
     },
     latest_data_timestamp: state.freshness.latest_data_timestamp,
-    ...(state.lifecycle === undefined ? {} : { lifecycle: state.lifecycle })
+    lifecycle,
+    provider_status_safe: normalizeProviderStatus(state.identity.status).normalized_status,
+    availability: {
+      score: state.scoreboard.available ? "available" : lifecycleIsUpcoming(lifecycle) ? "not_expected_yet" : "upstream_no_data",
+      odds: state.odds.available ? "available" : lifecycleIsUpcoming(lifecycle) ? "not_expected_yet" : "upstream_no_data",
+      events: lifecycleIsUpcoming(lifecycle) ? "not_expected_yet" : "not_attempted"
+    }
   };
   assertNoForbiddenPublicKeys(output);
   return output;
@@ -1161,7 +1274,21 @@ function buildPublicMatchSummaryBase(input: {
   qualityStatus: PublicMatchSummary["quality"]["status"];
   issues: string[];
   latestDataTimestamp: string | null;
+  now: Date;
 }): PublicMatchSummary {
+  const lifecycle = resolveMatchLifecycle({
+    providerStatus: input.fixture.status,
+    persistedPhase: input.matchState?.phase,
+    startTimeUtc: input.fixture.startTimeUtc,
+    now: input.now,
+    captureLeadMinutes: 60,
+    captureTailMinutes: 180
+  });
+  const availability = {
+    score: input.hasScoreboard ? "available" : lifecycleIsUpcoming(lifecycle) ? "not_expected_yet" : "upstream_no_data",
+    odds: input.hasOdds ? "available" : lifecycleIsUpcoming(lifecycle) ? "not_expected_yet" : "upstream_no_data",
+    events: lifecycleIsUpcoming(lifecycle) ? "not_expected_yet" : "not_attempted"
+  } satisfies Record<keyof PublicMatchSummary["availability"], PublicAvailabilityStatus>;
   return sanitizeAndAssertPublicPayload({
     fixture_id: input.fixture.fixtureId,
     competition: input.fixture.competition,
@@ -1182,7 +1309,18 @@ function buildPublicMatchSummaryBase(input: {
       status: input.qualityStatus,
       issues: input.issues
     },
-    latest_data_timestamp: input.latestDataTimestamp
+    latest_data_timestamp: input.latestDataTimestamp,
+    lifecycle: {
+      lifecycle: lifecycle.lifecycle,
+      source: lifecycle.source,
+      reason_code: lifecycle.reason_code,
+      normalized_phase: lifecycle.normalized_phase,
+      is_active: lifecycle.is_active,
+      is_terminal: lifecycle.is_terminal,
+      updated_at: lifecycle.updated_at
+    },
+    provider_status_safe: normalizeProviderStatus(input.fixture.status).normalized_status,
+    availability
   });
 }
 
@@ -1193,34 +1331,60 @@ async function buildPublicMatchSummaries(
   now: Date
 ): Promise<PublicMatchSummary[]> {
   const db = deps.getDbClient();
-  const summaries = await Promise.all(fixtures.map(async (fixture) => {
-    if (!fixtureMatchesRequestedRange(fixture, normalized.range, now)) {
-      return null;
+  const filteredFixtures = fixtures.filter((fixture) => fixtureMatchesRequestedRange(fixture, normalized.range, now));
+  const fixtureIds = filteredFixtures.map((fixture) => fixture.fixtureId);
+  const stateMap = new Map<string, Awaited<ReturnType<PublicApiDbClient["matchState"]["findUnique"]>>>();
+  const oddsMap = new Map<string, number>();
+  if (fixtureIds.length > 0 && db.matchState.findMany !== undefined) {
+    try {
+      const states = await db.matchState.findMany({
+        where: { fixtureId: { in: fixtureIds } },
+        select: { fixtureId: true, homeScore: true, awayScore: true, phase: true, lastDataReceivedAt: true }
+      });
+      for (const state of states) stateMap.set(state.fixtureId, state);
+    } catch { /* per-domain fallback below preserves partial data */ }
+  }
+  const oddsGroupBy = (db.oddsSnapshot as unknown as {
+    groupBy?: (args: {
+      by: ["fixtureId"];
+      where: { fixtureId: { in: string[] } };
+      _count: { _all: true };
+    }) => Promise<Array<{ fixtureId: string; _count: { _all: number } }>>;
+  }).groupBy;
+  if (fixtureIds.length > 0 && oddsGroupBy !== undefined) {
+    try {
+      const grouped = await oddsGroupBy({ by: ["fixtureId"], where: { fixtureId: { in: fixtureIds } }, _count: { _all: true } });
+      for (const row of grouped) oddsMap.set(row.fixtureId, row._count._all);
+    } catch { /* per-domain fallback below preserves partial data */ }
+  }
+  const summaries = await Promise.all(filteredFixtures.map(async (fixture) => {
+    let matchState = stateMap.get(fixture.fixtureId) ?? null;
+    let oddsCount = oddsMap.get(fixture.fixtureId) ?? 0;
+    if (matchState === null && db.matchState.findMany === undefined) {
+      try { matchState = await db.matchState.findUnique({ where: { fixtureId: fixture.fixtureId }, select: { homeScore: true, awayScore: true, phase: true, lastDataReceivedAt: true } }); } catch { matchState = null; }
     }
-
-    const [matchStateResult, oddsCountResult] = await Promise.allSettled([
-      db.matchState.findUnique({
-        where: { fixtureId: fixture.fixtureId },
-        select: {
-          homeScore: true,
-          awayScore: true,
-          phase: true,
-          lastDataReceivedAt: true
-        }
-      }),
-      db.oddsSnapshot.count({
-        where: { fixtureId: fixture.fixtureId }
-      })
-    ]);
-
-    const matchState = matchStateResult.status === "fulfilled" ? matchStateResult.value : null;
-    const oddsCount = oddsCountResult.status === "fulfilled" ? oddsCountResult.value : 0;
+    if (oddsCount === 0 && !oddsMap.has(fixture.fixtureId)) {
+      try { oddsCount = await db.oddsSnapshot.count({ where: { fixtureId: fixture.fixtureId } }); } catch { oddsCount = 0; }
+    }
     const hasScoreboard = matchState !== null;
     const hasOdds = oddsCount > 0;
     const hasIdentity = fixture.competition !== null &&
       fixture.homeTeam !== null &&
       fixture.awayTeam !== null;
     const issues: string[] = [];
+
+    const resolvedLifecycle = resolveMatchLifecycle({
+      providerStatus: fixture.status,
+      persistedPhase: matchState?.phase,
+      startTimeUtc: fixture.startTimeUtc,
+      now,
+      captureLeadMinutes: 60,
+      captureTailMinutes: 180
+    });
+    if (fixture.startTimeUtc !== null && fixture.startTimeUtc.getTime() > now.getTime() &&
+      (resolvedLifecycle.is_terminal || lifecycleIsLive(resolvedLifecycle))) {
+      issues.push("lifecycle_time_conflict");
+    }
 
     if (!hasScoreboard) issues.push("scoreboard_missing");
     if (!hasOdds) issues.push("odds_missing");
@@ -1245,7 +1409,8 @@ async function buildPublicMatchSummaries(
       oddsCount,
       qualityStatus,
       issues,
-      latestDataTimestamp
+      latestDataTimestamp,
+      now
     });
 
     if (!normalized.includeInsight) {
@@ -1313,10 +1478,11 @@ export function registerPublicApiRoutes(
       }
 
       const now = deps.now();
+      const cursor = decodePublicSeekCursor(normalized.cursor, normalized.range);
       const candidates = await deps.getDbClient().fixture.findMany({
         where: buildPublicFixtureWhere(normalized.range, normalized.competitionId, now),
-        orderBy: { startTimeUtc: normalized.range === "past" ? "desc" : "asc" },
-        take: Math.min(normalized.limit * 5, 100),
+        orderBy: { startTimeUtc: ["past", "recently_finished"].includes(normalized.range) ? "desc" : "asc" },
+        take: 10000,
         select: {
           fixtureId: true,
           competition: true,
@@ -1326,14 +1492,31 @@ export function registerPublicApiRoutes(
           status: true
         }
       });
-
-      const data = await buildPublicMatchSummaries(candidates.slice(normalized.cursor ?? 0), normalized, deps, now);
+      const rangeCandidates = candidates.filter((fixture) => fixtureMatchesRequestedRange(fixture, normalized.range, now));
+      const deduplicated = deduplicatePublicFixtures(rangeCandidates);
+      const descending = ["past", "recently_finished"].includes(normalized.range);
+      const sorted = deduplicated.fixtures.sort((left, right) => comparePublicFixtures(left, right, descending));
+      const afterCursor = cursor === undefined ? sorted : sorted.filter((fixture) => fixtureIsAfterCursor(fixture, cursor, descending));
+      const pageFixtures = afterCursor.slice(0, normalized.limit + 1);
+      const hasMore = pageFixtures.length > normalized.limit;
+      const visibleFixtures = pageFixtures.slice(0, normalized.limit);
+      const data = await buildPublicMatchSummaries(visibleFixtures, normalized, deps, now);
+      const lastFixture = visibleFixtures[visibleFixtures.length - 1];
       return {
-        data: data.slice(0, normalized.limit),
+        data,
         meta: {
           status: data.length > 0 ? "live" as const : "no_data" as const,
           source: "database" as const,
-          mode: "public" as const
+          mode: "public" as const,
+          next_cursor: hasMore && lastFixture !== undefined
+            ? encodePublicSeekCursor({ version: 1, range: normalized.range, start_time_utc: lastFixture.startTimeUtc?.getTime() ?? null, fixture_id: lastFixture.fixtureId })
+            : null,
+          has_more: hasMore,
+          range: normalized.range,
+          generated_at: now.toISOString(),
+          result_count: data.length,
+          deduplicated_count: deduplicated.deduplicatedCount,
+          data_status: data.length === visibleFixtures.length ? "complete" as const : "partial" as const
         }
       };
     } catch (error) {

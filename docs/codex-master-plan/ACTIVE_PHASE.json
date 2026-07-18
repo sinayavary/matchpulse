@@ -1,13 +1,13 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "ready",
+  "state": "completed_pending_review",
   "phase_id": "MATCHES-CATALOG-RELIABILITY-B",
   "phase_title": "End-to-end Matches catalog reliability and experience remediation",
   "pack_path": "docs/codex-master-plan/phases/phase-matches-catalog-reliability-b",
   "pack_version": "MATCHES-CATALOG-RELIABILITY-B-v1",
   "baseline_commit": "df9d8cfd7d8076f6ffc2924823ee9b78c4e4cb74",
-  "human_approved": true,
+  "human_approved": false,
   "activation_note": "Human-authorized remediation of production-visible Matches catalog defects. PROD-LIVE-E2E-ACCEPTANCE-B remains paused and is not completed or resumed by this phase.",
   "execution": {
     "continue_until_phase_gate": true,
@@ -15,5 +15,39 @@
     "allow_completion_state_update": true,
     "stop_after_phase": true
   },
-  "last_result": null
+  "last_result": {
+    "status": "PHASE_COMPLETE",
+    "completed_at": "2026-07-18T02:50:46Z",
+    "files_changed": [
+      "apps/api/src/match-lifecycle.test.ts",
+      "apps/api/src/match-lifecycle.ts",
+      "apps/api/src/public-api.test.ts",
+      "apps/api/src/public-api.ts",
+      "apps/api/src/txline-fixture-ingestion.test.ts",
+      "apps/api/src/txline-fixture-ingestion.ts",
+      "apps/api/src/txline-normalizer.test.ts",
+      "apps/api/src/txline-normalizer.ts",
+      "apps/api/src/txline-odds-discovery-window.test.ts",
+      "apps/api/src/txline-odds-discovery-window.ts",
+      "apps/web/components/matches/MatchesBrowser.tsx",
+      "apps/web/lib/public-api.ts",
+      "docs/public-api-contract.md"
+    ],
+    "focused_tests": "93/93 passed",
+    "api_regression": "950/950 passed",
+    "public_contract_leakage_tests": "52/52 passed",
+    "web_test_runner_status": "WEB_TEST_RUNNER_UNAVAILABLE",
+    "web_regression_tests": "not run because no runner exists",
+    "api_typecheck": "passed",
+    "web_typecheck": "passed",
+    "web_production_build": "passed",
+    "prisma_validate": "passed",
+    "prisma_diff": "empty",
+    "forbidden_public_field_scan": "passed",
+    "migration_applied": false,
+    "network_accessed": false,
+    "deployment_performed": false,
+    "fabricated_data": false,
+    "success_claimed": true
+  }
 }

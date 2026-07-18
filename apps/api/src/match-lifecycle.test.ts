@@ -37,6 +37,8 @@ test("capture tail without terminal confirmation becomes finished_unconfirmed", 
   const result = resolveMatchLifecycle({ startTimeUtc: "2026-07-18T07:00:00.000Z", now, captureTailMinutes: 180 });
   assert.equal(result.lifecycle, "finished_unconfirmed");
   assert.equal(lifecycleIsRecentlyFinished(result), true);
+  assert.equal(result.is_active, false);
+  assert.equal(result.is_terminal, true);
 });
 
 test("persisted phase is used only when provider status is absent", () => {

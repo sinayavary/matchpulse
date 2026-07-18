@@ -858,3 +858,15 @@ All public API responses use a consistent envelope:
 | `no_data` | No data available for the request |
 | `stale` | Data exists but exceeds the `staleAfterMinutes` threshold |
 | `degraded` | Service is partially available; try again later |
+
+## 12. Match Catalog Reliability Contract (current)
+
+The current Matches catalog supersedes the earlier range/pagination description above.
+
+Supported ranges are `live`, `starting_soon`, `upcoming`, `recently_finished`, `interrupted`, and `all`. The legacy `past` value remains accepted and maps to recently-finished behavior. The list endpoint accepts an opaque versioned `cursor`; clients must not parse or manufacture it.
+
+Filtering, lifecycle classification, canonical deduplication, and deterministic sorting happen before `limit` and cursor pagination. Sorting uses kickoff time plus `fixture_id` as a tie-breaker. `meta` includes `next_cursor`, `has_more`, `range`, `generated_at`, `result_count`, `deduplicated_count`, and `data_status`.
+
+Every list item includes a lifecycle object (`lifecycle`, `source`, `reason_code`, `normalized_phase`, `is_active`, `is_terminal`, `updated_at`) and availability objects for score, odds, and events. Availability is one of `available`, `not_expected_yet`, `not_attempted`, `upstream_no_data`, `stale`, `upstream_error`, or `unsupported`.
+
+Upcoming is strictly limited to non-terminal scheduled/prematch fixtures whose `start_time_utc` is strictly later than the request instant. Finished, finished-unconfirmed, postponed, cancelled, abandoned, live, past-kickoff, and non-representative rows are excluded. No raw provider status or payload is exposed.

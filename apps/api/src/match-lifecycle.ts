@@ -55,6 +55,10 @@ const LIVE: Record<string, MatchLifecycle> = {
   pen: "penalties", penalties: "penalties", penalty: "penalties"
 };
 
+const SCHEDULED: Record<string, MatchLifecycle> = {
+  scheduled: "scheduled", upcoming: "scheduled", prematch: "prematch", pre_match: "prematch"
+};
+
 const PHASE_ALIASES: Record<string, MatchLifecycle> = {
   ...LIVE,
   ...TERMINAL,
@@ -82,7 +86,7 @@ function buildResult(input: MatchLifecycleInput, lifecycle: MatchLifecycle, sour
     reason_code,
     provider_status: input.providerStatus?.trim() || null,
     normalized_phase,
-    is_active: lifecycle === "prematch" || lifecycle === "live_first_half" || lifecycle === "halftime" || lifecycle === "live_second_half" || lifecycle === "extra_time" || lifecycle === "penalties" || lifecycle === "unknown_in_progress" || lifecycle === "finished_unconfirmed",
+    is_active: lifecycle === "prematch" || lifecycle === "live_first_half" || lifecycle === "halftime" || lifecycle === "live_second_half" || lifecycle === "extra_time" || lifecycle === "penalties" || lifecycle === "unknown_in_progress",
     is_terminal: isTerminal,
     updated_at: (input.now ?? new Date()).toISOString()
   };
@@ -95,6 +99,7 @@ export function resolveMatchLifecycle(input: MatchLifecycleInput = {}): MatchLif
 
   if (provider && TERMINAL[provider]) return buildResult(input, TERMINAL[provider], "provider_terminal", "high", `provider_terminal_${provider}`, phase || null);
   if (provider && LIVE[provider]) return buildResult(input, LIVE[provider], "provider_live", "high", `provider_live_${provider}`, phase || null);
+  if (provider && SCHEDULED[provider]) return buildResult(input, SCHEDULED[provider], "persisted_phase", "high", `provider_scheduled_${provider}`, phase || provider);
 
   if (phase && PHASE_ALIASES[phase]) {
     const lifecycle = PHASE_ALIASES[phase];

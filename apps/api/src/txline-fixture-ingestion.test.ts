@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeTxlineFixture } from "./txline-normalizer.js";
 import {
+  ingestTxlineFixtureDiscoveryWindow,
   ingestTxlineFixtures,
+  buildFixtureCatalogReconciliationReport,
   mapNormalizedFixtureToFixtureUpsert,
   summarizeFixtureIngestion,
   type FixtureUpsert
@@ -107,4 +109,38 @@ test("skips invalid fixtures and reports complete ingestion counts", async () =>
   });
   assert.equal(upserts.length, 2);
   assert.deepEqual(result.fixtures.map((fixture) => fixture.fixture_id), ["17952170"]);
+});
+
+test("fixture discovery window covers configured backfill and future horizon with isolated day failures", async () => {
+  const requestedDays: number[] = [];
+  const result = await ingestTxlineFixtureDiscoveryWindow({
+    competitionId: "430",
+    now: new Date("2026-07-18T12:00:00.000Z"),
+    backfillDays: 1,
+    futureDays: 14,
+    fetchFixtures: async ({ startEpochDay }) => {
+      requestedDays.push(startEpochDay);
+      if (startEpochDay % 2 === 0) throw new Error("simulated upstream day failure");
+      return [];
+    },
+    wait: async () => undefined
+  });
+  assert.equal(result.days, 16);
+  assert.equal(result.coverage.requested_epoch_days.length, 16);
+  assert.equal(result.coverage.successful_epoch_days.length + result.coverage.failed_epoch_days.length, 16);
+  assert.deepEqual(requestedDays, result.coverage.requested_epoch_days);
+  assert.equal(result.coverage.future_horizon_days, 14);
+});
+
+test("catalog reconciliation is dry-run, deterministic, and never deletes source rows", () => {
+  const report = buildFixtureCatalogReconciliationReport([
+    { fixtureId: "a", competition: "Cup", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-18T15:00:00.000Z"), status: "UNKNOWN" },
+    { fixtureId: "b", competition: "Cup", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-18T15:02:00.000Z"), status: "UNKNOWN" },
+    { fixtureId: "c", competition: "Cup", homeTeam: null, awayTeam: "D", startTimeUtc: null, status: null }
+  ], { now: new Date("2026-07-18T16:00:00.000Z") });
+  assert.equal(report.dry_run, true);
+  assert.equal(report.rows_scanned, 3);
+  assert.equal(report.duplicate_candidate_groups, 1);
+  assert.equal(report.high_confidence_duplicates, 1);
+  assert.equal(report.source_rows_deleted, 0);
 });

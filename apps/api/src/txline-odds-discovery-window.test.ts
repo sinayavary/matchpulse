@@ -30,7 +30,7 @@ test("normalizeDiscoveryWindowInput caps the day range safely", () => {
   });
 
   assert.equal(input.startEpochDayFrom, 21000);
-  assert.equal(input.startEpochDayTo, 21013);
+  assert.equal(input.startEpochDayTo, 21030);
 });
 
 test("normalizeDiscoveryWindowInput caps limitPerDay safely", () => {
