@@ -71,7 +71,10 @@ function availabilityLabel(value: string): string {
 
 export default function MatchesBrowser() {
   const [phase, setPhase] = useState<Phase>("loading");
-  const [range, setRange] = useState<MatchRange>("live");
+  // Upcoming fixtures are the primary catalog view. Live matches remain
+  // available through the explicit filter, but should not hide the schedule
+  // when the page is opened.
+  const [range, setRange] = useState<MatchRange>("upcoming");
   const [refreshKey, setRefreshKey] = useState(0);
   const [matches, setMatches] = useState<PublicMatchSummary[]>([]);
   const [status, setStatus] = useState<PublicStatus | null>(null);
@@ -109,7 +112,7 @@ export default function MatchesBrowser() {
     const generation = ++requestGeneration.current;
 
     async function loadRange(selectedRange: MatchRange) {
-      return fetchPublicMatches({ range: dateBounds ? "all" : selectedRange, limit: 50, competitionId: competitionId || undefined, from: dateBounds?.from, to: dateBounds?.to }, controller.signal);
+      return fetchPublicMatches({ range: dateBounds ? "all" : selectedRange, limit: 100, competitionId: competitionId || undefined, from: dateBounds?.from, to: dateBounds?.to }, controller.signal);
     }
 
     async function load() {
@@ -174,7 +177,7 @@ export default function MatchesBrowser() {
     loadMoreController.current?.abort();
     loadMoreController.current = controller;
     setLoadingMore(true);
-    const result = await fetchPublicMatches({ range: dateBounds ? "all" : range, limit: 50, cursor: nextCursor, competitionId: competitionId || undefined, from: dateBounds?.from, to: dateBounds?.to }, controller.signal);
+    const result = await fetchPublicMatches({ range: dateBounds ? "all" : range, limit: 100, cursor: nextCursor, competitionId: competitionId || undefined, from: dateBounds?.from, to: dateBounds?.to }, controller.signal);
     if (generation !== requestGeneration.current || controller.signal.aborted) return;
     setLoadingMore(false);
     if (!result.ok || !result.data) {

@@ -56,7 +56,10 @@ before(async () => {
     "SELECT current_database() AS database_name, inet_server_addr()::text AS host, current_setting($$server_version_num$$) AS server_version_num"
   );
   assert.match(meta[0].database_name, /^matchpulse_free_access_validation_/);
-  assert.match(meta[0].host, /127\.0\.0\.1|::1/);
+  // GitHub Actions runs PostgreSQL in a Docker service container. The client
+  // URL remains loopback-scoped, while PostgreSQL reports its private bridge
+  // address from inside the container.
+  assert.match(meta[0].host, /127\.0\.0\.1|::1|^172\.(?:1[6-9]|2\d|3[01])\./);
   assert.equal(meta[0].server_version_num.slice(0, 2), "16");
 });
 
