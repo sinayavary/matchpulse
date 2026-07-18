@@ -1,0 +1,42 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "FREE-ACCESS-LOCAL-DB-VALIDATION-A",
+  "pack_version": "FREE-ACCESS-LOCAL-DB-VALIDATION-A-v1",
+  "baseline_commit": "2fc45285a5e39c48f4a1e6ed7d97f0e70b8f8256",
+  "allowed_target_files": [
+    "prisma/schema.prisma",
+    "prisma/migrations/20260718190000_free_access_security/migration.sql",
+    "apps/api/package.json",
+    "apps/api/src/server.ts",
+    "apps/api/src/security/api-access-boundary.ts",
+    "apps/api/src/security/api-client-auth.ts",
+    "apps/api/src/security/security-audit.ts",
+    "apps/api/src/security/security-routes.ts",
+    "apps/api/src/security/wallet-auth-store.ts",
+    "apps/api/src/security/wallet-auth.ts",
+    "apps/api/src/security/web-session.ts",
+    "apps/api/src/security/api-access-boundary.test.ts",
+    "apps/api/src/security/free-access-security.test.ts",
+    "apps/api/src/security/security-routes.test.ts",
+    "apps/api/src/security/free-access-postgres.integration.test.ts",
+    "scripts/free-access-local-db-validation.ps1",
+    "docs/security/free-access-local-db-validation-report.md",
+    "docs/codex-master-plan/ACTIVE_PHASE.json"
+  ],
+  "required_validation": [
+    "verify loopback host, PostgreSQL major 16, disposable database prefix, and empty database",
+    "prisma migrate status and deploy against the disposable local database only",
+    "prisma validate and prisma generate",
+    "schema/migration equivalence and destructive SQL scan",
+    "table/index/unique/FK verification and migration idempotency/status verification",
+    "focused security tests, full API regression, API/Web/root typecheck and build",
+    "git diff --check and exact allowlist check"
+  ],
+  "allowed_database_scope": "isolated_disposable_local_postgresql_16",
+  "allows_network": false,
+  "allows_registry": false,
+  "allows_deployment": false,
+  "allows_production_acceptance": false,
+  "allows_new_dependency": false,
+  "human_gate": "LOCAL_POSTGRES_16_REQUIRED"
+}
