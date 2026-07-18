@@ -285,7 +285,15 @@ function Prepare($State, $Pack) {
   foreach ($path in $changed) { Invoke-SafeGit @("add","--",$path) | Out-Null }
   $staged = @((Invoke-SafeGit @("diff","--cached","--name-only")).Lines | Where-Object { $_ } | ForEach-Object { Path-Normal ([string]$_) } | Sort-Object -Unique)
   Same-List $changed $staged "STAGING_SCOPE_VIOLATION" "Staged files differ from the exact phase diff."
-  Invoke-SafeGit @("commit","-m","Complete Phase $($State.Active.phase_id) $($State.Active.phase_title.ToLowerInvariant())") | Out-Null
+  Need $Pack.Manifest "git_publish" "phase manifest"
+  Need $Pack.Manifest.git_publish "commit_message" "phase manifest git_publish"
+
+  $commitMessage = [string]$Pack.Manifest.git_publish.commit_message
+  if ([string]::IsNullOrWhiteSpace($commitMessage)) {
+    Stop-Code "SPEC_CONFLICT" "phase manifest git_publish.commit_message must be non-empty."
+  }
+
+  Invoke-SafeGit @("commit","-m",$commitMessage) | Out-Null
   $parent = ((Invoke-SafeGit @("rev-parse","HEAD^1")).Lines -join "").Trim()
   if ($parent -ne $origin) { Stop-Code "NON_FAST_FORWARD" "Prepared commit parent is not origin/main." }
   Write-Host "AUTOMATION_V2_PREPARED"
