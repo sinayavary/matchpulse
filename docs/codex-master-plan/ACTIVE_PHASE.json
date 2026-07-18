@@ -1,33 +1,19 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "completed_pending_review",
-  "phase_id": "AUTO-DATA-HEALTH-REPORTING-A",
-  "phase_title": "Repair automatic worker health reporting",
-  "pack_path": "docs/codex-master-plan/phases/phase-auto-data-health-reporting-a",
-  "pack_version": "AUTO-DATA-HEALTH-REPORTING-A-v1",
-  "baseline_commit": "bf452e4",
+  "state": "ready",
+  "phase_id": "PROD-LIVE-E2E-ACCEPTANCE-A",
+  "phase_title": "Production live automatic-ingestion and historical-replay acceptance",
+  "pack_path": "docs/codex-master-plan/phases/phase-prod-live-e2e-acceptance-a",
+  "pack_version": "PROD-LIVE-E2E-ACCEPTANCE-A-v1",
+  "baseline_commit": "f3caf00fc05ac8616b6e49061a987dddc117c343",
   "human_approved": true,
-  "activation_note": "Explicit human authorization for successor governance, diagnostics, activation, implementation, Publish, and scoped API/Worker deployment. No schema, migration, seed, or fabricated data is authorized.",
+  "activation_note": "Only production read-only acceptance is authorized. No write, deployment, migration, configuration change, or manual ingestion is authorized.",
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
     "allow_completion_state_update": true,
     "stop_after_phase": true
   },
-  "last_result": {
-    "status": "PHASE_COMPLETE",
-    "phase_id": "AUTO-DATA-HEALTH-REPORTING-A",
-    "pack_version": "AUTO-DATA-HEALTH-REPORTING-A-v1",
-    "baseline_commit": "bf452e4",
-    "completed_at": "2026-07-18T00:00:00Z",
-    "files_changed": [
-      "apps/api/src/automatic-data-runtime.ts",
-      "apps/api/src/automatic-data-runtime.test.ts",
-      "apps/api/src/server.ts"
-    ],
-    "validation_summary": "Focused health tests 8/8 passed; Worker tests 74/74 passed; API regression 944/944 passed; workspace build and typecheck passed; git diff --check passed; Prisma schema diff reported no difference; no migration or seed was applied. Published 60068eb and 900a1f5. API and Worker production deployments are Online. Two healthy production cycles at 2026-07-17T23:48:33.824Z and 2026-07-17T23:49:37.451Z reported configuration_error_resolved=true, safe_last_error=null, failed_fixture_count=0, discovered_competitions=1, persisted_fixture_count=18, active_fixture_count=0, lock_acquired=false.",
-    "migration_applied": false,
-    "network_accessed": true
-  }
+  "last_result": null
 }

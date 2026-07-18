@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "AUTO-DATA-HEALTH-REPORTING-A",
+  "active_phase_id": "PROD-LIVE-E2E-ACCEPTANCE-A",
   "updated_at": "2026-07-18T00:00:00Z",
   "items": [
     {
@@ -11,6 +11,15 @@
       "depends_on": ["AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A"],
       "pack_version": "AUTO-DATA-HEALTH-REPORTING-A-v1",
       "baseline_commit": "bf452e4",
+      "human_gate": true
+    },
+    {
+      "id": "PROD-LIVE-E2E-ACCEPTANCE-A",
+      "title": "Production live automatic-ingestion and historical-replay acceptance",
+      "status": "ready",
+      "depends_on": ["AUTO-DATA-HEALTH-REPORTING-A"],
+      "pack_version": "PROD-LIVE-E2E-ACCEPTANCE-A-v1",
+      "baseline_commit": "f3caf00fc05ac8616b6e49061a987dddc117c343",
       "human_gate": true
     },
     {

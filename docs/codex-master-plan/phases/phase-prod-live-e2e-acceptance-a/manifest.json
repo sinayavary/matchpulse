@@ -1,0 +1,21 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "PROD-LIVE-E2E-ACCEPTANCE-A",
+  "pack_version": "PROD-LIVE-E2E-ACCEPTANCE-A-v1",
+  "baseline_commit": "f3caf00fc05ac8616b6e49061a987dddc117c343",
+  "allowed_target_files": ["docs/production-live-e2e-acceptance-evidence.md"],
+  "required_validation_commands": [
+    "JSON parse and schema validation",
+    "pack identity, baseline, allowlist, and hash verification",
+    "git diff --check",
+    "exact changed-path verification"
+  ],
+  "expected_results": [
+    "governance-only validation passes",
+    "migration_applied=false",
+    "production/network accessed=false",
+    "no runtime tests or production commands run during governance transition"
+  ],
+  "allows_migration": false,
+  "allows_network": true
+}

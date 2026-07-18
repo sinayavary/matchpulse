@@ -129,6 +129,12 @@ Do not:
 - use real TxLINE, Telegram, Solana, or production Neon credentials
 - perform unapproved network smoke tests
 
+### Production live E2E acceptance exception
+
+The only production exception is the exact identity `PROD-LIVE-E2E-ACCEPTANCE-A` / `PROD-LIVE-E2E-ACCEPTANCE-A-v1`, with `human_approved=true`, `allows_network=true`, and `allows_migration=false`. It permits only Railway status and sanitized logs, public GETs, authenticated internal status GETs without printing secrets, read-only TxLINE level-12 validation, public-Web browser automation, waiting for a real fixture, and public-safe evidence written to the allowlisted repository file. It is not reusable by another phase.
+
+This exception forbids all writes and deployments: production POST/PUT/PATCH/DELETE, manual ingestion, database or fixture writes, Railway configuration changes, restart/redeploy, replica/domain changes, migration/seed, secret/token/header output, raw provider payloads, mock/demo/fallback/fabricated data, capture-window or Agent-configuration changes. Any write or deployment operation must stop.
+
 ## Git and Automation v2
 
 Automation v2 is the only permitted automated Git path.

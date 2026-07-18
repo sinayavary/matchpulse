@@ -73,6 +73,8 @@ Publish fetches again, requires exactly one prepared commit directly above `orig
 
 ## State handling
 
+Before production acceptance, verify the phase-specific exception in `EXECUTION_PROTOCOL.md`; only `PROD-LIVE-E2E-ACCEPTANCE-A-v1` may use its read-only production allowlist. Normal production stops remain unchanged for all other phases.
+
 - `awaiting_pack` → `MISSING_SOURCE`
 - `awaiting_human_approval` → `HUMAN_APPROVAL_REQUIRED`
 - `paused` → `PHASE_PAUSED`

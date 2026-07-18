@@ -50,6 +50,8 @@ Implements Automation v2 with three explicit modes:
 - `completed_pending_review` → no implementation; only a previously prepared commit may be published
 - `ready` → the approved pack may be implemented
 
+The mandatory production stop condition remains for every phase except the exact `PROD-LIVE-E2E-ACCEPTANCE-A-v1` exception. Production access requires the exact active phase identity, `state=ready`, `human_approved=true`, manifest `allows_network=true`, manifest `allows_migration=false`, and a README read-only allowlist. A missing condition produces `NETWORK_ACCESS_REQUIRED`; all writes, deployments, migrations, configuration changes, and manual ingestion remain stopped.
+
 Only `ready` authorizes implementation.
 
 ## 5. Pack manifest contract
