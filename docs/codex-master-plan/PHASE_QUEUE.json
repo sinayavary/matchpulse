@@ -1,8 +1,8 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "FREE-ACCESS-SECURITY-A",
-  "updated_at": "2026-07-18T08:49:17Z",
+  "active_phase_id": "FREE-ACCESS-SECURITY-B",
+  "updated_at": "2026-07-18T10:06:00Z",
   "items": [
     {
       "id": "AUTO-DATA-HEALTH-REPORTING-A",
@@ -110,12 +110,25 @@
     {
       "id": "FREE-ACCESS-SECURITY-A",
       "title": "Free wallet identity and secure Developer API",
-      "status": "ready",
+      "status": "published_but_review_rejected",
       "depends_on": ["MATCHES-PRODUCTION-DEFECT-ERADICATION-A"],
       "pack_version": "FREE-ACCESS-SECURITY-A-v4",
       "baseline_commit": "659fadc198da7ddb18b3fd9cc221f226804e6f32",
       "human_gate": true,
-      "reason": "independent governance transition for the approved free off-chain identity and secure Developer API contract"
+      "completion_commit": "b913afadb6610506d34e794b9d0f0c454f0606d1",
+      "reason": "published completion failed formal post-publish security and functional review; successor FREE-ACCESS-SECURITY-B is the only authorized remediation path"
+    },
+    {
+      "id": "FREE-ACCESS-SECURITY-B",
+      "title": "Production-grade Free Access security remediation",
+      "status": "ready",
+      "depends_on": ["MATCHES-PRODUCTION-DEFECT-ERADICATION-A"],
+      "pack_version": "FREE-ACCESS-SECURITY-B-v1",
+      "baseline_commit": "b913afadb6610506d34e794b9d0f0c454f0606d1",
+      "human_gate": true,
+      "remediates_phase": "FREE-ACCESS-SECURITY-A",
+      "remediates_commit": "b913afadb6610506d34e794b9d0f0c454f0606d1",
+      "reason": "fix-forward remediation for the nine release-blocking findings from the formal post-publish review of FREE-ACCESS-SECURITY-A"
     },
     {
       "id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",

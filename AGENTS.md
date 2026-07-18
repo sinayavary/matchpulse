@@ -81,6 +81,7 @@ Automation v2 records unrelated modified and untracked state before implementati
 - Do not upgrade dependencies unless explicitly instructed.
 - Do not edit frontend, Prisma, migrations, workers, routes, or documentation unless they are listed.
 - `ACTIVE_PHASE.json` is the only global metadata exception, and only the exact successful-completion transition defined by `EXECUTION_PROTOCOL.md` is allowed.
+- Governance transition exception: on a separately authorized governance branch, the exact FREE-ACCESS-SECURITY-B / FREE-ACCESS-SECURITY-B-v1 transition may update the listed governance, review, architecture, and phase-pack files. This does not authorize implementation, migration, database, network, deployment, secret access, or phase execution.
 - Never modify `PHASE_QUEUE.json` during phase execution.
 
 ## Safety and confidentiality
