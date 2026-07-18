@@ -2,7 +2,7 @@
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
   "active_phase_id": "MATCHES-RAILWAY-ENVIRONMENT-AUTH-A",
-  "updated_at": "2026-07-18T22:16:20Z",
+  "updated_at": "2026-07-18T22:29:12Z",
   "items": [
     {
       "id": "AUTO-DATA-HEALTH-REPORTING-A",
@@ -206,7 +206,7 @@
     {
       "id": "MATCHES-RAILWAY-ENVIRONMENT-AUTH-A",
       "title": "Account-token authorization for explicit Railway environment creation",
-      "status": "awaiting_human_approval",
+      "status": "ready",
       "depends_on": ["MATCHES-RAILWAY-PROJECT-BINDING-A"],
       "pack_version": "MATCHES-RAILWAY-ENVIRONMENT-AUTH-A-v1",
       "baseline_commit": "f491c805c659d860e41351bb231f606603743132",
