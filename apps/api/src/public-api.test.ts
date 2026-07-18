@@ -12,7 +12,9 @@ import {
   normalizePublicMatchIntelligenceCardQuery,
   normalizePublicMatchQuery,
   normalizePublicMatchesQuery,
+  registerLegacyGoneRoutes,
   registerPublicApiRoutes,
+  resolveCorsOrigins,
   sanitizePublicPayload
 } from "./public-api.js";
 import { SIGNALCORE_FORBIDDEN_OUTPUT_FIELDS } from "./signalcore-contract.js";
@@ -30,6 +32,7 @@ const PUBLIC_EVENT_IMPACT_KEYS = [
 
 type PublicFixtureRow = {
   fixtureId: string;
+  competitionId?: string | null;
   competition: string | null;
   homeTeam: string | null;
   awayTeam: string | null;
@@ -39,7 +42,7 @@ type PublicFixtureRow = {
 
 type PublicFixtureFindManyArgs = {
   where?: {
-    competition?: string;
+    competitionId?: string;
     startTimeUtc?: {
       gte?: Date;
       lt?: Date;
@@ -268,13 +271,13 @@ function makeRangeFilteringDbClient(
     fixture: {
       findMany: async (args: PublicFixtureFindManyArgs) => {
         onFindMany(args);
-        const competition = args.where?.competition;
+        const competitionId = args.where?.competitionId;
         const lowerBound = args.where?.startTimeUtc?.gte?.getTime();
         const upperBound = args.where?.startTimeUtc?.lt?.getTime();
         const direction = args.orderBy.fixtureId;
 
         return rows
-          .filter((row) => competition === undefined || row.competition === competition)
+          .filter((row) => competitionId === undefined || row.competitionId === competitionId)
           .filter((row) => {
             const startTime = row.startTimeUtc?.getTime();
             if (lowerBound !== undefined && (startTime === undefined || startTime < lowerBound)) {
@@ -455,19 +458,14 @@ test("public status route returns the safe public-v0 shape", async () => {
 
     const response = await app.inject({ method: "GET", url: "/api/public/status" });
     assert.equal(response.statusCode, 200);
-    assert.deepEqual(response.json(), {
-      data: {
-        service: "matchpulse-api",
-        ok: true,
-        public_api_version: "public-v0",
-        product_ready: true
-      },
-      meta: {
-        status: "live",
-        source: "database",
-        mode: "public"
-      }
-    });
+    const body = response.json();
+    assert.equal(body.data.service, "matchpulse-api");
+    assert.equal(body.data.ok, true);
+    assert.equal(body.data.public_api_version, "public-v0");
+    assert.equal(body.data.product_ready, true);
+    assert.equal(body.data.readiness.overall, "ready");
+    assert.deepEqual(Object.keys(body.data.readiness.components).sort(), ["agent_worker", "database", "evaluation_worker", "ingestion_worker", "upstream"]);
+    assert.deepEqual(body.meta, { status: "live", source: "database", mode: "public" });
 
     await app.close();
   });
@@ -563,6 +561,125 @@ test("public matches query caps limit at 100", () => {
 
 test("public matches query defaults includeInsight to false", () => {
   assert.equal(normalizePublicMatchesQuery({}).includeInsight, false);
+});
+
+test("public readiness never reports ready for stale, disabled, upstream-error, or disconnected dependencies", async () => {
+  await withDatabaseUrl(async () => {
+    const previous = { data: process.env.MATCHPULSE_DATA_WORKER_ENABLED, agent: process.env.MATCHPULSE_AGENT_WORKER_ENABLED, evaluation: process.env.MATCHPULSE_EVALUATION_WORKER_ENABLED };
+    process.env.MATCHPULSE_DATA_WORKER_ENABLED = "true";
+    delete process.env.MATCHPULSE_AGENT_WORKER_ENABLED;
+    process.env.MATCHPULSE_EVALUATION_WORKER_ENABLED = "true";
+    try {
+      const now = new Date("2026-07-18T12:00:00Z");
+      const app = Fastify();
+      registerPublicApiRoutes(app, {
+        getDbClient: () => ({ ...makeDbClient([]), healthStatus: { findMany: async () => [
+          { serviceName: "matchpulse-data-worker", status: "healthy", lastHeartbeat: new Date("2026-07-18T11:00:00Z"), lastDataReceivedAt: null },
+          { serviceName: "matchpulse-intelligence-worker", status: "healthy", lastHeartbeat: now, lastDataReceivedAt: null },
+          { serviceName: "matchpulse-evaluation-worker", status: "healthy", lastHeartbeat: now, lastDataReceivedAt: null },
+          { serviceName: "matchpulse-upstream", status: "error", lastHeartbeat: now, lastDataReceivedAt: null },
+          { serviceName: "matchpulse-matches-catalog-reconcile", status: "idle", lastHeartbeat: now, lastDataReceivedAt: null, raw: { mode: "dry-run", finished: true } }
+        ] } } as never),
+        getDbBackedMatchState: async () => makeState(), getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState()), now: () => now
+      });
+      const degraded = (await app.inject({ method: "GET", url: "/api/public/status" })).json().data;
+      assert.equal(degraded.product_ready, false);
+      assert.equal(degraded.readiness.overall, "degraded");
+      assert.equal(degraded.readiness.components.database.reason_code, "competition_backfill_incomplete");
+      assert.equal(degraded.readiness.components.ingestion_worker.reason_code, "heartbeat_stale");
+      assert.equal(degraded.readiness.components.agent_worker.reason_code, "worker_disabled");
+      assert.equal(degraded.readiness.components.upstream.reason_code, "upstream_error");
+      await app.close();
+
+      const disconnected = Fastify();
+      registerPublicApiRoutes(disconnected, { getDbClient: () => ({ ...makeDbClient([]), healthStatus: { findMany: async () => { throw new Error("db secret"); } } } as never), getDbBackedMatchState: async () => makeState(), getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState()), now: () => now });
+      const unavailable = (await disconnected.inject({ method: "GET", url: "/api/public/status" })).json().data;
+      assert.equal(unavailable.readiness.overall, "unavailable");
+      assert.equal(unavailable.readiness.components.database.reason_code, "database_unreachable");
+      await disconnected.close();
+    } finally {
+      for (const [key, value] of [["MATCHPULSE_DATA_WORKER_ENABLED", previous.data], ["MATCHPULSE_AGENT_WORKER_ENABLED", previous.agent], ["MATCHPULSE_EVALUATION_WORKER_ENABLED", previous.evaluation]] as const) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+});
+
+test("production CORS requires an explicit allowlist and development permits localhost", () => {
+  assert.deepEqual(resolveCorsOrigins({ NODE_ENV: "development" }), ["http://localhost:3000", "http://127.0.0.1:3000"]);
+  assert.deepEqual(resolveCorsOrigins({ NODE_ENV: "production", CORS_ORIGIN: "https://app.example, https://admin.example" }), ["https://app.example", "https://admin.example"]);
+  assert.throws(() => resolveCorsOrigins({ NODE_ENV: "production" }), /CORS_ORIGIN/);
+});
+
+test("all legacy and unsafe routes return JSON 410 with replacement metadata where available", async () => {
+  const app = Fastify();
+  registerLegacyGoneRoutes(app);
+  const routes: Array<{ method: "GET" | "POST"; url: string }> = [
+    { method: "GET", url: "/api/matches" }, { method: "GET", url: "/api/matches/live" }, { method: "GET", url: "/api/matches/f/raw" },
+    { method: "GET", url: "/api/agent/health" }, { method: "GET", url: "/api/agent/signals" }, { method: "GET", url: "/api/watchlist" },
+    { method: "POST", url: "/api/watchlist" }, { method: "POST", url: "/api/telegram/webhook" },
+    { method: "POST", url: "/api/matches/arbitrary" }, { method: "POST", url: "/api/agent/arbitrary" }
+  ];
+  for (const { method, url } of routes) {
+    const response = await app.inject({ method, url });
+    assert.equal(response.statusCode, 410, `${method} ${url}`);
+    assert.equal(response.json().meta.code, "legacy_route_disabled");
+    assert.equal(response.headers.deprecation, "true");
+  }
+  const replaceable = await app.inject({ method: "GET", url: "/api/matches" });
+  assert.match(String(replaceable.headers.link ?? ""), /api\/public\/matches/);
+  await app.close();
+});
+
+test("public matches query accepts only ordered UTC instants", () => {
+  const query = normalizePublicMatchesQuery({ from: "2026-07-18T00:00:00+14:00", to: "2026-07-19T00:00:00+14:00", competitionId: "430" });
+  assert.equal(query.from?.toISOString(), "2026-07-17T10:00:00.000Z");
+  assert.equal(query.to?.toISOString(), "2026-07-18T10:00:00.000Z");
+  assert.equal(query.competitionId, "430");
+  assert.throws(() => normalizePublicMatchesQuery({ competitionId: "World Cup" }));
+  assert.throws(() => normalizePublicMatchesQuery({ from: "2026-07-18" }));
+  assert.throws(() => normalizePublicMatchesQuery({ from: "2026-07-19T00:00:00Z", to: "2026-07-18T00:00:00Z" }));
+});
+
+test("public competitions are deduplicated by real provider ID", async () => {
+  await withDatabaseUrl(async () => {
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => ({ ...makeDbClient([]), fixture: { findMany: async () => [
+        { fixtureId: "a", competitionId: "431", competition: "Zulu Cup", homeTeam: null, awayTeam: null, startTimeUtc: null, status: null },
+        { fixtureId: "b", competitionId: "430", competition: "Alpha Cup", homeTeam: null, awayTeam: null, startTimeUtc: null, status: null },
+        { fixtureId: "c", competitionId: "430", competition: "Renamed duplicate", homeTeam: null, awayTeam: null, startTimeUtc: null, status: null },
+        { fixtureId: "d", competitionId: null, competition: "Unknown", homeTeam: null, awayTeam: null, startTimeUtc: null, status: null }
+      ] } }),
+      getDbBackedMatchState: async () => makeState(),
+      getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState())
+    });
+    const response = await app.inject({ method: "GET", url: "/api/public/competitions" });
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json().data, [{ competition_id: "430", name: "Alpha Cup" }, { competition_id: "431", name: "Zulu Cup" }]);
+    await app.close();
+  });
+});
+
+test("cursor snapshots cannot be reused across competition or UTC-window filters", async () => {
+  await withDatabaseUrl(async () => {
+    const now = new Date("2026-07-18T12:00:00Z");
+    const rows: PublicFixtureRow[] = [
+      { fixtureId: "a", competitionId: "430", competition: "Cup", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-18T13:00:00Z"), status: "Scheduled" },
+      { fixtureId: "b", competitionId: "430", competition: "Cup", homeTeam: "C", awayTeam: "D", startTimeUtc: new Date("2026-07-18T14:00:00Z"), status: "Scheduled" }
+    ];
+    const app = Fastify();
+    registerPublicApiRoutes(app, { getDbClient: () => makeRangeFilteringDbClient(rows, () => undefined), getDbBackedMatchState: async () => makeState(), getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState()), now: () => now });
+    const first = await app.inject({ method: "GET", url: "/api/public/matches?range=all&competitionId=430&from=2026-07-18T12%3A00%3A00Z&to=2026-07-19T00%3A00%3A00Z&limit=1" });
+    const cursor = first.json().meta.next_cursor;
+    assert.equal(typeof cursor, "string");
+    const wrongCompetition = await app.inject({ method: "GET", url: `/api/public/matches?range=all&competitionId=431&from=2026-07-18T12%3A00%3A00Z&to=2026-07-19T00%3A00%3A00Z&limit=1&cursor=${encodeURIComponent(cursor)}` });
+    const wrongWindow = await app.inject({ method: "GET", url: `/api/public/matches?range=all&competitionId=430&from=2026-07-18T13%3A00%3A00Z&to=2026-07-19T00%3A00%3A00Z&limit=1&cursor=${encodeURIComponent(cursor)}` });
+    assert.equal(wrongCompetition.statusCode, 400);
+    assert.equal(wrongWindow.statusCode, 400);
+    await app.close();
+  });
 });
 
 test("invalid public matches range is handled safely", async () => {
@@ -1102,6 +1219,7 @@ test("public upcoming range filters before bounded take and returns nearest futu
     const rows: PublicFixtureRow[] = [
       ...Array.from({ length: 101 }, (_, index) => ({
         fixtureId: `historical-${index + 1}`,
+        competitionId: "430",
         competition: "World Cup",
         homeTeam: `Historical Home ${index + 1}`,
         awayTeam: `Historical Away ${index + 1}`,
@@ -1110,6 +1228,7 @@ test("public upcoming range filters before bounded take and returns nearest futu
       })),
       {
         fixtureId: "future-near",
+        competitionId: "430",
         competition: "World Cup",
         homeTeam: "England",
         awayTeam: "Argentina",
@@ -1118,6 +1237,7 @@ test("public upcoming range filters before bounded take and returns nearest futu
       },
       {
         fixtureId: "future-far",
+        competitionId: "430",
         competition: "World Cup",
         homeTeam: "Spain",
         awayTeam: "TBD",
@@ -1138,7 +1258,7 @@ test("public upcoming range filters before bounded take and returns nearest futu
 
     const response = await app.inject({
       method: "GET",
-      url: "/api/public/matches?range=upcoming&competitionId=World%20Cup&limit=1"
+      url: "/api/public/matches?range=upcoming&competitionId=430&limit=1"
     });
 
     const body = response.json();
@@ -1164,7 +1284,7 @@ test("public upcoming range filters before bounded take and returns nearest futu
       "start_time_utc",
       "status"
     ]);
-    assert.equal(findManyArgs?.where?.competition, "World Cup");
+    assert.equal(findManyArgs?.where?.competitionId, "430");
     assert.equal(findManyArgs?.where?.startTimeUtc?.gte, now);
     assert.equal(findManyArgs?.where?.startTimeUtc?.lt, undefined);
     assert.equal(findManyArgs?.orderBy.fixtureId, "asc");

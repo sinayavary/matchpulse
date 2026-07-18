@@ -33,7 +33,7 @@ export function registerInternalAgentPresenterRoute(
   const getAgentPresenterBriefForFixtureImpl =
     deps.getAgentPresenterBriefForFixture ?? getAgentPresenterBriefForFixture;
 
-  app.get("/api/internal/agent/matches/:fixtureId/brief", async (request) => {
+  app.get("/api/internal/agent/matches/:fixtureId/brief", async (request, reply) => {
     const { fixtureId } = request.params as { fixtureId: string };
     const query = request.query as {
       includeState?: unknown;
@@ -75,46 +75,17 @@ export function registerInternalAgentPresenterRoute(
       assertNoForbiddenSignalFields(output);
       return output;
     } catch {
-      const output = {
-        data: {
-          fixture_id: fixtureId,
-          agent_version: "presenter-v0" as const,
-          brief: {
-            status_label: "empty" as const,
-            headline: "No persisted match data is available.",
-            overview: "The system does not have enough persisted data to build a brief.",
-            available_data: [],
-            missing_data: [
-              "Fixture identity is missing.",
-              "Scoreboard data is missing.",
-              "Odds data is missing."
-            ],
-            freshness_note: "No latest data timestamp is available.",
-            quality_notes: ["No canonical match data is currently available."],
-            safe_scope_note:
-              "This brief only describes data availability, freshness, and quality. It does not provide predictions, probabilities, recommendations, or betting guidance."
-          },
-          signal_summary: {
-            status: "empty" as const,
-            signal_count: 0,
-            critical_count: 0,
-            warning_count: 0,
-            info_count: 0,
-            has_fixture: false,
-            has_scoreboard: false,
-            has_odds: false,
-            latest_data_timestamp: null
-          },
-          signals: []
-        },
+      request.log.warn({ event: "agent_presenter_unavailable", fixture_id: fixtureId }, "Agent presenter dependency failed");
+      reply.code(503);
+      return {
+        data: null,
         meta: {
-          status: "no_data" as const,
+          status: "unavailable" as const,
           source: "agent-presenter" as const,
-          mode: "internal" as const
+          mode: "internal" as const,
+          code: "agent_presenter_unavailable"
         }
       };
-      assertNoForbiddenSignalFields(output);
-      return output;
     }
   });
 }

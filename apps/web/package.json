@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start -p 3000",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "next lint"
+    "lint": "eslint . --max-warnings=0",
+    "test": "pnpm --filter @matchpulse/api exec tsx --test ../../apps/web/lib/local-calendar.test.ts"
   },
   "dependencies": {
     "@matchpulse/shared": "workspace:*",

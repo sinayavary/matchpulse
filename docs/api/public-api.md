@@ -14,3 +14,9 @@ states are `available`, `not_expected_yet`, `not_attempted`, `upstream_no_data`,
 `upstream_error`, and `unsupported`. Raw payloads and internal lineage never appear.
 
 `recently_finished` is limited to the latest 48 hours; `past` retains broader history.
+
+`competitionId` filters only the persisted provider ID. `from` and `to` are explicit-offset
+ISO instants and intersect with the selected range. All filters are bound to cursor v3.
+
+`GET /api/public/competitions` returns deduplicated `{competition_id,name}` records.
+`GET /api/public/status` separates API liveness from DB, worker, and upstream readiness.

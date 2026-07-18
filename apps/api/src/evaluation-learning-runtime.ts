@@ -1,6 +1,11 @@
 import { evaluatePrediction, type EvaluationReport } from "./prediction-evaluation.js";
 import type { FinalPredictionSnapshot, PredictionSnapshotLabels, PredictionEvaluationMetrics } from "./final-prediction-domain.js";
 import { computeStorageContentHash } from "./prediction-storage-hash.js";
+import { getDbClient } from "./db.js";
+import { createPredictionStorage } from "./prediction-storage.js";
+import { updateManagedWorkerHealth, WORKER_SERVICES } from "./automatic-data-runtime.js";
+import { buildTemporalLabels } from "./temporal-labels.js";
+import { resolveMatchLifecycle } from "./match-lifecycle.js";
 
 export type EvaluationLearningRecord = { snapshot: FinalPredictionSnapshot; labels: PredictionSnapshotLabels; segment_keys?: string[] };
 export type EvaluationLearningPolicy = { minimum_training_rows?: number; minimum_validation_rows?: number; minimum_test_rows?: number; now?: string };
@@ -48,7 +53,7 @@ function aggregate(reports: EvaluationReport[]): PredictionEvaluationMetrics | n
 export function decidePromotion(input: { candidate_version: string; champion_version?: string | null; candidate_passed_gate: boolean; regression_detected?: boolean }): PromotionDecision {
   if (input.regression_detected) return { action: "rollback", reason: "Quality or runtime regression detected; champion remains immutable.", candidate_version: input.candidate_version, champion_version: input.champion_version ?? null };
   if (!input.candidate_passed_gate) return { action: "shadow", reason: "Candidate is retained for bounded shadow evaluation only.", candidate_version: input.candidate_version, champion_version: input.champion_version ?? null };
-  return { action: "promote", reason: "Candidate passed the configured evaluation gate.", candidate_version: input.candidate_version, champion_version: input.champion_version ?? null };
+  return { action: "shadow", reason: "Candidate passed evaluation but automatic promotion is disabled; human review is required.", candidate_version: input.candidate_version, champion_version: input.champion_version ?? null };
 }
 
 export function runEvaluationLearning(records: readonly EvaluationLearningRecord[], policy: EvaluationLearningPolicy = {}): EvaluationLearningResult {
@@ -58,4 +63,76 @@ export function runEvaluationLearning(records: readonly EvaluationLearningRecord
   const evaluations = enough ? sets.test.map((record) => evaluatePrediction({ snapshot: record.snapshot, label: record.labels, model_version: record.snapshot.identity.feature_version, label_version: "temporal-labels-v1", segment_keys: record.segment_keys, evaluated_at: now })) : [];
   const limitations: string[] = []; if (!enough) limitations.push("Insufficient complete, temporally valid training data."); if (valid.length !== records.length) limitations.push("Some records were excluded by identity, ordering, or label-completeness checks.");
   return { status: enough ? "EVALUATED" : "WAITING_FOR_TRAINING_DATA", dataset: enough ? dataset : null, evaluations, aggregate: aggregate(evaluations), split_counts: { training: sets.training.length, validation: sets.validation.length, test: sets.test.length }, learning: { mode: "batch_then_shadow", model_created: false, promotion: enough ? "shadow_only" : "blocked" }, limitations };
+}
+
+export type EvaluationWorkerResult = { status: "ok" | "partial" | "failed"; attempted: number; labeled: number; evaluated: number; failed: number; checkpoint: string | null; learning: "shadow_only" };
+
+export async function runEvaluationWorkerCycle(): Promise<EvaluationWorkerResult> {
+  const db = getDbClient();
+  const storage = createPredictionStorage();
+  let labeled = 0;
+  let failed = 0;
+  const unlabeled = await db.predictionSnapshotRecord.findMany({
+    where: { labelRevisions: { none: {} } }, orderBy: [{ asOf: "asc" }, { snapshotId: "asc" }], take: 100,
+    select: { snapshotId: true, fixtureId: true, snapshotPayload: true }
+  });
+  for (const row of unlabeled) {
+    try {
+      const [fixture, state, events] = await Promise.all([
+        db.fixture.findUnique({ where: { fixtureId: row.fixtureId }, select: { status: true, startTimeUtc: true, updatedAt: true } }),
+        db.matchState.findUnique({ where: { fixtureId: row.fixtureId }, select: { homeScore: true, awayScore: true, phase: true, lastDataReceivedAt: true } }),
+        db.matchEvent.findMany({ where: { fixtureId: row.fixtureId }, orderBy: [{ sourceTimestamp: "asc" }, { id: "asc" }], select: { id: true, eventType: true, teamSide: true, sourceTimestamp: true, createdAt: true } })
+      ]);
+      if (!fixture || !state) continue;
+      const lifecycle = resolveMatchLifecycle({ providerStatus: fixture.status, persistedPhase: state.phase, startTimeUtc: fixture.startTimeUtc });
+      if (!lifecycle.is_terminal || state.homeScore === null || state.awayScore === null) continue;
+      const finalizedAt = (state.lastDataReceivedAt ?? fixture.updatedAt).toISOString();
+      const labels = buildTemporalLabels({
+        snapshot: row.snapshotPayload as unknown as FinalPredictionSnapshot,
+        finalized_at: finalizedAt,
+        final_home_score: state.homeScore,
+        final_away_score: state.awayScore,
+        labeled_at: new Date().toISOString(),
+        timeline: events.map((event, index) => ({ event_id: event.id, stream_kind: "scores" as const, fixture_id: row.fixtureId, sequence: index + 1, provider_timestamp: (event.sourceTimestamp ?? event.createdAt).toISOString(), event_type: event.eventType, payload: { team_side: event.teamSide } }))
+      });
+      await storage.savePredictionLabelRevision({ labelVersion: "temporal-labels-v1", revision: 1, labels });
+      labeled += 1;
+    } catch { failed += 1; }
+  }
+  const rows = await db.predictionLabelRevisionRecord.findMany({
+    where: { status: "complete", predictionSnapshot: { evaluations: { none: {} } } },
+    orderBy: [{ labeledAt: "asc" }, { id: "asc" }],
+    take: 100,
+    select: { id: true, labelVersion: true, labelPayload: true, predictionSnapshot: { select: { snapshotPayload: true, inferenceEngineVersion: true } } }
+  });
+  let evaluated = 0;
+  let checkpoint: string | null = null;
+  for (const row of rows) {
+    checkpoint = row.id;
+    try {
+      const report = evaluatePrediction({
+        snapshot: row.predictionSnapshot.snapshotPayload as unknown as FinalPredictionSnapshot,
+        label: row.labelPayload as unknown as PredictionSnapshotLabels,
+        model_version: row.predictionSnapshot.inferenceEngineVersion,
+        label_version: row.labelVersion,
+        evaluated_at: new Date().toISOString()
+      });
+      await storage.savePredictionEvaluationRecord(report.record);
+      evaluated += 1;
+    } catch { failed += 1; }
+  }
+  return { status: failed === 0 ? "ok" : evaluated > 0 || labeled > 0 ? "partial" : "failed", attempted: unlabeled.length + rows.length, labeled, evaluated, failed, checkpoint, learning: "shadow_only" };
+}
+
+export async function runManagedEvaluationWorkerCycle(): Promise<EvaluationWorkerResult> {
+  const startedAt = new Date();
+  await updateManagedWorkerHealth(WORKER_SERVICES.evaluation, { status: "running", errorCount: 0, cycle: { checkpoint: null, started_at: startedAt.toISOString(), learning: "shadow_only" } });
+  try {
+    const result = await runEvaluationWorkerCycle();
+    await updateManagedWorkerHealth(WORKER_SERVICES.evaluation, { status: result.status === "ok" ? "healthy" : result.status, errorCount: result.failed, cycle: { ...result, started_at: startedAt.toISOString(), finished_at: new Date().toISOString() } });
+    return result;
+  } catch (error) {
+    await updateManagedWorkerHealth(WORKER_SERVICES.evaluation, { status: "failed", error, errorCount: 1, stage: "evaluation", cycle: { checkpoint: null, started_at: startedAt.toISOString(), finished_at: new Date().toISOString(), learning: "shadow_only" } });
+    throw error;
+  }
 }

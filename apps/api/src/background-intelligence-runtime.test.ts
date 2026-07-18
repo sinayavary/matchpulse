@@ -85,3 +85,20 @@ test("one fixture failure does not stop other fixtures", async () => {
   assert.equal(result.agent_succeeded, 1);
   assert.equal(result.fixtures.find((item) => item.fixture_id === "good")?.status, "ok");
 });
+
+test("terminal fixtures are skipped before Agent, Presenter, and Prediction", async () => {
+  let calls = 0;
+  const finished = state("finished");
+  finished.lifecycle = { ...finished.lifecycle!, lifecycle: "finished", is_terminal: true, is_active: false };
+  const result = await runBackgroundIntelligenceCycle({
+    listFixtureIds: async () => ["finished"],
+    getState: async () => finished,
+    runAgent: async (fixtureId) => { calls += 1; return agent(fixtureId); },
+    runPresenter: async () => { calls += 1; },
+    persistPrediction: async () => { calls += 1; },
+    now: () => new Date("2026-07-18T12:01:00Z")
+  });
+  assert.equal(result.skipped_ineligible, 1);
+  assert.equal(result.prediction_attempted, 0);
+  assert.equal(calls, 0);
+});

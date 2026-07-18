@@ -18,19 +18,36 @@ async function runAutomaticMode() {
   const apiModule = await import(runtimePath) as {
     runAutomaticIngestionCycle: () => Promise<unknown>;
     tryAcquireWorkerLock: () => Promise<boolean>;
+    heartbeatWorkerLock: () => Promise<void>;
     releaseWorkerLock: () => Promise<void>;
+    tryAcquireManagedWorkerLock: (serviceName: "matchpulse-intelligence-worker" | "matchpulse-evaluation-worker") => Promise<boolean>;
+    heartbeatManagedWorkerLock: (serviceName: "matchpulse-intelligence-worker" | "matchpulse-evaluation-worker") => Promise<void>;
+    releaseManagedWorkerLock: (serviceName: "matchpulse-intelligence-worker" | "matchpulse-evaluation-worker") => Promise<void>;
   };
-  await runAutomaticWorkerLoop({
-    runCycle: apiModule.runAutomaticIngestionCycle,
-    acquireLock: apiModule.tryAcquireWorkerLock,
-    releaseLock: apiModule.releaseWorkerLock
-  }, { onError: (error) => {
+  const reportError = (loop: string) => (error: unknown) => {
     const record = error && typeof error === "object" ? error as Record<string, unknown> : {};
     const name = typeof record.name === "string" ? record.name.slice(0, 80) : "Error";
     const code = typeof record.code === "string" ? record.code.slice(0, 80) : "UNKNOWN";
     const message = error instanceof Error ? error.message : String(error);
-    console.error(JSON.stringify({ event: "automatic_worker_cycle_failed", error: { name, code, message: message.replace(/(https?:\/\/|postgres(?:ql)?:\/\/|bearer\s+|token|jwt|password|database_url)[^\s]*/gi, "[redacted]").slice(0, 240) } }));
-  } });
+    console.error(JSON.stringify({ event: "automatic_worker_cycle_failed", loop, error: { name, code, message: message.replace(/(https?:\/\/|postgres(?:ql)?:\/\/|bearer\s+|token|jwt|password|database_url)[^\s]*/gi, "[redacted]").slice(0, 240) } }));
+  };
+  const loops: Array<Promise<unknown>> = [];
+  if (process.env.MATCHPULSE_DATA_WORKER_ENABLED === "true") {
+    loops.push(runAutomaticWorkerLoop({ runCycle: apiModule.runAutomaticIngestionCycle, acquireLock: apiModule.tryAcquireWorkerLock, heartbeat: apiModule.heartbeatWorkerLock, releaseLock: apiModule.releaseWorkerLock }, { onError: reportError("ingestion") }));
+  }
+  if (process.env.MATCHPULSE_AGENT_WORKER_ENABLED === "true") {
+    const intelligencePath = process.env.MATCHPULSE_INTELLIGENCE_RUNTIME_PATH ?? "../../api/src/background-intelligence-runtime.js";
+    const intelligence = await import(intelligencePath) as { runManagedBackgroundIntelligenceCycle: () => Promise<unknown> };
+    const service = "matchpulse-intelligence-worker" as const;
+    loops.push(runAutomaticWorkerLoop({ runCycle: intelligence.runManagedBackgroundIntelligenceCycle, acquireLock: () => apiModule.tryAcquireManagedWorkerLock(service), heartbeat: () => apiModule.heartbeatManagedWorkerLock(service), releaseLock: () => apiModule.releaseManagedWorkerLock(service) }, { intervalMs: Number(process.env.MATCHPULSE_AGENT_INTERVAL_MS ?? 60_000), onError: reportError("intelligence") }));
+  }
+  if (process.env.MATCHPULSE_EVALUATION_WORKER_ENABLED === "true") {
+    const evaluationPath = process.env.MATCHPULSE_EVALUATION_RUNTIME_PATH ?? "../../api/src/evaluation-learning-runtime.js";
+    const evaluation = await import(evaluationPath) as { runManagedEvaluationWorkerCycle: () => Promise<unknown> };
+    const service = "matchpulse-evaluation-worker" as const;
+    loops.push(runAutomaticWorkerLoop({ runCycle: evaluation.runManagedEvaluationWorkerCycle, acquireLock: () => apiModule.tryAcquireManagedWorkerLock(service), heartbeat: () => apiModule.heartbeatManagedWorkerLock(service), releaseLock: () => apiModule.releaseManagedWorkerLock(service) }, { intervalMs: Number(process.env.MATCHPULSE_EVALUATION_INTERVAL_MS ?? 300_000), onError: reportError("evaluation") }));
+  }
+  await Promise.all(loops);
 }
 
 function readFlag(args: string[], name: string): string | undefined {
@@ -121,7 +138,7 @@ async function main() {
     return;
   }
 
-  if (process.env.MATCHPULSE_DATA_WORKER_ENABLED === "true" && args.length === 0) {
+  if ([process.env.MATCHPULSE_DATA_WORKER_ENABLED, process.env.MATCHPULSE_AGENT_WORKER_ENABLED, process.env.MATCHPULSE_EVALUATION_WORKER_ENABLED].includes("true") && args.length === 0) {
     try { await runAutomaticMode(); } catch { process.exitCode = 1; }
     return;
   }

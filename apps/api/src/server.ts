@@ -88,7 +88,7 @@ import {
   getDemoBridgeMatches,
   isAllowedDemoFixtureId
 } from "./demo-bridge.js";
-import { registerPublicApiRoutes } from "./public-api.js";
+import { registerLegacyGoneRoutes, registerPublicApiRoutes, resolveCorsOrigins } from "./public-api.js";
 import { registerTxlineRuntimeAuditRoutes } from "./txline-runtime-audit-routes.js";
 import { registerCompetitionPredictionRoutes } from "./server-competition-prediction-route.js";
 import { registerHistoricalReplayRoute } from "./historical-replay.js";
@@ -126,9 +126,9 @@ const readBoolean = (value: unknown): boolean | undefined => {
 const readNumber = (value: unknown): number | undefined =>
   typeof value === "number" ? value : typeof value === "string" ? Number(value) : undefined;
 
-const configuredOrigins = (process.env.CORS_ORIGIN ?? "").split(",").map(value => value.trim()).filter(Boolean);
+const configuredOrigins = resolveCorsOrigins(process.env);
 await app.register(cors, {
-  origin: configuredOrigins.length ? configuredOrigins : false,
+  origin: configuredOrigins,
   methods: ["GET", "POST", "OPTIONS"],
   credentials: true
 });
@@ -1640,55 +1640,7 @@ app.get("/api/internal/txline/normalized/qa/score-samples", async (request, repl
   }
 });
 
-app.get("/api/matches", async () => {
-  const config = getTxlineConfigFromEnv();
-  return config.dataMode === "live"
-    ? publicLiveNormalizationUnavailable()
-    : response(readMock("matches.json"));
-});
-app.get("/api/matches/live", async () => response(readMock("matches.json")));
-app.get("/api/matches/:fixtureId", async (request, reply) => {
-  const config = getTxlineConfigFromEnv();
-  if (config.dataMode === "live") return publicLiveNormalizationUnavailable();
-  const { fixtureId } = request.params as { fixtureId: string };
-  const matchState = readMock<MatchState>("match-state.json");
-
-  if (matchState.fixture_id !== fixtureId) {
-    reply.code(404);
-    return notFoundResponse("Fixture not found");
-  }
-
-  return response(matchState);
-});
-app.get("/api/matches/:fixtureId/raw", async (_request, reply) => {
-  reply.code(404);
-  return notFoundResponse("Raw provider payloads are not publicly available.");
-});
-app.get("/api/matches/:fixtureId/timeline", async () => response(readMock("timeline.json")));
-app.get("/api/matches/:fixtureId/odds", async () => response(readMock("odds.json")));
-app.get("/api/matches/:fixtureId/signals", async () => response(readMock("signals.json")));
-app.get("/api/matches/:fixtureId/scenarios", async () => response(readMock("scenarios.json")));
-app.get("/api/matches/:fixtureId/recap", async () =>
-  response({
-    fixture_id: "mock-fixture",
-    title: "Mock match recap",
-    summary:
-      "The agent identified aligned event and market movement signals. This is an informational market insight, not betting advice.",
-    key_takeaway: "Replay mode is ready for demo without live match activity."
-  })
-);
-
-app.get("/api/agent/health", async () =>
-  response({
-    agent: "SignalCore",
-    status: "running_mock_mode",
-    watched_matches: 1,
-    mode: "devnet-first mock"
-  })
-);
-app.get("/api/agent/signals", async () => response(readMock("signals.json")));
-app.get("/api/agent/evaluation", async () => response(readMock("evaluation.json")));
-app.get("/api/agent/learning-graph", async () => response(readMock("learning-graph.json")));
+registerLegacyGoneRoutes(app);
 
 const replayMeta = {
   status: "replay" as const,
@@ -1747,19 +1699,6 @@ app.get("/api/replay/:sessionId", async (request, reply) => {
     },
     meta: replayMeta
   };
-});
-
-const watchlist: string[] = [];
-app.get("/api/watchlist", async () => response({ items: watchlist }));
-app.post("/api/watchlist", async (request) => {
-  const body = request.body as { fixture_id?: string } | undefined;
-  if (body?.fixture_id && !watchlist.includes(body.fixture_id)) watchlist.push(body.fixture_id);
-  return response({ items: watchlist });
-});
-
-app.post("/api/telegram/webhook", async (request) => {
-  app.log.info({ event: "telegram_webhook_received", mode: "mock" }, "Telegram webhook received");
-  return response({ ok: true, mode: "mock" });
 });
 
 app.listen({ port, host: "0.0.0.0" })

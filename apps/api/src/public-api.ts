@@ -42,8 +42,33 @@ export type PublicMatchesRange = "past" | "live" | "starting_soon" | "upcoming" 
 
 export type PublicAvailabilityStatus = "available" | "not_expected_yet" | "not_attempted" | "upstream_no_data" | "stale" | "upstream_error" | "unsupported";
 
+export function resolveCorsOrigins(environment: Record<string, string | undefined>): string[] {
+  const configured = (environment.CORS_ORIGIN ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+  if (configured.length > 0) return configured;
+  if (environment.NODE_ENV === "production") throw new Error("CORS_ORIGIN is required in production.");
+  return ["http://localhost:3000", "http://127.0.0.1:3000"];
+}
+
+export function registerLegacyGoneRoutes(app: FastifyInstance): void {
+  const gone = (reply: FastifyReply, replacement?: string) => {
+    reply.code(410).headers({ Deprecation: "true", Sunset: "Wed, 01 Jul 2026 00:00:00 GMT", ...(replacement ? { Link: `<${replacement}>; rel=\"successor-version\"` } : {}) });
+    return { data: null, meta: { status: "gone", mode: "public", code: "legacy_route_disabled", ...(replacement ? { replacement } : {}) } };
+  };
+  app.all("/api/matches", async (_request, reply) => gone(reply, "/api/public/matches"));
+  app.all("/api/matches/*", async (request, reply) => {
+    const path = request.url.split("?", 1)[0] ?? "";
+    if (path === "/api/matches/live") return gone(reply, "/api/public/matches?range=live");
+    if (/^\/api\/matches\/[^/]+$/.test(path)) return gone(reply, "/api/public/matches/{fixtureId}");
+    return gone(reply);
+  });
+  app.all("/api/agent/*", async (request, reply) => gone(reply, request.url.split("?", 1)[0] === "/api/agent/health" ? "/api/public/status" : undefined));
+  app.all("/api/watchlist", async (_request, reply) => gone(reply));
+  app.all("/api/telegram/webhook", async (_request, reply) => gone(reply));
+}
+
 type PublicFixtureRow = {
   fixtureId: string;
+  competitionId?: string | null;
   sport?: string | null;
   stage?: string | null;
   competition: string | null;
@@ -163,7 +188,16 @@ export type PublicStatusResponse = {
     service: "matchpulse-api";
     ok: true;
     public_api_version: "public-v0";
-    product_ready: true;
+    product_ready: boolean;
+    readiness: {
+      overall: "ready" | "degraded" | "unavailable";
+      checked_at: string;
+      components: Record<"database" | "ingestion_worker" | "agent_worker" | "evaluation_worker" | "upstream", {
+        status: "ready" | "degraded" | "unavailable";
+        timestamp: string | null;
+        reason_code: string;
+      }>;
+    };
   };
   meta: {
     status: "live";
@@ -453,12 +487,16 @@ export function assertNoForbiddenPublicKeys(value: unknown): void {
 export function normalizePublicMatchesQuery(query: {
   range?: unknown;
   competitionId?: unknown;
+  from?: unknown;
+  to?: unknown;
   limit?: unknown;
   includeInsight?: unknown;
   cursor?: unknown;
 }): {
   range: PublicMatchesRange;
   competitionId?: string;
+  from?: Date;
+  to?: Date;
   limit: number;
   includeInsight: boolean;
   cursor?: string;
@@ -476,11 +514,31 @@ export function normalizePublicMatchesQuery(query: {
     : typeof query.competitionId === "number" && Number.isFinite(query.competitionId)
       ? String(query.competitionId)
     : undefined;
+  if (competitionId !== undefined && !/^\d+$/.test(competitionId)) {
+    throw new PublicApiValidationError("competitionId must be a real numeric provider ID.");
+  }
+
+  const instant = (value: unknown, field: "from" | "to"): Date | undefined => {
+    if (value === undefined || value === null || value === "") return undefined;
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value.trim())) {
+      throw new PublicApiValidationError(`${field} must be an ISO-8601 instant with a UTC offset.`);
+    }
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) throw new PublicApiValidationError(`${field} must be a valid ISO-8601 instant.`);
+    return date;
+  };
+  const from = instant(query.from, "from");
+  const to = instant(query.to, "to");
+  if (from !== undefined && to !== undefined && from.getTime() >= to.getTime()) {
+    throw new PublicApiValidationError("from must be earlier than to.");
+  }
 
   const cursor = typeof query.cursor === "string" && query.cursor.trim() !== "" ? query.cursor.trim() : undefined;
   return {
     range: range as PublicMatchesRange,
     competitionId,
+    from,
+    to,
     limit: normalizeLimit(query.limit, 20, 100),
     includeInsight: readBoolean(query.includeInsight, false),
     cursor
@@ -697,8 +755,9 @@ function parseTimestamp(value: string | null): number | null {
 }
 
 type PublicSeekCursor = {
-  version: 2;
+  version: 3;
   range: PublicMatchesRange;
+  query_fingerprint: string;
   snapshot_at: string;
   primary_sort_value: number | null;
   secondary_sort_value: number | null;
@@ -710,11 +769,21 @@ function encodePublicSeekCursor(cursor: PublicSeekCursor): string {
   return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 }
 
-function decodePublicSeekCursor(value: string | undefined, range: PublicMatchesRange): PublicSeekCursor | undefined {
+function publicQueryFingerprint(normalized: ReturnType<typeof normalizePublicMatchesQuery>): string {
+  return createHash("sha256").update(JSON.stringify({
+    range: normalized.range,
+    competition_id: normalized.competitionId ?? null,
+    from: normalized.from?.toISOString() ?? null,
+    to: normalized.to?.toISOString() ?? null,
+    include_insight: normalized.includeInsight
+  }), "utf8").digest("hex").slice(0, 24);
+}
+
+function decodePublicSeekCursor(value: string | undefined, normalized: ReturnType<typeof normalizePublicMatchesQuery>): PublicSeekCursor | undefined {
   if (value === undefined) return undefined;
   try {
     const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as Partial<PublicSeekCursor>;
-    if (parsed.version !== 2 || parsed.range !== range || typeof parsed.fixture_id !== "string" ||
+    if (parsed.version !== 3 || parsed.range !== normalized.range || parsed.query_fingerprint !== publicQueryFingerprint(normalized) || typeof parsed.fixture_id !== "string" ||
       typeof parsed.snapshot_at !== "string" || !Number.isFinite(Date.parse(parsed.snapshot_at)) ||
       (parsed.primary_sort_value !== null && typeof parsed.primary_sort_value !== "number") ||
       (parsed.secondary_sort_value !== null && typeof parsed.secondary_sort_value !== "number") ||
@@ -723,7 +792,7 @@ function decodePublicSeekCursor(value: string | undefined, range: PublicMatchesR
     }
     return parsed as PublicSeekCursor;
   } catch {
-    throw new PublicApiValidationError("cursor is invalid or belongs to another range.");
+    throw new PublicApiValidationError("cursor is invalid or belongs to another query snapshot.");
   }
 }
 
@@ -969,31 +1038,61 @@ function fixtureMatchesRequestedRange(
 function buildPublicFixtureWhere(
   range: PublicMatchesRange,
   competitionId: string | undefined,
-  now: Date
+  now: Date,
+  from?: Date,
+  to?: Date
 ): PublicFixtureWhere | undefined {
-  const startTimeUtc = ["upcoming", "starting_soon"].includes(range)
+  const lifecycleBounds: { gte?: Date; lt?: Date } | undefined = ["upcoming", "starting_soon"].includes(range)
     ? { gte: now }
     : ["past", "recently_finished"].includes(range)
       ? { ...(range === "recently_finished" ? { gte: new Date(now.getTime() - 48 * 60 * 60_000) } : {}), lt: now }
       : undefined;
+
+  const lower = from === undefined || (lifecycleBounds?.gte !== undefined && lifecycleBounds.gte.getTime() >= from.getTime())
+    ? lifecycleBounds?.gte
+    : from;
+  const upper = to === undefined || (lifecycleBounds?.lt !== undefined && lifecycleBounds.lt.getTime() <= to.getTime())
+    ? lifecycleBounds?.lt
+    : to;
+  const startTimeUtc = lower === undefined && upper === undefined ? undefined : {
+    ...(lower === undefined ? {} : { gte: lower }),
+    ...(upper === undefined ? {} : { lt: upper })
+  };
 
   if (competitionId === undefined && startTimeUtc === undefined) {
     return undefined;
   }
 
   return {
-    ...(competitionId === undefined ? {} : { competition: competitionId }),
+    ...(competitionId === undefined ? {} : { competitionId }),
     ...(startTimeUtc === undefined ? {} : { startTimeUtc })
   };
 }
 
-export function buildPublicStatusResponse(): PublicStatusResponse {
+type PublicReadinessComponent = PublicStatusResponse["data"]["readiness"]["components"]["database"];
+type PublicReadinessInput = { checkedAt?: Date; components?: Partial<PublicStatusResponse["data"]["readiness"]["components"]> };
+const readyComponent = (timestamp: string | null = null): PublicReadinessComponent => ({ status: "ready", timestamp, reason_code: "ok" });
+
+export function buildPublicStatusResponse(input: PublicReadinessInput = {}): PublicStatusResponse {
+  const checkedAt = (input.checkedAt ?? new Date()).toISOString();
+  const components = {
+    database: input.components?.database ?? readyComponent(checkedAt),
+    ingestion_worker: input.components?.ingestion_worker ?? readyComponent(checkedAt),
+    agent_worker: input.components?.agent_worker ?? readyComponent(checkedAt),
+    evaluation_worker: input.components?.evaluation_worker ?? readyComponent(checkedAt),
+    upstream: input.components?.upstream ?? readyComponent(checkedAt)
+  };
+  const values = Object.values(components);
+  const overall = components.database.status === "unavailable"
+    ? "unavailable" as const
+    : values.every((component) => component.status === "ready") ? "ready" as const : "degraded" as const;
   const output: PublicStatusResponse = {
     data: {
       service: "matchpulse-api",
       ok: true,
       public_api_version: "public-v0",
-      product_ready: true
+      product_ready: overall === "ready",
+      readiness: { overall, checked_at: checkedAt, components }
     },
     meta: {
       status: "live",
@@ -1003,6 +1102,47 @@ export function buildPublicStatusResponse(): PublicStatusResponse {
   };
   assertNoForbiddenPublicKeys(output);
   return output;
+}
+
+async function readPublicReadiness(deps: PublicApiDependencies): Promise<PublicReadinessInput> {
+  const checkedAt = deps.now();
+  const unavailable = (reason_code: string): PublicReadinessComponent => ({ status: "unavailable", timestamp: null, reason_code });
+  const degraded = (timestamp: string | null, reason_code: string): PublicReadinessComponent => ({ status: "degraded", timestamp, reason_code });
+  if (!process.env.DATABASE_URL) return { checkedAt, components: { database: unavailable("database_not_configured"), ingestion_worker: unavailable("health_unavailable"), agent_worker: unavailable("health_unavailable"), evaluation_worker: unavailable("health_unavailable"), upstream: unavailable("health_unavailable") } };
+  const client = deps.getDbClient() as PublicApiDbClient & { healthStatus?: { findMany(args: unknown): Promise<Array<{ serviceName: string; status: string; lastHeartbeat: Date | null; lastDataReceivedAt: Date | null; raw?: unknown }>> } };
+  if (!client.healthStatus) return { checkedAt };
+  try {
+    const rows = await client.healthStatus.findMany({ where: { serviceName: { in: ["matchpulse-data-worker", "matchpulse-intelligence-worker", "matchpulse-evaluation-worker", "matchpulse-upstream", "matchpulse-matches-catalog-reconcile"] } }, select: { serviceName: true, status: true, lastHeartbeat: true, lastDataReceivedAt: true, raw: true } });
+    const byName = new Map(rows.map((row) => [row.serviceName, row]));
+    const worker = (name: string, enabled: boolean): PublicReadinessComponent => {
+      if (!enabled) return degraded(null, "worker_disabled");
+      const row = byName.get(name);
+      if (!row?.lastHeartbeat) return degraded(null, "heartbeat_missing");
+      const timestamp = row.lastHeartbeat.toISOString();
+      if (checkedAt.getTime() - row.lastHeartbeat.getTime() > 180_000) return degraded(timestamp, "heartbeat_stale");
+      return ["healthy", "idle", "locked", "running"].includes(row.status) ? readyComponent(timestamp) : degraded(timestamp, "worker_error");
+    };
+    const upstreamRow = byName.get("matchpulse-upstream");
+    const reconciliation = byName.get("matchpulse-matches-catalog-reconcile")?.raw;
+    const reconciliationRecord = reconciliation && typeof reconciliation === "object" ? reconciliation as Record<string, unknown> : {};
+    const database = reconciliationRecord.mode === "apply" && reconciliationRecord.finished === true
+      ? readyComponent(checkedAt.toISOString())
+      : degraded(checkedAt.toISOString(), "competition_backfill_incomplete");
+    const upstream = !upstreamRow?.lastHeartbeat
+      ? degraded(null, "upstream_health_missing")
+      : checkedAt.getTime() - upstreamRow.lastHeartbeat.getTime() > 600_000
+        ? degraded(upstreamRow.lastHeartbeat.toISOString(), "upstream_stale")
+        : ["healthy", "live", "idle"].includes(upstreamRow.status)
+          ? readyComponent(upstreamRow.lastHeartbeat.toISOString())
+          : degraded(upstreamRow.lastHeartbeat.toISOString(), "upstream_error");
+    return { checkedAt, components: {
+      database,
+      ingestion_worker: worker("matchpulse-data-worker", process.env.MATCHPULSE_DATA_WORKER_ENABLED === "true"),
+      agent_worker: worker("matchpulse-intelligence-worker", process.env.MATCHPULSE_AGENT_WORKER_ENABLED === "true"),
+      evaluation_worker: worker("matchpulse-evaluation-worker", process.env.MATCHPULSE_EVALUATION_WORKER_ENABLED === "true"),
+      upstream
+    } };
+  } catch { return { checkedAt, components: { database: unavailable("database_unreachable"), ingestion_worker: unavailable("health_unavailable"), agent_worker: unavailable("health_unavailable"), evaluation_worker: unavailable("health_unavailable"), upstream: unavailable("health_unavailable") } }; }
 }
 
 export function buildPublicMatchSummary(
@@ -1686,7 +1826,7 @@ async function scanPublicCatalog(
     const remaining = Math.min(pageSize, scanBudget - scanned);
     const rows = await db.fixture.findMany({
       where: {
-        ...(buildPublicFixtureWhere(normalized.range, normalized.competitionId, now) ?? {}),
+        ...(buildPublicFixtureWhere(normalized.range, normalized.competitionId, now, normalized.from, normalized.to) ?? {}),
         createdAt: { lte: snapshotAt },
         updatedAt: { lte: snapshotAt }
       },
@@ -1696,7 +1836,7 @@ async function scanPublicCatalog(
       orderBy: { fixtureId: "asc" },
       ...(cursorId === undefined ? {} : { cursor: { fixtureId: cursorId }, skip: 1 }),
       take: remaining,
-      select: { fixtureId: true, sport: true, stage: true, competition: true, homeTeam: true, awayTeam: true, startTimeUtc: true, status: true, createdAt: true, updatedAt: true }
+      select: { fixtureId: true, competitionId: true, sport: true, stage: true, competition: true, homeTeam: true, awayTeam: true, startTimeUtc: true, status: true, createdAt: true, updatedAt: true }
     });
     if (rows.length === 0) { exhausted = true; break; }
     fixtures.push(...rows);
@@ -1718,12 +1858,35 @@ export function registerPublicApiRoutes(
     ...dependencies
   };
 
-  app.get("/api/public/status", async () => buildPublicStatusResponse());
+  app.get("/api/public/status", async () => buildPublicStatusResponse(await readPublicReadiness(deps)));
+
+  app.get("/api/public/competitions", async () => {
+    if (!process.env.DATABASE_URL) return { data: [], meta: { status: "no_data" as const, source: "database" as const, mode: "public" as const } };
+    try {
+      const rows = await deps.getDbClient().fixture.findMany({
+        where: { competitionId: { not: null } },
+        orderBy: { fixtureId: "asc" },
+        distinct: ["competitionId", "competition"],
+        select: { competitionId: true, competition: true }
+      });
+      const unique = new Map<string, string>();
+      for (const row of rows) {
+        if (typeof row.competitionId !== "string" || row.competitionId.trim() === "" || typeof row.competition !== "string" || row.competition.trim() === "") continue;
+        if (!unique.has(row.competitionId)) unique.set(row.competitionId, row.competition);
+      }
+      const data = [...unique].map(([competition_id, name]) => ({ competition_id, name })).sort((left, right) => left.name.localeCompare(right.name) || left.competition_id.localeCompare(right.competition_id));
+      return { data, meta: { status: data.length > 0 ? "live" as const : "no_data" as const, source: "database" as const, mode: "public" as const } };
+    } catch {
+      return { data: [], meta: { status: "degraded" as const, source: "database" as const, mode: "public" as const, message: "Competition catalog is temporarily unavailable." } };
+    }
+  });
 
   app.get("/api/public/matches", async (request, reply) => {
     const query = request.query as {
       range?: unknown;
       competitionId?: unknown;
+      from?: unknown;
+      to?: unknown;
       limit?: unknown;
       includeInsight?: unknown;
       cursor?: unknown;
@@ -1743,7 +1906,7 @@ export function registerPublicApiRoutes(
         };
       }
 
-      const cursor = decodePublicSeekCursor(normalized.cursor, normalized.range);
+      const cursor = decodePublicSeekCursor(normalized.cursor, normalized);
       const now = deps.now();
       const snapshotAt = cursor === undefined ? now : new Date(cursor.snapshot_at);
       const effectiveNow = snapshotAt;
@@ -1766,7 +1929,7 @@ export function registerPublicApiRoutes(
           source: "database" as const,
           mode: "public" as const,
           next_cursor: hasMore && lastFixture !== undefined
-            ? encodePublicSeekCursor({ version: 2, range: normalized.range, snapshot_at: scan.snapshot_at, primary_sort_value: lastSort?.primary ?? null, secondary_sort_value: lastSort?.secondary ?? null, fixture_id: lastFixture.fixtureId, direction: lastSort?.direction ?? "asc" })
+            ? encodePublicSeekCursor({ version: 3, range: normalized.range, query_fingerprint: publicQueryFingerprint(normalized), snapshot_at: scan.snapshot_at, primary_sort_value: lastSort?.primary ?? null, secondary_sort_value: lastSort?.secondary ?? null, fixture_id: lastFixture.fixtureId, direction: lastSort?.direction ?? "asc" })
             : null,
           has_more: hasMore,
           range: normalized.range,
@@ -1775,7 +1938,7 @@ export function registerPublicApiRoutes(
           deduplicated_count: deduplicated.deduplicatedCount,
           scanned_count: scan.scanned_count,
           snapshot_at: scan.snapshot_at,
-          cursor_version: 2,
+          cursor_version: 3,
           data_status: data.length === visibleFixtures.length && !scan.scan_budget_exhausted ? "complete" as const : "partial" as const,
           source_rows_scanned: scan.scanned_count,
           representatives_returned: sorted.length,

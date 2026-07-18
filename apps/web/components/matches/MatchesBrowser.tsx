@@ -4,17 +4,20 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchPublicMatches,
+  fetchPublicCompetitions,
   fetchPublicStatus,
   formatFixtureLabel,
   formatScoreboard,
   type ApiMeta,
   type PublicMatchSummary,
+  type PublicCompetition,
   type PublicStatus
 } from "../../lib/public-api";
-import { localCalendarDayKey, localCalendarDayLabel } from "../../lib/local-calendar";
+import { customLocalDateUtcRange, localCalendarDayKey, localCalendarDayLabel, localDayUtcRange } from "../../lib/local-calendar";
 
 type MatchRange = "all" | "live" | "starting_soon" | "upcoming" | "recently_finished" | "interrupted";
 type Phase = "loading" | "loaded" | "error";
+type DateFilter = "lifecycle" | "today" | "tomorrow" | "custom";
 
 const FILTERS: Array<{ value: MatchRange; label: string }> = [
   { value: "live", label: "Live now" },
@@ -72,47 +75,64 @@ export default function MatchesBrowser() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [matches, setMatches] = useState<PublicMatchSummary[]>([]);
   const [status, setStatus] = useState<PublicStatus | null>(null);
+  const [competitions, setCompetitions] = useState<PublicCompetition[]>([]);
+  const [competitionId, setCompetitionId] = useState("");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("lifecycle");
+  const [customFromDate, setCustomFromDate] = useState("");
+  const [customToDate, setCustomToDate] = useState("");
   const [meta, setMeta] = useState<ApiMeta | null>(null);
   const [error, setError] = useState("Unable to load public matches.");
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [clock, setClock] = useState(() => Date.now());
+  const [lastSuccessfulRefresh, setLastSuccessfulRefresh] = useState<Date | null>(null);
   const manualRangeSelection = useRef(false);
-  const autoSelectionCompleted = useRef(false);
+  const requestGeneration = useRef(0);
+  const loadMoreController = useRef<AbortController | null>(null);
+
+  const dateBounds = useMemo(() => {
+    if (dateFilter === "today") return localDayUtcRange(new Date());
+    if (dateFilter === "tomorrow") return localDayUtcRange(new Date(), 1);
+    if (dateFilter === "custom") {
+      const fromDay = customLocalDateUtcRange(customFromDate);
+      const toDay = customLocalDateUtcRange(customToDate);
+      return fromDay && toDay && Date.parse(fromDay.from) < Date.parse(toDay.to) ? { from: fromDay.from, to: toDay.to } : null;
+    }
+    return null;
+  }, [dateFilter, customFromDate, customToDate]);
 
   useEffect(() => {
     const controller = new AbortController();
-    let cancelled = false;
+    loadMoreController.current?.abort();
+    setLoadingMore(false);
+    const generation = ++requestGeneration.current;
 
     async function loadRange(selectedRange: MatchRange) {
-      return fetchPublicMatches({ range: selectedRange, limit: 50 }, controller.signal);
+      return fetchPublicMatches({ range: dateBounds ? "all" : selectedRange, limit: 50, competitionId: competitionId || undefined, from: dateBounds?.from, to: dateBounds?.to }, controller.signal);
     }
 
     async function load() {
       if (matches.length === 0) setPhase("loading");
       setError("");
       setNextCursor(null);
+      if (dateFilter === "custom" && !dateBounds) {
+        const statusResult = await fetchPublicStatus(controller.signal);
+        if (generation !== requestGeneration.current) return;
+        if (statusResult.ok && statusResult.data) setStatus(statusResult.data);
+        setMatches([]);
+        setMeta(null);
+        setHasMore(false);
+        setPhase("loaded");
+        return;
+      }
       const [statusResult, initialResult] = await Promise.all([
-        fetchPublicStatus(),
+        fetchPublicStatus(controller.signal),
         loadRange(range)
       ]);
-      if (cancelled) return;
+      if (generation !== requestGeneration.current) return;
       if (statusResult.ok && statusResult.data) setStatus(statusResult.data);
-      let matchesResult = initialResult;
-      if (!manualRangeSelection.current && !autoSelectionCompleted.current && initialResult.ok && (initialResult.data?.length ?? 0) === 0) {
-        autoSelectionCompleted.current = true;
-        for (const fallback of ["starting_soon", "upcoming", "recently_finished"] as MatchRange[]) {
-          const fallbackResult = await loadRange(fallback);
-          if (fallbackResult.ok && (fallbackResult.data?.length ?? 0) > 0) {
-            matchesResult = fallbackResult;
-            setRange(fallback);
-            break;
-          }
-        }
-      } else if (initialResult.ok) {
-        autoSelectionCompleted.current = true;
-      }
+      const matchesResult = initialResult;
       if (!matchesResult.ok || !matchesResult.data) {
         setMeta(matchesResult.meta);
         setError(matchesResult.meta?.message ?? "Public match list is temporarily unavailable; showing the last valid data.");
@@ -123,12 +143,19 @@ export default function MatchesBrowser() {
       setMeta(matchesResult.meta);
       setNextCursor(matchesResult.meta?.next_cursor ?? null);
       setHasMore(matchesResult.meta?.has_more === true);
+      setLastSuccessfulRefresh(new Date());
       setPhase("loaded");
     }
 
     void load();
-    return () => { cancelled = true; controller.abort(); };
-  }, [range, refreshKey]);
+    return () => { controller.abort(); };
+  }, [range, refreshKey, competitionId, dateBounds, dateFilter]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchPublicCompetitions(controller.signal).then((result) => { if (result.ok && result.data) setCompetitions(result.data); });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setRefreshKey((value) => value + 1), REFRESH_MS[range]);
@@ -142,8 +169,13 @@ export default function MatchesBrowser() {
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return;
+    const generation = requestGeneration.current;
+    const controller = new AbortController();
+    loadMoreController.current?.abort();
+    loadMoreController.current = controller;
     setLoadingMore(true);
-    const result = await fetchPublicMatches({ range, limit: 50, cursor: nextCursor });
+    const result = await fetchPublicMatches({ range: dateBounds ? "all" : range, limit: 50, cursor: nextCursor, competitionId: competitionId || undefined, from: dateBounds?.from, to: dateBounds?.to }, controller.signal);
+    if (generation !== requestGeneration.current || controller.signal.aborted) return;
     setLoadingMore(false);
     if (!result.ok || !result.data) {
       setError(result.meta?.message ?? "More matches are temporarily unavailable.");
@@ -158,6 +190,9 @@ export default function MatchesBrowser() {
     setNextCursor(result.meta?.next_cursor ?? null);
     setHasMore(result.meta?.has_more === true);
   }
+
+  const degraded = (status?.readiness.overall !== undefined && status.readiness.overall !== "ready") || meta?.status === "stale" || meta?.status === "degraded";
+  const noDataReason = meta?.message ?? meta?.missing_day_warnings?.[0] ?? (dateFilter === "custom" && !dateBounds ? "Choose a valid custom date." : "No verified catalog rows match the selected filters.");
 
   const groupedMatches = useMemo(() => {
     const groups = new Map<string, PublicMatchSummary[]>();
@@ -188,18 +223,30 @@ export default function MatchesBrowser() {
             </button>
           ))}
         </div>
+        <div className="filter-row">
+          {(["lifecycle", "today", "tomorrow", "custom"] as DateFilter[]).map((value) => <button key={value} className={`button filter-button ${dateFilter === value ? "active" : ""}`} onClick={() => setDateFilter(value)} type="button">{value === "lifecycle" ? "Any date" : value[0]!.toUpperCase() + value.slice(1)}</button>)}
+          {dateFilter === "custom" ? <><input aria-label="Custom range start" type="date" value={customFromDate} onChange={(event) => setCustomFromDate(event.target.value)} /><input aria-label="Custom range end" type="date" value={customToDate} onChange={(event) => setCustomToDate(event.target.value)} /></> : null}
+          <select aria-label="Competition" value={competitionId} onChange={(event) => setCompetitionId(event.target.value)}>
+            <option value="">All competitions</option>
+            {competitions.map((competition) => <option key={competition.competition_id} value={competition.competition_id}>{competition.name}</option>)}
+          </select>
+          <button className="button" type="button" onClick={() => setRefreshKey((value) => value + 1)}>Refresh</button>
+        </div>
         <div className="mini-meta" aria-live="polite">
           <span>status: {meta?.status ?? (phase === "loading" ? "loading" : "unknown")}</span>
           <span>source: {meta?.source ?? "unknown"}</span>
           <span>results: {meta?.result_count ?? matches.length}</span>
           <span>deduplicated: {meta?.deduplicated_count ?? 0}</span>
+          <span>readiness: {status?.readiness.overall ?? "unknown"}</span>
+          <span>last refresh: {lastSuccessfulRefresh ? localTime(lastSuccessfulRefresh.toISOString()) : "not yet"}</span>
+          {degraded ? <span>stale/degraded: {Object.values(status?.readiness.components ?? {}).find((component) => component.status !== "ready")?.reason_code ?? meta?.message ?? meta?.status ?? "degraded"}</span> : null}
         </div>
       </section>
 
       {phase === "loading" && matches.length === 0 ? <section className="card"><p className="muted">Loading match catalog...</p></section> : null}
       {error && matches.length > 0 ? <p className="matches-error" role="status">{error}</p> : null}
       {phase === "error" ? <section className="card"><p className="matches-error">{error}</p><button className="button" onClick={() => setRefreshKey((value) => value + 1)} type="button">Retry</button></section> : null}
-      {phase === "loaded" && matches.length === 0 ? <section className="card"><h2>No matches for this range</h2><p className="muted">No verified catalog rows match this lifecycle range yet.</p></section> : null}
+      {phase === "loaded" && matches.length === 0 ? <section className="card"><h2>No matches for these filters</h2><p className="muted">{noDataReason}</p></section> : null}
 
       {phase === "loaded" && matches.length > 0 ? (
         <div>

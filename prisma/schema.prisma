@@ -8,24 +8,26 @@ datasource db {
 }
 
 model Fixture {
-  id           String    @id @default(uuid()) @db.Uuid
-  fixtureId    String    @unique @map("fixture_id")
-  competition  String
-  stage        String?
-  sport        String    @default("soccer")
-  startTimeUtc DateTime? @map("start_time_utc") @db.Timestamptz(3)
-  homeTeam     String    @map("home_team")
-  awayTeam     String    @map("away_team")
-  status       String    @default("UNKNOWN")
-  raw          Json?
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id            String    @id @default(uuid()) @db.Uuid
+  fixtureId     String    @unique @map("fixture_id")
+  competitionId String?   @map("competition_id")
+  competition   String
+  stage         String?
+  sport         String    @default("soccer")
+  startTimeUtc  DateTime? @map("start_time_utc") @db.Timestamptz(3)
+  homeTeam      String    @map("home_team")
+  awayTeam      String    @map("away_team")
+  status        String    @default("UNKNOWN")
+  raw           Json?
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   matchState     MatchState?
   matchEvents    MatchEvent[]
   replaySessions ReplaySession[]
 
   @@index([startTimeUtc])
+  @@index([competitionId])
   @@index([status])
   @@map("fixtures")
 }
@@ -712,7 +714,7 @@ model FreeAccessApplication {
   id          String                      @id @default(cuid())
   walletId    String                      @map("wallet_id")
   name        String
-  scopes      Json @default("[\"matches:read\"]")
+  scopes      Json                        @default("[\"matches:read\"]")
   status      FreeAccessApplicationStatus @default(ENABLED)
   createdAt   DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)

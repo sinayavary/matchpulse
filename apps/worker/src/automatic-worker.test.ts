@@ -22,3 +22,27 @@ test("worker reports safe acquisition failures and keeps the loop recoverable", 
   assert.equal(result.status, "error");
   assert.equal(reported, true);
 });
+
+test("worker renews its lease during a long cycle", async () => {
+  let heartbeats = 0;
+  const result = await runAutomaticWorkerOnce({
+    acquireLock: async () => true,
+    releaseLock: async () => undefined,
+    heartbeat: async () => { heartbeats += 1; },
+    runCycle: async () => new Promise((resolve) => setTimeout(() => resolve("done"), 35))
+  }, { heartbeatIntervalMs: 10 });
+  assert.equal(result.status, "ok");
+  assert.ok(heartbeats >= 2);
+});
+
+test("lost heartbeat fails the cycle safely and releases the lock", async () => {
+  let released = false;
+  const result = await runAutomaticWorkerOnce({
+    acquireLock: async () => true,
+    releaseLock: async () => { released = true; },
+    heartbeat: async () => { throw new Error("lease lost"); },
+    runCycle: async () => new Promise((resolve) => setTimeout(resolve, 50))
+  }, { heartbeatIntervalMs: 5 });
+  assert.equal(result.status, "error");
+  assert.equal(released, true);
+});

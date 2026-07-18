@@ -7,6 +7,8 @@ import { buildPredictionEngineFeatures, type PredictionEngineFeatureSnapshot } f
 import { runPredictionRuntimeCycle, type RuntimeCycleInput } from "./prediction-runtime-cycle.js";
 import { createPredictionRuntimePersistence } from "./prediction-runtime-storage.js";
 import type { PredictionOrchestrationResult } from "./prediction-runtime-orchestrator.js";
+import { updateManagedWorkerHealth, WORKER_SERVICES } from "./automatic-data-runtime.js";
+import { getAgentPresenterBriefForFixture } from "./agent-presenter-v0.js";
 
 export type AgentInsightSnapshot = {
   fixture_id: string;
@@ -22,6 +24,8 @@ export type BackgroundIntelligenceResult = {
   status: "ok" | "partial" | "failed";
   attempted: number;
   agent_succeeded: number;
+  presenter_succeeded: number;
+  skipped_ineligible: number;
   prediction_attempted: number;
   prediction_persisted: number;
   prediction_deduplicated: number;
@@ -33,6 +37,7 @@ export type BackgroundIntelligenceDependencies = {
   listFixtureIds: () => Promise<string[]>;
   getState: (fixtureId: string) => Promise<CanonicalMatchState>;
   runAgent: (fixtureId: string) => Promise<ProductAgentV1Response>;
+  runPresenter?: (fixtureId: string) => Promise<unknown>;
   persistPrediction: (input: RuntimeCycleInput, result: PredictionOrchestrationResult, featureBundle: Record<string, unknown>) => Promise<void>;
   now?: () => Date;
 };
@@ -71,7 +76,14 @@ function defaultDependencies(): BackgroundIntelligenceDependencies {
   const persistence = createPredictionRuntimePersistence();
   return {
     async listFixtureIds() {
+      const now = new Date();
       const rows = await getDbClient().fixture.findMany({
+        where: {
+          OR: [
+            { startTimeUtc: { gte: new Date(now.getTime() - 6 * 60 * 60_000), lte: new Date(now.getTime() + 48 * 60 * 60_000) } },
+            { status: { in: ["LIVE", "1H", "HT", "2H", "ET", "PEN", "IN_PROGRESS"] } }
+          ]
+        },
         orderBy: [{ startTimeUtc: "asc" }, { fixtureId: "asc" }],
         take: DEFAULT_MAX_FIXTURES,
         select: { fixtureId: true }
@@ -80,8 +92,26 @@ function defaultDependencies(): BackgroundIntelligenceDependencies {
     },
     getState: getDbBackedMatchState,
     runAgent: getProductAgentV1ForFixture,
+    runPresenter: getAgentPresenterBriefForFixture,
     persistPrediction: (input, result, featureBundle) => persistence(input, result, featureBundle)
   };
+}
+
+export async function runManagedBackgroundIntelligenceCycle(): Promise<BackgroundIntelligenceResult> {
+  const startedAt = new Date();
+  await updateManagedWorkerHealth(WORKER_SERVICES.intelligence, { status: "running", errorCount: 0, cycle: { checkpoint: null, started_at: startedAt.toISOString() } });
+  try {
+    const result = await runBackgroundIntelligenceCycle();
+    await updateManagedWorkerHealth(WORKER_SERVICES.intelligence, {
+      status: result.status === "ok" ? "healthy" : result.status,
+      errorCount: result.failed,
+      cycle: { ...result, checkpoint: result.fixtures.at(-1)?.fixture_id ?? null, started_at: startedAt.toISOString(), finished_at: new Date().toISOString() }
+    });
+    return result;
+  } catch (error) {
+    await updateManagedWorkerHealth(WORKER_SERVICES.intelligence, { status: "failed", error, errorCount: 1, stage: "intelligence", cycle: { checkpoint: null, started_at: startedAt.toISOString(), finished_at: new Date().toISOString() } });
+    throw error;
+  }
 }
 
 export async function runBackgroundIntelligenceCycle(
@@ -95,11 +125,13 @@ export async function runBackgroundIntelligenceCycle(
   try {
     fixtureIds = [...new Set((await deps.listFixtureIds()).filter((value) => value.trim() !== ""))].slice(0, DEFAULT_MAX_FIXTURES);
   } catch {
-    return { status: "failed", attempted: 0, agent_succeeded: 0, prediction_attempted: 0, prediction_persisted: 0, prediction_deduplicated: 0, failed: 1, fixtures: [] };
+    return { status: "failed", attempted: 0, agent_succeeded: 0, presenter_succeeded: 0, skipped_ineligible: 0, prediction_attempted: 0, prediction_persisted: 0, prediction_deduplicated: 0, failed: 1, fixtures: [] };
   }
 
   const fixtures: BackgroundIntelligenceResult["fixtures"] = [];
   let agentSucceeded = 0;
+  let presenterSucceeded = 0;
+  let skippedIneligible = 0;
   let predictionAttempted = 0;
   let predictionPersisted = 0;
   let predictionDeduplicated = 0;
@@ -114,8 +146,16 @@ export async function runBackgroundIntelligenceCycle(
         startTimeUtc: state.identity.start_time_utc,
         now
       });
+      if (!["scheduled", "prematch", "live_first_half", "halftime", "live_second_half", "extra_time", "penalties", "unknown_in_progress"].includes(lifecycle.lifecycle)) {
+        skippedIneligible += 1;
+        continue;
+      }
       const agent = await deps.runAgent(fixtureId);
       agentSucceeded += 1;
+      if (dependencies.runPresenter !== undefined || dependencies.runAgent === undefined) {
+        await deps.runPresenter?.(fixtureId);
+        presenterSucceeded += 1;
+      }
       const agentSnapshot = safeAgentSnapshot(fixtureId, asOf, agent);
       const features: PredictionEngineFeatureSnapshot = buildPredictionEngineFeatures({
         fixture_id: fixtureId,
@@ -161,6 +201,8 @@ export async function runBackgroundIntelligenceCycle(
     status: failed === 0 ? "ok" : fixtures.length > failed ? "partial" : "failed",
     attempted: fixtureIds.length,
     agent_succeeded: agentSucceeded,
+    presenter_succeeded: presenterSucceeded,
+    skipped_ineligible: skippedIneligible,
     prediction_attempted: predictionAttempted,
     prediction_persisted: predictionPersisted,
     prediction_deduplicated: predictionDeduplicated,

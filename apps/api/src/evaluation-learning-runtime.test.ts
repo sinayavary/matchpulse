@@ -22,8 +22,8 @@ test("insufficient data never creates a model or fabricated evaluation rows", ()
   assert.equal(result.status, "WAITING_FOR_TRAINING_DATA"); assert.equal(result.dataset, null); assert.equal(result.learning.model_created, false); assert.equal(result.evaluations.length, 0);
 });
 
-test("promotion is shadow-only until the candidate passes, and regression rolls back", () => {
+test("promotion remains shadow-only even after passing, and regression rolls back", () => {
   assert.equal(decidePromotion({ candidate_version: "candidate-v1", candidate_passed_gate: false, champion_version: "champion-v1" }).action, "shadow");
-  assert.equal(decidePromotion({ candidate_version: "candidate-v1", candidate_passed_gate: true, champion_version: "champion-v1" }).action, "promote");
+  assert.equal(decidePromotion({ candidate_version: "candidate-v1", candidate_passed_gate: true, champion_version: "champion-v1" }).action, "shadow");
   assert.equal(decidePromotion({ candidate_version: "candidate-v1", candidate_passed_gate: true, regression_detected: true, champion_version: "champion-v1" }).action, "rollback");
 });

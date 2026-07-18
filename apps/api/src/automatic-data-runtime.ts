@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { createTxlineLiveClient } from "@matchpulse/txline-client";
 import { getDbClient } from "./db.js";
-import { buildFixtureCatalogReconciliationReport, ingestTxlineFixtureDiscoveryWindow, type FixtureCatalogReconciliationInput, type FixtureDiscoveryCoverage } from "./txline-fixture-ingestion.js";
+import { buildFixtureCatalogReconciliationReport, extractCompetitionIdEvidence, ingestTxlineFixtureDiscoveryWindow, type FixtureCatalogReconciliationInput, type FixtureDiscoveryCoverage } from "./txline-fixture-ingestion.js";
 import { ingestTxlineScoreSnapshot } from "./txline-score-ingestion.js";
 import { ingestTxlineOddsSnapshot } from "./txline-odds-ingestion.js";
 import { ingestTxlineMatchEvents } from "./txline-event-ingestion.js";
@@ -70,6 +70,13 @@ export const automaticRuntimeConfig = () => ({
 
 const workerOwnerId = randomUUID();
 const LEASE_MS = 90_000;
+export const WORKER_SERVICES = {
+  ingestion: "matchpulse-data-worker",
+  intelligence: "matchpulse-intelligence-worker",
+  evaluation: "matchpulse-evaluation-worker",
+  upstream: "matchpulse-upstream"
+} as const;
+export type WorkerServiceName = typeof WORKER_SERVICES[keyof typeof WORKER_SERVICES];
 
 function safeError(error: unknown, stage: string): SafeRuntimeError {
   const record = error && typeof error === "object" ? error as Record<string, unknown> : {};
@@ -175,15 +182,45 @@ export function cadenceForPhase(phase: PollPhase, config: PollConfig = automatic
   }
 }
 
-export async function withProviderRetry<T>(operation: () => Promise<T>, options: { retries?: number; sleep?: (ms: number) => Promise<void>; retryAfterMs?: (error: unknown) => number | null } = {}): Promise<T> {
+function numericStatus(error: unknown): number | null {
+  if (!error || typeof error !== "object") return null;
+  const value = (error as Record<string, unknown>).status ?? (error as Record<string, unknown>).statusCode;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+export function isRetryableProviderError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as Record<string, unknown>;
+  const status = numericStatus(error);
+  if (status === 429 || (status !== null && status >= 500 && status <= 599)) return true;
+  const code = typeof record.code === "string" ? record.code.toUpperCase() : "";
+  const name = typeof record.name === "string" ? record.name.toLowerCase() : "";
+  return ["ETIMEDOUT", "ESOCKETTIMEDOUT", "ECONNRESET", "ECONNREFUSED", "EAI_AGAIN", "ENETUNREACH", "UND_ERR_CONNECT_TIMEOUT"].includes(code)
+    || name === "aborterror" || name === "timeouterror";
+}
+
+function retryAfterFromError(error: unknown): number | null {
+  if (!error || typeof error !== "object") return null;
+  const record = error as Record<string, unknown>;
+  const headers = record.headers && typeof record.headers === "object" ? record.headers as Record<string, unknown> : null;
+  const raw = record.retryAfter ?? record.retry_after ?? headers?.["retry-after"];
+  if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) return raw * 1_000;
+  if (typeof raw !== "string") return null;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
+  const date = Date.parse(raw);
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : null;
+}
+
+export async function withProviderRetry<T>(operation: () => Promise<T>, options: { retries?: number; sleep?: (ms: number) => Promise<void>; retryAfterMs?: (error: unknown) => number | null; random?: () => number; maxDelayMs?: number } = {}): Promise<T> {
   const retries = options.retries ?? 3;
   const sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   for (let attempt = 0; ; attempt += 1) {
     try { return await operation(); } catch (error) {
-      if (attempt >= retries) throw error;
-      const retryAfter = options.retryAfterMs?.(error) ?? 0;
-      const jitter = Math.floor(Math.random() * 250);
-      await sleep(Math.max(retryAfter, 500 * (2 ** attempt)) + jitter);
+      if (attempt >= retries || !isRetryableProviderError(error)) throw error;
+      const retryAfter = options.retryAfterMs?.(error) ?? retryAfterFromError(error) ?? 0;
+      const jitter = Math.floor((options.random ?? Math.random)() * 250);
+      await sleep(Math.min(options.maxDelayMs ?? 30_000, Math.max(retryAfter, 500 * (2 ** attempt)) + jitter));
     }
   }
 }
@@ -198,26 +235,37 @@ export function extractProviderEvents(value: unknown): unknown[] {
   return [];
 }
 
-export async function tryAcquireWorkerLock(): Promise<boolean> {
+export async function tryAcquireManagedWorkerLock(serviceName: WorkerServiceName): Promise<boolean> {
   const db = getDbClient();
-  await db.healthStatus.upsert({ where: { serviceName: "matchpulse-data-worker" }, create: { serviceName: "matchpulse-data-worker", status: "starting", lastHeartbeat: new Date(), errorCount: 0 }, update: {} });
-  const result = await db.$queryRaw<Array<{ owner_id: string }>>(Prisma.sql`UPDATE health_status SET status = 'locked', last_heartbeat = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP, raw = jsonb_build_object('owner_id', ${workerOwnerId}, 'lease_expires_at', (CURRENT_TIMESTAMP + interval '90 seconds')) WHERE service_name = 'matchpulse-data-worker' AND ((raw->>'lease_expires_at') IS NULL OR (raw->>'lease_expires_at')::timestamptz < CURRENT_TIMESTAMP OR raw->>'owner_id' = ${workerOwnerId}) RETURNING raw->>'owner_id' AS owner_id`);
+  await db.healthStatus.upsert({ where: { serviceName }, create: { serviceName, status: "starting", lastHeartbeat: new Date(), errorCount: 0 }, update: {} });
+  const result = await db.$queryRaw<Array<{ owner_id: string }>>(Prisma.sql`UPDATE health_status SET status = 'locked', last_heartbeat = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP, raw = jsonb_build_object('owner_id', ${workerOwnerId}, 'lease_expires_at', (CURRENT_TIMESTAMP + interval '90 seconds')) WHERE service_name = ${serviceName} AND ((raw->>'lease_expires_at') IS NULL OR (raw->>'lease_expires_at')::timestamptz < CURRENT_TIMESTAMP OR raw->>'owner_id' = ${workerOwnerId}) RETURNING raw->>'owner_id' AS owner_id`);
   return result[0]?.owner_id === workerOwnerId;
 }
 
-export async function releaseWorkerLock(): Promise<void> {
-  await getDbClient().$executeRaw(Prisma.sql`UPDATE health_status SET status = 'idle', updated_at = CURRENT_TIMESTAMP, raw = jsonb_set(jsonb_set(COALESCE(raw, '{}'::jsonb), '{lock_acquired}', 'false'::jsonb, true), '{lease_expires_at}', to_jsonb(CURRENT_TIMESTAMP), true) WHERE service_name = 'matchpulse-data-worker' AND raw->>'owner_id' = ${workerOwnerId}`);
+export async function heartbeatManagedWorkerLock(serviceName: WorkerServiceName): Promise<void> {
+  const updated = await getDbClient().$executeRaw(Prisma.sql`UPDATE health_status SET last_heartbeat = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP, raw = jsonb_set(COALESCE(raw, '{}'::jsonb), '{lease_expires_at}', to_jsonb(CURRENT_TIMESTAMP + interval '90 seconds'), true) WHERE service_name = ${serviceName} AND raw->>'owner_id' = ${workerOwnerId}`);
+  if (updated !== 1) throw new Error("worker_lease_lost");
 }
 
-export async function updateWorkerHealth(input: { status: string; lastIngestion?: Date; error?: unknown; errorCount?: number; stage?: string; cycle?: Record<string, unknown> }) {
+export async function releaseManagedWorkerLock(serviceName: WorkerServiceName): Promise<void> {
+  await getDbClient().$executeRaw(Prisma.sql`UPDATE health_status SET status = 'idle', updated_at = CURRENT_TIMESTAMP, raw = jsonb_set(jsonb_set(COALESCE(raw, '{}'::jsonb), '{lock_acquired}', 'false'::jsonb, true), '{lease_expires_at}', to_jsonb(CURRENT_TIMESTAMP), true) WHERE service_name = ${serviceName} AND raw->>'owner_id' = ${workerOwnerId}`);
+}
+
+export const tryAcquireWorkerLock = () => tryAcquireManagedWorkerLock(WORKER_SERVICES.ingestion);
+export const heartbeatWorkerLock = () => heartbeatManagedWorkerLock(WORKER_SERVICES.ingestion);
+export const releaseWorkerLock = () => releaseManagedWorkerLock(WORKER_SERVICES.ingestion);
+
+export async function updateManagedWorkerHealth(serviceName: WorkerServiceName, input: { status: string; lastIngestion?: Date; error?: unknown; errorCount?: number; stage?: string; cycle?: Record<string, unknown> }) {
   const healthState = normalizeWorkerHealthState(input);
   const cycleJson = input.cycle === undefined ? undefined : JSON.parse(JSON.stringify(input.cycle)) as Prisma.InputJsonValue;
   await getDbClient().healthStatus.upsert({
-    where: { serviceName: "matchpulse-data-worker" },
-    create: { serviceName: "matchpulse-data-worker", status: input.status, lastHeartbeat: new Date(), lastDataReceivedAt: input.lastIngestion ?? null, errorCount: healthState.errorCount, lastError: healthState.lastError, raw: cycleJson },
+    where: { serviceName },
+    create: { serviceName, status: input.status, lastHeartbeat: new Date(), lastDataReceivedAt: input.lastIngestion ?? null, errorCount: healthState.errorCount, lastError: healthState.lastError, raw: cycleJson },
     update: { status: input.status, lastHeartbeat: new Date(), ...(input.lastIngestion ? { lastDataReceivedAt: input.lastIngestion } : {}), lastError: healthState.lastError, errorCount: healthState.errorCount, ...(cycleJson ? { raw: cycleJson } : {}) }
   });
 }
+
+export const updateWorkerHealth = (input: { status: string; lastIngestion?: Date; error?: unknown; errorCount?: number; stage?: string; cycle?: Record<string, unknown> }) => updateManagedWorkerHealth(WORKER_SERVICES.ingestion, input);
 
 export function buildWorkerCycleRecord(input: Omit<WorkerCycleRecord, "owner_id" | "lease_expires_at"> & { leaseExpiresAt: Date }): WorkerCycleRecord {
   const { leaseExpiresAt, ...cycle } = input;
@@ -292,15 +340,18 @@ export async function runMatchesCatalogReconciliation(options: MatchesCatalogRec
       ...(nextCursor === null ? {} : { cursor: { fixtureId: nextCursor }, skip: 1 }),
       orderBy: { fixtureId: "asc" },
       take: batchSize,
-      select: { fixtureId: true, sport: true, stage: true, competition: true, homeTeam: true, awayTeam: true, startTimeUtc: true, status: true }
+      select: { fixtureId: true, competitionId: true, sport: true, stage: true, competition: true, homeTeam: true, awayTeam: true, startTimeUtc: true, status: true, raw: true }
     }) as Array<FixtureCatalogReconciliationInput & { fixtureId: string }>;
     batches += 1;
     if (rows.length === 0) { finished = true; nextCursor = null; break; }
     for (const row of rows) {
       allRows.push(row);
       const lifecycle = resolveMatchLifecycle({ providerStatus: row.status, startTimeUtc: row.startTimeUtc, now: options.now ?? new Date() });
-      if (!dryRun && (row.status === null || row.status.trim() === "" || row.status === "UNKNOWN")) {
-        try { await db.fixture.update({ where: { fixtureId: row.fixtureId }, data: { status: lifecycle.lifecycle } }); }
+      const evidenceCompetitionId = extractCompetitionIdEvidence(row);
+      const statusMissing = row.status === null || row.status.trim() === "" || row.status === "UNKNOWN";
+      const competitionIdMissing = row.competitionId === null || row.competitionId === undefined;
+      if (!dryRun && (statusMissing || (competitionIdMissing && evidenceCompetitionId !== null))) {
+        try { await db.fixture.update({ where: { fixtureId: row.fixtureId }, data: { ...(statusMissing ? { status: lifecycle.lifecycle } : {}), ...(competitionIdMissing && evidenceCompetitionId !== null ? { competitionId: evidenceCompetitionId } : {}) } }); }
         catch { failures += 1; }
       }
     }
@@ -363,7 +414,6 @@ export async function runAutomaticIngestionCycle(now = new Date()) {
         backfillDays: config.discoveryBackfillDays,
         futureDays: config.discoveryFutureDays,
         retries: config.discoveryRetries,
-        wait: async () => undefined,
         fetchFixtures: ({ competitionId, startEpochDay }) => client.getFixtureSnapshot({ competitionId, startEpochDay })
       });
       mergeDiscoveryCoverage(discoveryCoverage, result.coverage);
@@ -395,5 +445,13 @@ export async function runAutomaticIngestionCycle(now = new Date()) {
   const status = failed === 0 && discoveryFailed === 0 ? "healthy" : success > 0 ? "degraded" : "error";
   const cycle = buildWorkerCycleRecord({ last_cycle_status: status, started_at: startedAt.toISOString(), finished_at: now.toISOString(), discovered_competitions: competitions.length, discovered_fixture_count: discoveredFixtureCount, active_fixture_count: activeFixtures.length, persisted_fixture_count: persistedFixtureCount, successful_fixture_count: success, failed_fixture_count: failed + discoveryFailed, configuration_error: false, lock_acquired: true, leaseExpiresAt: new Date(now.getTime() + LEASE_MS), discovery: discoveryHealth(discoveryCoverage, now, config) });
   await updateWorkerHealth({ status, lastIngestion: success > 0 ? now : undefined, error: lastCycleError, errorCount: failed + discoveryFailed, stage: lastCycleErrorStage, cycle });
+  await updateManagedWorkerHealth(WORKER_SERVICES.upstream, {
+    status: discoveryFailed === 0 ? "healthy" : discoveryCoverage.successful_epoch_days.length > 0 ? "degraded" : "error",
+    lastIngestion: discoveryCoverage.successful_epoch_days.length > 0 ? now : undefined,
+    error: discoveryFailed > 0 ? lastCycleError : undefined,
+    errorCount: discoveryFailed,
+    stage: "upstream",
+    cycle: { attempted_days: discoveryCoverage.attempted_epoch_days.length, successful_days: discoveryCoverage.successful_epoch_days.length, failed_days: discoveryCoverage.failed_epoch_days, rate_limited_days: discoveryCoverage.rate_limited_epoch_days, checked_at: now.toISOString() }
+  });
   return { success, failed: failed + discoveryFailed, activeFixtures: activeFixtures.length, persistedFixtures: persistedFixtureCount, agentEnabled: config.agentEnabled, discoveredCompetitions: competitions.length, discoveredFixtures: discoveredFixtureCount, discoveryFailed, configurationError: false, nextWakeMs, status };
 }

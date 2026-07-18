@@ -288,3 +288,27 @@ test("forbidden key scan passes on response JSON property keys", async () => {
   assert.equal(hasForbiddenKeys(body), false);
   await app.close();
 });
+
+test("real no-data presenter output remains a successful no_data response", async () => {
+  const app = Fastify();
+  const output = makePresenterResponse(false);
+  output.data.brief.status_label = "empty";
+  output.data.signal_summary.status = "empty";
+  output.meta.status = "no_data";
+  registerInternalAgentPresenterRoute(app, { getAgentPresenterBriefForFixture: async () => output });
+  const response = await app.inject({ method: "GET", url: "/api/internal/agent/matches/missing/brief" });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().meta.status, "no_data");
+  await app.close();
+});
+
+test("database and runtime failures return a sanitized 503", async () => {
+  const app = Fastify();
+  registerInternalAgentPresenterRoute(app, { getAgentPresenterBriefForFixture: async () => { throw new Error("postgresql://user:password@host/db raw_payload=secret"); } });
+  const response = await app.inject({ method: "GET", url: "/api/internal/agent/matches/17952170/brief" });
+  assert.equal(response.statusCode, 503);
+  assert.deepEqual(response.json(), { data: null, meta: { status: "unavailable", source: "agent-presenter", mode: "internal", code: "agent_presenter_unavailable" } });
+  assert.equal(response.body.includes("postgresql"), false);
+  assert.equal(response.body.includes("raw_payload"), false);
+  await app.close();
+});

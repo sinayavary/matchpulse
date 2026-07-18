@@ -9,6 +9,7 @@ export type InternalPreviewDebug = {
 
 export type NormalizedTxlineFixturePreview = {
   fixture_id: string;
+  competition_id: string | null;
   competition: string;
   stage: string | null;
   start_time_utc: string | null;
@@ -87,6 +88,22 @@ export function parseFixtureId(value: unknown): string | null {
     : null;
 }
 
+export function parseCompetitionId(value: unknown): string | null {
+  const stringId = readString(value);
+  if (stringId !== null && /^[A-Za-z0-9._:-]+$/.test(stringId)) return stringId;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? String(value)
+    : null;
+}
+
+function readCompetitionId(fixture: Record<string, unknown>): string | null {
+  for (const field of ["CompetitionId", "CompetitionID", "competitionId", "competition_id"] as const) {
+    const value = parseCompetitionId(fixture[field]);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
 export function parseEpochMsToIso(value: unknown): string | null {
   if (typeof value === "string") {
     const trimmed = value.trim();
@@ -152,6 +169,7 @@ export function normalizeTxlineFixture(
 
   return {
     fixture_id: fixtureId,
+    competition_id: readCompetitionId(rawFixture),
     competition: readString(rawFixture.Competition) ?? "unknown",
     stage: null,
     start_time_utc: parseEpochMsToIso(rawFixture.StartTime),

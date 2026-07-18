@@ -1,6 +1,16 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
-  "http://localhost:4000";
+export function resolveApiBaseUrl(environment: Record<string, string | undefined> = process.env, browser = typeof window !== "undefined"): string {
+  const candidate = browser
+    ? environment.NEXT_PUBLIC_API_BASE_URL
+    : environment.MATCHPULSE_API_BASE_URL ?? environment.NEXT_PUBLIC_API_BASE_URL;
+  if (!candidate && environment.NODE_ENV !== "production") return "http://localhost:4000";
+  if (!candidate) throw new Error("A MatchPulse API base URL is required in production.");
+  let parsed: URL;
+  try { parsed = new URL(candidate); } catch { throw new Error("The MatchPulse API base URL is invalid."); }
+  if (!(["http:", "https:"] as string[]).includes(parsed.protocol)) throw new Error("The MatchPulse API base URL must use HTTP or HTTPS.");
+  return candidate.replace(/\/$/, "");
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 export type ApiMeta = {
   status: string;
@@ -31,8 +41,15 @@ export type PublicStatus = {
   service: "matchpulse-api";
   ok: true;
   public_api_version: "public-v0";
-  demo_available: boolean;
+  product_ready: boolean;
+  readiness: {
+    overall: "ready" | "degraded" | "unavailable";
+    checked_at: string;
+    components: Record<string, { status: "ready" | "degraded" | "unavailable"; timestamp: string | null; reason_code: string }>;
+  };
 };
+
+export type PublicCompetition = { competition_id: string; name: string };
 
 export type PublicScoreboard = {
   available: boolean;
@@ -194,6 +211,9 @@ export type PublicMatchesParams = {
   range?: "past" | "upcoming" | "live" | "starting_soon" | "recently_finished" | "interrupted" | "all";
   limit?: number;
   cursor?: string;
+  competitionId?: string;
+  from?: string;
+  to?: string;
 };
 
 export type PublicMatchOptions = {
@@ -231,8 +251,12 @@ async function fetchPublic<T>(path: string, signal?: AbortSignal): Promise<Publi
   }
 }
 
-export async function fetchPublicStatus(): Promise<PublicFetchResult<PublicStatus>> {
-  return fetchPublic<PublicStatus>("/api/public/status");
+export async function fetchPublicStatus(signal?: AbortSignal): Promise<PublicFetchResult<PublicStatus>> {
+  return fetchPublic<PublicStatus>("/api/public/status", signal);
+}
+
+export async function fetchPublicCompetitions(signal?: AbortSignal): Promise<PublicFetchResult<PublicCompetition[]>> {
+  return fetchPublic<PublicCompetition[]>("/api/public/competitions", signal);
 }
 
 export async function fetchPublicMatches(
@@ -243,6 +267,9 @@ export async function fetchPublicMatches(
   search.set("range", params.range ?? "all");
   search.set("limit", String(params.limit ?? 50));
   if (params.cursor) search.set("cursor", params.cursor);
+  if (params.competitionId) search.set("competitionId", params.competitionId);
+  if (params.from) search.set("from", params.from);
+  if (params.to) search.set("to", params.to);
   return fetchPublic<PublicMatchSummary[]>(`/api/public/matches?${search.toString()}`, signal);
 }
 

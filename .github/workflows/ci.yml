@@ -6,10 +6,26 @@ on:
     branches: [main]
 
 jobs:
-  typecheck:
+  production-gates:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/matchpulse_ci
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/matchpulse_free_access_validation_ci
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/matchpulse_shadow_ci
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000
+      MATCHPULSE_API_BASE_URL: http://127.0.0.1:4000
+      CORS_ORIGIN: http://127.0.0.1:3000
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -19,6 +35,28 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile=false
-      - run: pnpm prisma:generate
+      - run: pnpm install --frozen-lockfile
+      - name: Create disposable validation databases
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -c 'CREATE DATABASE matchpulse_free_access_validation_ci;'
+          PGPASSWORD=postgres psql -h localhost -U postgres -c 'CREATE DATABASE matchpulse_shadow_ci;'
+      - name: Validate Prisma and additive migration history
+        run: |
+          pnpm prisma format --schema prisma/schema.prisma
+          pnpm prisma validate --schema prisma/schema.prisma
+          pnpm prisma generate --schema prisma/schema.prisma
+          pnpm prisma migrate deploy --schema prisma/schema.prisma
+          pnpm prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+      - run: pnpm lint
+      - run: pnpm scan:mojibake
+      - run: pnpm test
+      - run: pnpm --filter @matchpulse/api test:free-access-postgres
+      - run: pnpm test:forbidden-fields
       - run: pnpm typecheck
+      - name: Production build
+        env:
+          NODE_ENV: production
+        run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - run: git diff --check

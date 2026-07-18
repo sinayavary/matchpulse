@@ -7,12 +7,14 @@ import {
   normalizeTxlineMatchPreview,
   normalizeTxlineScore,
   normalizeAsOfToEpochMs,
+  parseCompetitionId,
   parseEpochMsToIso,
   selectLatestTxlineScore
 } from "./txline-normalizer.js";
 
 const fixture = {
   FixtureId: 42,
+  CompetitionId: 430,
   Competition: "Premier League",
   StartTime: 1_735_689_600_000,
   Participant1: "Alpha",
@@ -34,6 +36,7 @@ const score = (fixtureId: number, seq: number | undefined, ts: number, p1: unkno
 test("normalizes fixtures and preserves only confirmed values", () => {
   const normalized = normalizeTxlineFixture(fixture);
   assert.equal(normalized?.fixture_id, "42");
+  assert.equal(normalized?.competition_id, "430");
   assert.equal(normalized?.home_team, "Alpha");
   assert.equal(normalized?.away_team, "Beta");
   assert.equal(normalized?.start_time_utc, "2025-01-01T00:00:00.000Z");
@@ -45,6 +48,13 @@ test("normalizes fixtures and preserves only confirmed values", () => {
   const reversed = normalizeTxlineFixture({ ...fixture, Participant1IsHome: false });
   assert.equal(reversed?.home_team, "Beta");
   assert.equal(reversed?.away_team, "Alpha");
+});
+
+test("normalizes only safe provider competition identifiers", () => {
+  assert.equal(parseCompetitionId(430), "430");
+  assert.equal(parseCompetitionId("cup:2026"), "cup:2026");
+  assert.equal(parseCompetitionId("unsafe id"), null);
+  assert.equal(normalizeTxlineFixture({ ...fixture, CompetitionId: undefined })?.competition_id, null);
 });
 
 test("normalizes real provider status fields without guessing from unrelated fields", () => {

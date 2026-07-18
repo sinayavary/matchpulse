@@ -5,6 +5,7 @@ import {
   ingestTxlineFixtureDiscoveryWindow,
   ingestTxlineFixtures,
   buildFixtureCatalogReconciliationReport,
+  extractCompetitionIdEvidence,
   mapNormalizedFixtureToFixtureUpsert,
   summarizeFixtureIngestion,
   type FixtureUpsert
@@ -13,6 +14,7 @@ import {
 function rawFixture(overrides: Record<string, unknown> = {}) {
   return {
     FixtureId: 17952170,
+    CompetitionId: 430,
     Competition: "Friendlies",
     Participant1: "Slovenia",
     Participant2: "Cyprus",
@@ -32,8 +34,22 @@ test("maps a normalized fixture to a Prisma upsert with a string fixture id", ()
   assert.notEqual(upsert, null);
   assert.equal(upsert!.where.fixtureId, "17952170");
   assert.equal(upsert!.create.fixtureId, "17952170");
+  assert.equal(upsert!.create.competitionId, "430");
   assert.equal(upsert!.create.sport, "soccer");
   assert.ok(upsert!.create.startTimeUtc instanceof Date);
+});
+
+test("uses the requested competition ID when snapshot rows omit it", () => {
+  const raw = rawFixture({ CompetitionId: undefined });
+  const normalized = normalizeTxlineFixture(raw)!;
+  const upsert = mapNormalizedFixtureToFixtureUpsert(normalized, raw, false, "430");
+  assert.equal(upsert?.create.competitionId, "430");
+});
+
+test("backfill accepts only explicit stored provider competition evidence", () => {
+  assert.equal(extractCompetitionIdEvidence({ competitionId: "430" }), "430");
+  assert.equal(extractCompetitionIdEvidence({ competitionId: null, raw: { CompetitionId: 72 } }), "72");
+  assert.equal(extractCompetitionIdEvidence({ competitionId: null, raw: { Competition: "Premier League" } }), null);
 });
 
 test("stores a missing start time as null", () => {
@@ -159,6 +175,19 @@ test("fixture discovery retries a rate-limited day with Retry-After and continue
   assert.equal(result.coverage.daily_coverage[0]?.attempts, 2);
   assert.equal(result.coverage.daily_coverage[0]?.status, "no_data");
   assert.ok(waits.some((ms) => ms >= 2_000));
+});
+
+test("fixture discovery retries 5xx but stops immediately on valid 4xx", async () => {
+  let serverCalls = 0;
+  const server = await ingestTxlineFixtureDiscoveryWindow({ competitionId: "430", now: new Date("2026-07-18T12:00:00Z"), backfillDays: 0, futureDays: 0, retries: 2, wait: async () => undefined, jitter: () => 0, fetchFixtures: async () => { serverCalls += 1; if (serverCalls === 1) throw Object.assign(new Error("server"), { status: 503 }); return []; } });
+  assert.equal(serverCalls, 2);
+  assert.equal(server.coverage.retry_count, 1);
+
+  let clientCalls = 0;
+  const client = await ingestTxlineFixtureDiscoveryWindow({ competitionId: "430", now: new Date("2026-07-18T12:00:00Z"), backfillDays: 0, futureDays: 0, retries: 3, wait: async () => undefined, fetchFixtures: async () => { clientCalls += 1; throw Object.assign(new Error("bad request"), { status: 400 }); } });
+  assert.equal(clientCalls, 1);
+  assert.equal(client.coverage.retry_count, 0);
+  assert.equal(client.coverage.failed_epoch_days.length, 1);
 });
 
 test("catalog reconciliation is dry-run, deterministic, and never deletes source rows", () => {

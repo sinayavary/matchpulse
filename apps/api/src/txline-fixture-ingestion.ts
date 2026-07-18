@@ -4,6 +4,7 @@ import { getDbClient } from "./db.js";
 import {
   isRecord,
   normalizeTxlineFixture,
+  parseCompetitionId,
   readString,
   type NormalizedTxlineFixturePreview
 } from "./txline-normalizer.js";
@@ -16,6 +17,7 @@ export type FixtureUpsert = {
 
 export type IngestedFixture = {
   fixture_id: string;
+  competition_id?: string;
   competition: string;
   home_team: string;
   away_team: string;
@@ -86,6 +88,7 @@ export type FixtureDiscoveryWindowResult = {
 
 export type FixtureCatalogReconciliationInput = {
   fixtureId: string;
+  competitionId?: string | null;
   sport?: string | null;
   competition: string | null;
   stage?: string | null;
@@ -93,6 +96,7 @@ export type FixtureCatalogReconciliationInput = {
   awayTeam: string | null;
   startTimeUtc: Date | null;
   status: string | null;
+  raw?: unknown;
 };
 
 export type FixtureCatalogReconciliationReport = {
@@ -142,7 +146,8 @@ function hasReliableTeams(rawFixture: unknown) {
 export function mapNormalizedFixtureToFixtureUpsert(
   normalizedFixture: NormalizedTxlineFixturePreview,
   rawFixture: unknown,
-  includeRaw = false
+  includeRaw = false,
+  requestedCompetitionId?: string
 ): FixtureUpsert | null {
   if (!hasReliableTeams(rawFixture)) return null;
 
@@ -152,8 +157,11 @@ export function mapNormalizedFixtureToFixtureUpsert(
   if (startTimeUtc !== null && !Number.isFinite(startTimeUtc.getTime())) return null;
 
   const raw = includeRaw ? safeJson(rawFixture) : undefined;
+  const competitionId = normalizedFixture.competition_id ?? parseCompetitionId(requestedCompetitionId);
+  if (competitionId === null) return null;
   const values = {
     fixtureId: normalizedFixture.fixture_id,
+    competitionId,
     competition: normalizedFixture.competition,
     stage: normalizedFixture.stage,
     sport: "soccer",
@@ -171,9 +179,10 @@ export function mapNormalizedFixtureToFixtureUpsert(
   };
 }
 
-function toSafeFixture(normalized: NormalizedTxlineFixturePreview): IngestedFixture {
+function toSafeFixture(normalized: NormalizedTxlineFixturePreview, competitionId: string): IngestedFixture {
   return {
     fixture_id: normalized.fixture_id,
+    competition_id: normalized.competition_id ?? competitionId,
     competition: normalized.competition,
     home_team: normalized.home_team,
     away_team: normalized.away_team,
@@ -208,7 +217,7 @@ export async function ingestTxlineFixtures({
     }
 
     result.normalizedCount += 1;
-    const upsert = mapNormalizedFixtureToFixtureUpsert(normalized, rawFixture, includeRaw);
+    const upsert = mapNormalizedFixtureToFixtureUpsert(normalized, rawFixture, includeRaw, competitionId);
     if (upsert === null) {
       result.skippedCount += 1;
       continue;
@@ -217,7 +226,7 @@ export async function ingestTxlineFixtures({
     try {
       await upsertFixture(upsert);
       result.upsertedCount += 1;
-      result.fixtures.push(toSafeFixture(normalized));
+      result.fixtures.push(toSafeFixture(normalized, competitionId));
     } catch {
       result.failedCount += 1;
     }
@@ -250,6 +259,10 @@ function retryAfterMilliseconds(error: unknown): number | null {
     const value = headers["retry-after"] ?? headers["Retry-After"];
     if (typeof value === "number" && Number.isFinite(value) && value >= 0) return value * 1_000;
     if (typeof value === "string" && /^\d+(?:\.\d+)?$/.test(value.trim())) return Number(value.trim()) * 1_000;
+    if (typeof value === "string") {
+      const timestamp = Date.parse(value);
+      if (Number.isFinite(timestamp)) return Math.max(0, timestamp - Date.now());
+    }
   }
   const status = error.status ?? error.statusCode;
   return status === 429 ? 1_000 : null;
@@ -266,6 +279,27 @@ function epochDay(date: Date): number {
 
 function reconciliationText(value: string | null | undefined): string {
   return (value ?? "").normalize("NFKC").trim().toLocaleLowerCase().replace(/\s+/g, " ");
+}
+
+function isRetryableDiscoveryError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as Record<string, unknown>;
+  const status = typeof record.status === "number" ? record.status : typeof record.statusCode === "number" ? record.statusCode : null;
+  if (status === 429 || (status !== null && status >= 500 && status <= 599)) return true;
+  const code = typeof record.code === "string" ? record.code.toUpperCase() : "";
+  const name = typeof record.name === "string" ? record.name.toLowerCase() : "";
+  return ["ETIMEDOUT", "ESOCKETTIMEDOUT", "ECONNRESET", "ECONNREFUSED", "EAI_AGAIN", "ENETUNREACH", "UND_ERR_CONNECT_TIMEOUT"].includes(code) || name === "aborterror" || name === "timeouterror";
+}
+
+export function extractCompetitionIdEvidence(row: Pick<FixtureCatalogReconciliationInput, "competitionId" | "raw">): string | null {
+  const existing = parseCompetitionId(row.competitionId);
+  if (existing !== null) return existing;
+  if (!isRecord(row.raw)) return null;
+  for (const field of ["CompetitionId", "CompetitionID", "competitionId", "competition_id"] as const) {
+    const candidate = parseCompetitionId(row.raw[field]);
+    if (candidate !== null) return candidate;
+  }
+  return null;
 }
 
 export function buildFixtureCatalogReconciliationReport(
@@ -335,7 +369,7 @@ export async function ingestTxlineFixtureDiscoveryWindow({
   now = new Date(),
   backfillDays = nonNegativeEnvInteger("MATCHPULSE_DISCOVERY_BACKFILL_DAYS", 1),
   futureDays = nonNegativeEnvInteger("MATCHPULSE_DISCOVERY_FUTURE_DAYS", 14),
-  wait = async () => undefined,
+  wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
   jitter,
   retries,
   retryAfterMs,
@@ -400,13 +434,13 @@ export async function ingestTxlineFixtureDiscoveryWindow({
               return await (fetchFixtures ?? ((input) => createTxlineLiveClient().getFixtureSnapshot(input)))(params);
             } catch (error) {
               if (isRateLimited(error)) dayWasRateLimited = true;
-              if (attempt >= maxRetries) throw error;
+              if (attempt >= maxRetries || !isRetryableDiscoveryError(error)) throw error;
               attempt += 1;
               coverage.retry_count += 1;
               const retryAfter = retryAfterMs?.(error) ?? retryAfterMilliseconds(error);
               const backoff = Math.min(30_000, 500 * (2 ** (attempt - 1)));
               const jitterMs = Math.max(0, Math.trunc(jitter?.() ?? Math.random() * 250));
-              await wait(Math.max(retryAfter ?? 0, backoff) + jitterMs);
+              await wait(Math.min(30_000, Math.max(retryAfter ?? 0, backoff) + jitterMs));
             }
           }
         },

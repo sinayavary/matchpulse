@@ -9,7 +9,11 @@
     "dev:api": "pnpm --filter @matchpulse/api dev",
     "dev:worker": "pnpm --filter @matchpulse/worker dev",
     "build": "turbo run build",
-    "lint": "turbo run lint",
+    "lint": "eslint . --max-warnings=0",
+    "test": "pnpm --filter @matchpulse/api test && pnpm --filter @matchpulse/api test:production-remediation && pnpm --filter @matchpulse/worker test && pnpm --filter @matchpulse/api exec tsx --test ../../apps/web/lib/local-calendar.test.ts",
+    "test:e2e": "playwright test",
+    "test:forbidden-fields": "pnpm --filter @matchpulse/api exec tsx --test src/public-api.test.ts src/server-agent-presenter-route.test.ts",
+    "scan:mojibake": "node -e \"const fs=require('fs'),p=require('path'),bad=['\\u00c2','\\u00e2\\u20ac\\u00a6','\\u00c3','\\ufffd'];let hit=[];function w(d){for(const e of fs.readdirSync(d,{withFileTypes:true})){if(['node_modules','.git','.next','dist'].includes(e.name))continue;const f=p.join(d,e.name);if(e.isDirectory())w(f);else if(/\\.(ts|tsx|js|mjs|md)$/.test(e.name)){const s=fs.readFileSync(f,'utf8');if(bad.some(x=>s.includes(x)))hit.push(f)}}}w('.');if(hit.length){console.error(hit.join('\\n'));process.exit(1)}\"",
     "typecheck": "turbo run typecheck",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -18,10 +22,14 @@
     "prisma:studio": "prisma studio"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
     "@prisma/client": "^6.0.1",
     "@types/node": "^22.10.2",
+    "eslint": "^10.7.0",
     "prisma": "^6.0.1",
     "turbo": "^2.3.3",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.64.0"
   }
 }
