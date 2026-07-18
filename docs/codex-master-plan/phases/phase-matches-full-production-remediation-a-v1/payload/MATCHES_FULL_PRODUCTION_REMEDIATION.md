@@ -4,6 +4,7 @@
 
 - Add nullable string `competitionId` mapped to `competition_id` with an index on `Fixture`.
 - Create one additive SQL migration containing only the nullable column and index.
+- The new migration directory must sort after every migration already committed at the phase baseline. The authorized path is prisma/migrations/20260718210000_fixture_competition_id/migration.sql. Existing applied migration files must not be edited, renamed, deleted, or reordered.
 - Normalization and fixture ingestion carry both provider competition ID and display name.
 - Reconciliation may fill only evidence-backed IDs and must remain dry-run by default, resumable, idempotent, and batch-isolated.
 - `/api/public/matches` filters `competitionId` by the ID column and accepts validated UTC `from`/`to` instants.
