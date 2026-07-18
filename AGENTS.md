@@ -131,13 +131,21 @@ Do not:
 
 ### Production live E2E acceptance exception
 
+### Production live E2E exception — permissions
+
 The only production exception is the exact identity `PROD-LIVE-E2E-ACCEPTANCE-A` / `PROD-LIVE-E2E-ACCEPTANCE-A-v1`, with `human_approved=true`, `allows_network=true`, and `allows_migration=false`. It permits only Railway status and sanitized logs, public GETs, authenticated internal status GETs without printing secrets, read-only TxLINE level-12 validation, public-Web browser automation, waiting for a real fixture, and public-safe evidence written to the allowlisted repository file. It is not reusable by another phase.
 
-### Free-access security phase exception
+### Production live E2E exception — prohibitions
+
+The production live E2E exception forbids all writes and deployments: production POST/PUT/PATCH/DELETE, manual ingestion, database or fixture writes, Railway configuration changes, restart/redeploy, replica/domain changes, migration/seed, secret/token/header output, raw provider payloads, mock/demo/fallback/fabricated data, capture-window or Agent-configuration changes. Any write or deployment operation must stop.
+
+### Free-access security exception — permissions
 
 The exact identity `FREE-ACCESS-SECURITY-A` / `FREE-ACCESS-SECURITY-A-v2`, with `human_approved=true`, permits only the explicitly allowlisted governance and implementation contract for off-chain wallet-signature identity, free developer API access, and the Developer Documentation Portal. A wallet is identity/authentication only: no transaction, transfer, approval, fee, balance check, token holding, NFT, deposit, payout, payment, private-key, or seed-phrase request or storage is permitted. API users authenticate through a wallet-signature session before using a free application, one-time client secret, and short-lived opaque token. External scopes are read-only and internal routes remain inaccessible to external credentials. This exception does not authorize production access, deployment, secrets, network, migration application, or database writes.
 
-This exception forbids all writes and deployments: production POST/PUT/PATCH/DELETE, manual ingestion, database or fixture writes, Railway configuration changes, restart/redeploy, replica/domain changes, migration/seed, secret/token/header output, raw provider payloads, mock/demo/fallback/fabricated data, capture-window or Agent-configuration changes. Any write or deployment operation must stop.
+### Free-access security exception — prohibitions
+
+The free-access security exception forbids blockchain transactions, transfers, approvals, fees, balance requirements, token/NFT holding, deposits, payouts, billing, subscriptions, plans, paywalls, seed phrases, private keys, production access, migration application, remote database writes, deployment, secret access, Railway changes, fabricated data, and direct changes to unrelated phases. It authorizes no runtime execution in a governance-only transition.
 
 ## Git and Automation v2
 
