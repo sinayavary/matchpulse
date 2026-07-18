@@ -1,13 +1,13 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "ready",
+  "state": "paused",
   "phase_id": "PROD-LIVE-E2E-ACCEPTANCE-B",
   "phase_title": "Production live E2E acceptance with real competition 430 fixture",
   "pack_path": "docs/codex-master-plan/phases/phase-prod-live-e2e-acceptance-b",
   "pack_version": "PROD-LIVE-E2E-ACCEPTANCE-B-v1",
   "baseline_commit": "32a1447f2e3f9f80c82bc1eb0e3cb69fba9cb4ef",
-  "human_approved": true,
+  "human_approved": false,
   "activation_note": "Program A continuation is explicitly authorized in the clean recovery worktree. Use only read-only real competition 430 acceptance; never fabricate a fixture or claim success without evidence.",
   "execution": {
     "continue_until_phase_gate": true,
@@ -15,5 +15,16 @@
     "allow_completion_state_update": true,
     "stop_after_phase": true
   },
-  "last_result": null
+  "last_result": {
+    "status": "WAITING_FOR_REAL_FIXTURE",
+    "evidence_commit": "f85c6b6f5e31ed87d92a1ebd0decdac7d401ec7b",
+    "evidence_path": "docs/production-live-e2e-acceptance-evidence.md",
+    "competition": 430,
+    "fixture_observed": false,
+    "production_network_accessed": false,
+    "migration_applied": false,
+    "fabricated_data": false,
+    "success_claimed": false,
+    "next_action": "resume read-only acceptance when a real competition 430 fixture and authorized production origin are available"
+  }
 }
