@@ -16,6 +16,7 @@ import {
   sanitizePublicPayload
 } from "./public-api.js";
 import { SIGNALCORE_FORBIDDEN_OUTPUT_FIELDS } from "./signalcore-contract.js";
+import { scopeForRoute } from "./security/free-access-contract.js";
 
 const PUBLIC_EVENT_IMPACT_KEYS = [
   "event_count_label",
@@ -470,6 +471,12 @@ test("public status route returns the safe public-v0 shape", async () => {
 
     await app.close();
   });
+});
+
+test("public API security inventory denies non-public routes", () => {
+  assert.equal(scopeForRoute("GET", "/api/matches"), "matches:read");
+  assert.equal(scopeForRoute("GET", "/api/internal/db/fixtures/x"), undefined);
+  assert.equal(scopeForRoute("POST", "/api/matches"), undefined);
 });
 
 test("public meta stays database/public across public routes", async () => {
