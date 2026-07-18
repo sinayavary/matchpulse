@@ -55,18 +55,20 @@
     {
       "id": "MATCHES-EXPERIENCE-A",
       "title": "Lifecycle-aware Matches experience and replay",
-      "status": "ready",
+      "status": "completed",
       "depends_on": ["EVALUATION-LEARNING-A"],
       "pack_version": "MATCHES-EXPERIENCE-A-v1",
       "baseline_commit": "fce4916f96f037fa9eb75b2fc7762431c6bca8f1",
+      "completion_commit": "32a1447f2e3f9f80c82bc1eb0e3cb69fba9cb4ef",
       "human_gate": false
     },
     {
       "id": "PROD-LIVE-E2E-ACCEPTANCE-B",
       "title": "Production live E2E acceptance with real competition 430 fixture",
-      "status": "planned",
+      "status": "ready",
       "depends_on": ["MATCHES-EXPERIENCE-A"],
       "pack_version": "PROD-LIVE-E2E-ACCEPTANCE-B-v1",
+      "baseline_commit": "32a1447f2e3f9f80c82bc1eb0e3cb69fba9cb4ef",
       "human_gate": true
     },
     {
