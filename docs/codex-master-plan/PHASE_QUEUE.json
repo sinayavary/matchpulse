@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "MATCHES-RAILWAY-TOPOLOGY-RETRY-A",
+  "active_phase_id": "MATCHES-RAILWAY-TOPOLOGY-RETRY-B",
   "updated_at": "2026-07-18T19:57:52Z",
   "items": [
     {
@@ -177,12 +177,21 @@
     {
       "id": "MATCHES-RAILWAY-TOPOLOGY-RETRY-A",
       "title": "Diagnose and safely retry staging environment creation",
-      "status": "awaiting_human_approval",
+      "status": "blocked_create_failed",
       "depends_on": ["MATCHES-RAILWAY-TOPOLOGY-A"],
       "pack_version": "MATCHES-RAILWAY-TOPOLOGY-RETRY-A-v1",
       "baseline_commit": "25156b8d22d1488f27da6bafeee9b6d88ece6773",
       "human_gate": true,
       "reason": "Human-approved two-gate successor: read-only diagnosis followed by one separately approved retry."
+    },
+    {
+      "id": "MATCHES-RAILWAY-TOPOLOGY-RETRY-B",
+      "title": "Authorization preflight and third staging environment attempt",
+      "status": "awaiting_human_approval",
+      "depends_on": ["MATCHES-RAILWAY-TOPOLOGY-RETRY-A"],
+      "pack_version": "MATCHES-RAILWAY-TOPOLOGY-RETRY-B-v1",
+      "baseline_commit": "e8908ddfbfd4dee67174b921f1f7bd272c1b9ae3",
+      "human_gate": true
     },
     {
       "id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",
