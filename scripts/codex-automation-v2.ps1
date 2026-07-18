@@ -144,8 +144,31 @@ function Status-All {
 
 function Status-For($Paths) {
   $lines = @()
+
+  function Test-PorcelainStatusLine($Line) {
+    $text = [string]$Line
+    if ($text.Length -lt 3 -or $text[2] -ne ' ') {
+      return $false
+    }
+    $validStatusCharacters = " MTADRCU?!"
+    return `
+      $validStatusCharacters.Contains([string]$text[0]) -and `
+      $validStatusCharacters.Contains([string]$text[1])
+  }
+
   foreach ($path in @($Paths | Sort-Object -Unique)) {
-    $lines += @((Invoke-SafeGit @("status","--porcelain=v1","--untracked-files=all","--",$path)).Lines | Where-Object { $_ })
+    $result = Invoke-SafeGit @(
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+      "--",
+      $path
+    )
+    $lines += @(
+      $result.Lines |
+        ForEach-Object { [string]$_ } |
+        Where-Object { Test-PorcelainStatusLine $_ }
+    )
   }
   @($lines | Sort-Object -Unique)
 }
