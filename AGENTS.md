@@ -135,6 +135,12 @@ The only production exception is the exact identity `PROD-LIVE-E2E-ACCEPTANCE-A`
 
 This exception forbids all writes and deployments: production POST/PUT/PATCH/DELETE, manual ingestion, database or fixture writes, Railway configuration changes, restart/redeploy, replica/domain changes, migration/seed, secret/token/header output, raw provider payloads, mock/demo/fallback/fabricated data, capture-window or Agent-configuration changes. Any write or deployment operation must stop.
 
+### Free-access security implementation exception
+
+The exact future identity `FREE-ACCESS-SECURITY-A` / `FREE-ACCESS-SECURITY-A-v3`, with `human_approved=true`, may execute only its self-contained pack and exact manifest allowlist. It permits source-level schema edits, SQL migration source creation, local Prisma format/validate/generate without any database connection, runtime implementation only in that allowlist, and local tests.
+
+It forbids migration application, every database connection or write, production or application-network access, deployment, secret access, blockchain transactions, wallet asset authorization, payment or paywall behavior, private-key or seed-phrase handling, and public leakage of raw provider data, credentials, formulas, weights, thresholds, or private lineage.
+
 ## Git and Automation v2
 
 Automation v2 is the only permitted automated Git path.

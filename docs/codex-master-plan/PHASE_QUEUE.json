@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "MATCHES-CATALOG-RELIABILITY-C",
+  "active_phase_id": "FREE-ACCESS-SECURITY-A",
   "updated_at": "2026-07-18T00:00:00Z",
   "items": [
     {
@@ -74,14 +74,23 @@
     {
       "id": "MATCHES-CATALOG-RELIABILITY-B",
       "title": "End-to-end Matches catalog reliability and experience remediation",
-      "status": "published_but_review_rejected",
+      "status": "completed",
       "depends_on": ["PROD-LIVE-E2E-ACCEPTANCE-B"],
       "pack_version": "MATCHES-CATALOG-RELIABILITY-B-v1",
       "baseline_commit": "df9d8cfd7d8076f6ffc2924823ee9b78c4e4cb74",
-      "human_gate": true,
+      "human_gate": false,
       "resume_after": "PROD-LIVE-E2E-ACCEPTANCE-B",
       "reason": "published completion was rejected by formal audit; successor C is the authorized remediation path",
       "completion_commit": "75390e501164eff37998e4151b310ca2c81b9d1f"
+    },
+    {
+      "id": "FREE-ACCESS-SECURITY-A",
+      "title": "Free wallet identity and secure Developer API",
+      "status": "ready",
+      "pack_version": "FREE-ACCESS-SECURITY-A-v3",
+      "baseline_commit": "7d99b1d59f1c5811943553cb4226cf05e62fac7a",
+      "human_gate": true,
+      "depends_on": ["MATCHES-CATALOG-RELIABILITY-B"]
     },
     {
       "id": "MATCHES-CATALOG-RELIABILITY-C",
