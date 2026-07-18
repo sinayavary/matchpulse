@@ -126,8 +126,11 @@ const readBoolean = (value: unknown): boolean | undefined => {
 const readNumber = (value: unknown): number | undefined =>
   typeof value === "number" ? value : typeof value === "string" ? Number(value) : undefined;
 
+const configuredOrigins = (process.env.CORS_ORIGIN ?? "").split(",").map(value => value.trim()).filter(Boolean);
 await app.register(cors, {
-  origin: process.env.CORS_ORIGIN ?? true
+  origin: configuredOrigins.length ? configuredOrigins : false,
+  methods: ["GET", "POST", "OPTIONS"],
+  credentials: true
 });
 
 registerSecurityRoutes(app);

@@ -1,2 +1,2 @@
-import { NextResponse } from "next/server";
-export async function GET() { return NextResponse.json({ data: { requestsToday: 0, quotaRemaining: 120 } }); }
+import { proxyBackend } from "../../../../../../lib/backend-auth-proxy";
+export async function GET(request: Request, context: { params: Promise<{ applicationId: string }> }) { const { applicationId } = await context.params; if (!/^[A-Za-z0-9_-]+$/.test(applicationId)) return new Response(JSON.stringify({ error: "request_rejected" }), { status: 404 }); return proxyBackend(`/api/developer/applications/${applicationId}/usage`, { headers: { cookie: request.headers.get("cookie") ?? "" } }); }
