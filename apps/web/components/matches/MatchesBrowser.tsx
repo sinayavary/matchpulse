@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchPublicMatches,
   fetchPublicStatus,
@@ -75,7 +75,7 @@ function availabilityLabel(value: string): string {
 
 export default function MatchesBrowser() {
   const [phase, setPhase] = useState<Phase>("loading");
-  const [range, setRange] = useState<MatchRange>("all");
+  const [range, setRange] = useState<MatchRange>("live");
   const [refreshKey, setRefreshKey] = useState(0);
   const [matches, setMatches] = useState<PublicMatchSummary[]>([]);
   const [status, setStatus] = useState<PublicStatus | null>(null);
@@ -85,21 +85,41 @@ export default function MatchesBrowser() {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [clock, setClock] = useState(() => Date.now());
+  const manualRangeSelection = useRef(false);
+  const autoSelectionCompleted = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
 
+    async function loadRange(selectedRange: MatchRange) {
+      return fetchPublicMatches({ range: selectedRange, limit: 50 }, controller.signal);
+    }
+
     async function load() {
       if (matches.length === 0) setPhase("loading");
       setError("");
       setNextCursor(null);
-      const [statusResult, matchesResult] = await Promise.all([
+      const [statusResult, initialResult] = await Promise.all([
         fetchPublicStatus(),
-        fetchPublicMatches({ range, limit: 50 }, controller.signal)
+        loadRange(range)
       ]);
       if (cancelled) return;
       if (statusResult.ok && statusResult.data) setStatus(statusResult.data);
+      let matchesResult = initialResult;
+      if (!manualRangeSelection.current && !autoSelectionCompleted.current && initialResult.ok && (initialResult.data?.length ?? 0) === 0) {
+        autoSelectionCompleted.current = true;
+        for (const fallback of ["starting_soon", "upcoming", "recently_finished"] as MatchRange[]) {
+          const fallbackResult = await loadRange(fallback);
+          if (fallbackResult.ok && (fallbackResult.data?.length ?? 0) > 0) {
+            matchesResult = fallbackResult;
+            setRange(fallback);
+            break;
+          }
+        }
+      } else if (initialResult.ok) {
+        autoSelectionCompleted.current = true;
+      }
       if (!matchesResult.ok || !matchesResult.data) {
         setMeta(matchesResult.meta);
         setError(matchesResult.meta?.message ?? "Public match list is temporarily unavailable; showing the last valid data.");
@@ -166,7 +186,7 @@ export default function MatchesBrowser() {
       <section className="matches-toolbar card" aria-label="Match catalog filters">
         <div className="filter-row">
           {FILTERS.map((filter) => (
-            <button key={filter.value} className={`button filter-button ${range === filter.value ? "active" : ""}`} onClick={() => setRange(filter.value)} type="button">
+            <button key={filter.value} className={`button filter-button ${range === filter.value ? "active" : ""}`} onClick={() => { manualRangeSelection.current = true; setRange(filter.value); }} type="button">
               {filter.label}
             </button>
           ))}

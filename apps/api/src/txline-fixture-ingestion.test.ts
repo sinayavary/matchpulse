@@ -118,6 +118,7 @@ test("fixture discovery window covers configured backfill and future horizon wit
     now: new Date("2026-07-18T12:00:00.000Z"),
     backfillDays: 1,
     futureDays: 14,
+    retries: 0,
     fetchFixtures: async ({ startEpochDay }) => {
       requestedDays.push(startEpochDay);
       if (startEpochDay % 2 === 0) throw new Error("simulated upstream day failure");
@@ -130,6 +131,29 @@ test("fixture discovery window covers configured backfill and future horizon wit
   assert.equal(result.coverage.successful_epoch_days.length + result.coverage.failed_epoch_days.length, 16);
   assert.deepEqual(requestedDays, result.coverage.requested_epoch_days);
   assert.equal(result.coverage.future_horizon_days, 14);
+  assert.deepEqual(result.coverage.attempted_epoch_days, result.coverage.requested_epoch_days);
+});
+
+test("fixture discovery retries a rate-limited day with Retry-After and continues the window", async () => {
+  let calls = 0;
+  const waits: number[] = [];
+  const result = await ingestTxlineFixtureDiscoveryWindow({
+    competitionId: "430",
+    now: new Date("2026-07-18T12:00:00.000Z"),
+    backfillDays: 0,
+    futureDays: 0,
+    fetchFixtures: async () => {
+      calls += 1;
+      if (calls === 1) throw Object.assign(new Error("rate limited"), { status: 429, headers: { "Retry-After": "2" } });
+      return [];
+    },
+    wait: async (ms) => { waits.push(ms); },
+    jitter: () => 0
+  });
+  assert.equal(calls, 2);
+  assert.equal(result.coverage.retry_count, 1);
+  assert.deepEqual(result.coverage.rate_limited_epoch_days, [20652]);
+  assert.ok(waits.some((ms) => ms >= 2_000));
 });
 
 test("catalog reconciliation is dry-run, deterministic, and never deletes source rows", () => {

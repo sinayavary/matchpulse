@@ -43,50 +43,57 @@ export type PublicAvailabilityStatus = "available" | "not_expected_yet" | "not_a
 
 type PublicFixtureRow = {
   fixtureId: string;
+  sport?: string | null;
+  stage?: string | null;
   competition: string | null;
   homeTeam: string | null;
   awayTeam: string | null;
   startTimeUtc: Date | null;
   status: string | null;
+  createdAt?: Date | null;
+  updatedAt?: Date | null;
+  __signals?: PublicCatalogSignals;
 };
 
-type PublicFixtureWhere = {
-  competition?: string;
-  startTimeUtc?: {
-    gte?: Date;
-    lt?: Date;
-  };
+type PublicCatalogSignals = {
+  lifecycle: ReturnType<typeof resolveMatchLifecycle>;
+  state_available: boolean;
+  home_score: number | null;
+  away_score: number | null;
+  phase: string | null;
+  minute: number | null;
+  latest_data_timestamp: number | null;
+  odds_count: number;
+  odds_latest_timestamp: number | null;
+  event_count: number;
+  event_latest_timestamp: number | null;
+  state_error?: boolean;
+  odds_error?: boolean;
+  event_error?: boolean;
+  enrichment_error?: boolean;
 };
+
+type PublicFixtureWhere = Record<string, unknown>;
 
 type PublicApiDbClient = {
   fixture: {
-    findMany(args: {
-      where?: PublicFixtureWhere;
-      orderBy: { startTimeUtc: "asc" | "desc" };
-      take: number;
-      select: {
-        fixtureId: true;
-        competition: true;
-        homeTeam: true;
-        awayTeam: true;
-        startTimeUtc: true;
-        status: true;
-      };
-    }): Promise<PublicFixtureRow[]>;
+    findMany(args: any): Promise<PublicFixtureRow[]>;
   };
   matchState: {
     findUnique(args: {
       where: { fixtureId: string };
       select: {
         homeScore: true;
-        awayScore: true;
-        phase: true;
-        lastDataReceivedAt: true;
+      awayScore: true;
+      phase: true;
+      minute?: true;
+      lastDataReceivedAt: true;
       };
     }): Promise<{
       homeScore: number | null;
       awayScore: number | null;
       phase: string | null;
+      minute?: number | null;
       lastDataReceivedAt: Date | null;
     } | null>;
     findMany?: (args: {
@@ -96,6 +103,7 @@ type PublicApiDbClient = {
         homeScore: true;
         awayScore: true;
         phase: true;
+        minute?: true;
         lastDataReceivedAt: true;
       };
     }) => Promise<Array<{
@@ -103,11 +111,16 @@ type PublicApiDbClient = {
       homeScore: number | null;
       awayScore: number | null;
       phase: string | null;
+      minute?: number | null;
       lastDataReceivedAt: Date | null;
     }>>;
   };
   oddsSnapshot: {
     count(args: { where: { fixtureId: string } }): Promise<number>;
+    groupBy?: (args: any) => Promise<any[]>;
+  };
+  matchEvent?: {
+    groupBy: (args: any) => Promise<any[]>;
   };
 };
 
@@ -179,6 +192,9 @@ export type PublicMatchesResponse = {
     generated_at?: string;
     result_count?: number;
     deduplicated_count?: number;
+    scanned_count?: number;
+    snapshot_at?: string;
+    cursor_version?: number;
     data_status?: "complete" | "partial" | "unavailable";
   };
 };
@@ -669,7 +685,15 @@ function parseTimestamp(value: string | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-type PublicSeekCursor = { version: 1; range: PublicMatchesRange; start_time_utc: number | null; fixture_id: string };
+type PublicSeekCursor = {
+  version: 2;
+  range: PublicMatchesRange;
+  snapshot_at: string;
+  primary_sort_value: number | null;
+  secondary_sort_value: number | null;
+  fixture_id: string;
+  direction: "asc" | "desc";
+};
 
 function encodePublicSeekCursor(cursor: PublicSeekCursor): string {
   return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
@@ -679,8 +703,11 @@ function decodePublicSeekCursor(value: string | undefined, range: PublicMatchesR
   if (value === undefined) return undefined;
   try {
     const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as Partial<PublicSeekCursor>;
-    if (parsed.version !== 1 || parsed.range !== range || typeof parsed.fixture_id !== "string" ||
-      (parsed.start_time_utc !== null && typeof parsed.start_time_utc !== "number")) {
+    if (parsed.version !== 2 || parsed.range !== range || typeof parsed.fixture_id !== "string" ||
+      typeof parsed.snapshot_at !== "string" || !Number.isFinite(Date.parse(parsed.snapshot_at)) ||
+      (parsed.primary_sort_value !== null && typeof parsed.primary_sort_value !== "number") ||
+      (parsed.secondary_sort_value !== null && typeof parsed.secondary_sort_value !== "number") ||
+      (parsed.direction !== "asc" && parsed.direction !== "desc")) {
       throw new Error("invalid cursor");
     }
     return parsed as PublicSeekCursor;
@@ -694,20 +721,27 @@ function normalizedCatalogText(value: string | null): string {
 }
 
 function fixtureCatalogKey(fixture: PublicFixtureRow): string {
+  if (fixture.competition === null || fixture.homeTeam === null || fixture.awayTeam === null) return `incomplete|${fixture.fixtureId}`;
   const start = fixture.startTimeUtc?.getTime();
   const bucket = start === undefined || !Number.isFinite(start) ? "unknown" : String(Math.floor(start / 300_000));
-  return [normalizedCatalogText(fixture.competition), normalizedCatalogText(fixture.homeTeam), normalizedCatalogText(fixture.awayTeam), bucket].join("|");
+  return [normalizedCatalogText(fixture.sport ?? "soccer"), normalizedCatalogText(fixture.competition), normalizedCatalogText(fixture.homeTeam), normalizedCatalogText(fixture.awayTeam), normalizedCatalogText(fixture.stage ?? ""), bucket].join("|");
 }
 
 function chooseCatalogRepresentative(current: PublicFixtureRow, candidate: PublicFixtureRow): PublicFixtureRow {
-  const completeness = (fixture: PublicFixtureRow) => (
-    (fixture.competition !== null && fixture.homeTeam !== null && fixture.awayTeam !== null ? 4 : 0) +
-    (resolveMatchLifecycle({ providerStatus: fixture.status, startTimeUtc: fixture.startTimeUtc }).is_terminal ? 2 : 0) +
-    (fixture.startTimeUtc !== null ? 1 : 0)
-  );
-  const left = completeness(current);
-  const right = completeness(candidate);
-  if (right !== left) return right > left ? candidate : current;
+  const score = (fixture: PublicFixtureRow): number[] => {
+    const signals = fixture.__signals;
+    const lifecycle = signals?.lifecycle ?? resolveMatchLifecycle({ providerStatus: fixture.status, startTimeUtc: fixture.startTimeUtc });
+    const evidence = lifecycle.is_terminal || lifecycleIsLive(lifecycle) ? 1 : 0;
+    const confidence = lifecycle.confidence === "high" ? 3 : lifecycle.confidence === "medium" ? 2 : 1;
+    const identity = fixture.competition !== null && fixture.homeTeam !== null && fixture.awayTeam !== null ? 1 : 0;
+    const start = fixture.startTimeUtc === null ? 0 : 1;
+    return [evidence, confidence, identity, start, signals?.state_available ? 1 : 0, signals?.event_count ?? 0, signals?.odds_count ?? 0, signals?.latest_data_timestamp ?? -Infinity, fixture.updatedAt?.getTime() ?? -Infinity];
+  };
+  const left = score(current);
+  const right = score(candidate);
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return (right[index] ?? -Infinity) > (left[index] ?? -Infinity) ? candidate : current;
+  }
   return candidate.fixtureId < current.fixtureId ? candidate : current;
 }
 
@@ -716,23 +750,60 @@ function deduplicatePublicFixtures(fixtures: PublicFixtureRow[]): { fixtures: Pu
   for (const fixture of fixtures) {
     const key = fixtureCatalogKey(fixture);
     const current = representatives.get(key);
-    representatives.set(key, current === undefined ? fixture : chooseCatalogRepresentative(current, fixture));
+    if (current === undefined) {
+      representatives.set(key, fixture);
+      continue;
+    }
+    const currentLifecycle = current.__signals?.lifecycle ?? resolveMatchLifecycle({ providerStatus: current.status, startTimeUtc: current.startTimeUtc });
+    const candidateLifecycle = fixture.__signals?.lifecycle ?? resolveMatchLifecycle({ providerStatus: fixture.status, startTimeUtc: fixture.startTimeUtc });
+    const conflictingEvidence = (currentLifecycle.is_terminal && lifecycleIsLive(candidateLifecycle)) || (candidateLifecycle.is_terminal && lifecycleIsLive(currentLifecycle));
+    if (conflictingEvidence) {
+      representatives.set(`${key}|${fixture.fixtureId}`, fixture);
+    } else {
+      representatives.set(key, chooseCatalogRepresentative(current, fixture));
+    }
   }
   return { fixtures: [...representatives.values()], deduplicatedCount: Math.max(0, fixtures.length - representatives.size) };
 }
 
-function comparePublicFixtures(left: PublicFixtureRow, right: PublicFixtureRow, descending: boolean): number {
-  const leftStart = left.startTimeUtc?.getTime() ?? (descending ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
-  const rightStart = right.startTimeUtc?.getTime() ?? (descending ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
-  if (leftStart !== rightStart) return descending ? rightStart - leftStart : leftStart - rightStart;
-  return descending ? right.fixtureId.localeCompare(left.fixtureId) : left.fixtureId.localeCompare(right.fixtureId);
+function lifecyclePriority(lifecycle: ReturnType<typeof resolveMatchLifecycle>): number {
+  const priorities: Record<string, number> = { penalties: 6, extra_time: 5, live_second_half: 4, halftime: 3, live_first_half: 2, unknown_in_progress: 1 };
+  return priorities[lifecycle.lifecycle] ?? 0;
 }
 
-function fixtureIsAfterCursor(fixture: PublicFixtureRow, cursor: PublicSeekCursor, descending: boolean): boolean {
-  const cursorStart = cursor.start_time_utc ?? (descending ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
-  const fixtureStart = fixture.startTimeUtc?.getTime() ?? (descending ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
-  if (fixtureStart !== cursorStart) return descending ? fixtureStart < cursorStart : fixtureStart > cursorStart;
-  return descending ? fixture.fixtureId < cursor.fixture_id : fixture.fixtureId > cursor.fixture_id;
+function publicSortValues(fixture: PublicFixtureRow, range: PublicMatchesRange): { primary: number | null; secondary: number | null; direction: "asc" | "desc" } {
+  const signals = fixture.__signals;
+  const lifecycle = signals?.lifecycle ?? resolveMatchLifecycle({ providerStatus: fixture.status, startTimeUtc: fixture.startTimeUtc });
+  const start = fixture.startTimeUtc?.getTime() ?? null;
+  if (range === "live") return { primary: lifecyclePriority(lifecycle) * 1_000_000 + (signals?.minute ?? -1), secondary: signals?.latest_data_timestamp ?? null, direction: "desc" };
+  if (range === "past" || range === "recently_finished") return { primary: signals?.latest_data_timestamp ?? fixture.updatedAt?.getTime() ?? start, secondary: start, direction: "desc" };
+  if (range === "interrupted") return { primary: fixture.updatedAt?.getTime() ?? signals?.latest_data_timestamp ?? null, secondary: start, direction: "desc" };
+  return { primary: start, secondary: null, direction: "asc" };
+}
+
+function comparePublicFixtures(left: PublicFixtureRow, right: PublicFixtureRow, range: PublicMatchesRange): number {
+  const a = publicSortValues(left, range);
+  const b = publicSortValues(right, range);
+  const direction = a.direction === "desc" ? -1 : 1;
+  const primaryA = a.primary ?? (direction < 0 ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
+  const primaryB = b.primary ?? (direction < 0 ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
+  if (primaryA !== primaryB) return (primaryA - primaryB) * direction;
+  const secondaryA = a.secondary ?? (direction < 0 ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
+  const secondaryB = b.secondary ?? (direction < 0 ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
+  if (secondaryA !== secondaryB) return (secondaryA - secondaryB) * direction;
+  return direction < 0 ? right.fixtureId.localeCompare(left.fixtureId) : left.fixtureId.localeCompare(right.fixtureId);
+}
+
+function fixtureIsAfterCursor(fixture: PublicFixtureRow, cursor: PublicSeekCursor, range: PublicMatchesRange): boolean {
+  const values = publicSortValues(fixture, range);
+  const direction = cursor.direction === "desc" ? -1 : 1;
+  const primary = values.primary ?? (direction < 0 ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
+  const cursorPrimary = cursor.primary_sort_value ?? (direction < 0 ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
+  if (primary !== cursorPrimary) return direction < 0 ? primary < cursorPrimary : primary > cursorPrimary;
+  const secondary = values.secondary ?? (direction < 0 ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
+  const cursorSecondary = cursor.secondary_sort_value ?? (direction < 0 ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
+  if (secondary !== cursorSecondary) return direction < 0 ? secondary < cursorSecondary : secondary > cursorSecondary;
+  return direction < 0 ? fixture.fixtureId < cursor.fixture_id : fixture.fixtureId > cursor.fixture_id;
 }
 
 function isStateStale(state: CanonicalMatchState, staleAfterMinutes: number, now: Date): boolean {
@@ -794,8 +865,7 @@ function fixtureMatchesRequestedRange(
   now: Date
 ): boolean {
   if (range === "all") return true;
-  const token = (fixture.status ?? "").trim().toLowerCase();
-  const lifecycle = resolveMatchLifecycle({ providerStatus: fixture.status, startTimeUtc: fixture.startTimeUtc, now, captureLeadMinutes: 60 });
+  const lifecycle = fixture.__signals?.lifecycle ?? resolveMatchLifecycle({ providerStatus: fixture.status, startTimeUtc: fixture.startTimeUtc, now, captureLeadMinutes: 60 });
   const isLive = lifecycleIsLive(lifecycle);
   const isPast = lifecycleIsRecentlyFinished(lifecycle) || lifecycle.is_terminal;
   const isUpcoming = lifecycleIsUpcoming(lifecycle);
@@ -806,7 +876,11 @@ function fixtureMatchesRequestedRange(
     const start = fixture.startTimeUtc?.getTime() ?? Number.NaN;
     return isUpcoming && Number.isFinite(start) && start <= now.getTime() + 2 * 60 * 60_000;
   }
-  if (range === "past" || range === "recently_finished") return isPast && !isInterrupted;
+  if (range === "past") return isPast && !isInterrupted;
+  if (range === "recently_finished") {
+    const start = fixture.startTimeUtc?.getTime() ?? Number.NaN;
+    return isPast && !isInterrupted && Number.isFinite(start) && start >= now.getTime() - 48 * 60 * 60_000 && start <= now.getTime();
+  }
   if (range === "interrupted") return isInterrupted;
   return isUpcoming;
 }
@@ -819,7 +893,7 @@ function buildPublicFixtureWhere(
   const startTimeUtc = ["upcoming", "starting_soon"].includes(range)
     ? { gte: now }
     : ["past", "recently_finished"].includes(range)
-      ? { lt: now }
+      ? { ...(range === "recently_finished" ? { gte: new Date(now.getTime() - 48 * 60 * 60_000) } : {}), lt: now }
       : undefined;
 
   if (competitionId === undefined && startTimeUtc === undefined) {
@@ -1274,6 +1348,7 @@ function buildPublicMatchSummaryBase(input: {
   qualityStatus: PublicMatchSummary["quality"]["status"];
   issues: string[];
   latestDataTimestamp: string | null;
+  signals?: PublicCatalogSignals;
   now: Date;
 }): PublicMatchSummary {
   const lifecycle = resolveMatchLifecycle({
@@ -1284,10 +1359,14 @@ function buildPublicMatchSummaryBase(input: {
     captureLeadMinutes: 60,
     captureTailMinutes: 180
   });
+  const stale = (timestamp: number | null) => timestamp !== null && input.now.getTime() - timestamp > 60 * 60_000;
+  const noDataStatus = (error: boolean | undefined, timestamp: number | null): PublicAvailabilityStatus => error ? "upstream_error" : stale(timestamp) ? "stale" : lifecycleIsUpcoming(lifecycle) ? "not_expected_yet" : "upstream_no_data";
   const availability = {
-    score: input.hasScoreboard ? "available" : lifecycleIsUpcoming(lifecycle) ? "not_expected_yet" : "upstream_no_data",
-    odds: input.hasOdds ? "available" : lifecycleIsUpcoming(lifecycle) ? "not_expected_yet" : "upstream_no_data",
-    events: lifecycleIsUpcoming(lifecycle) ? "not_expected_yet" : "not_attempted"
+    score: lifecycleIsUpcoming(lifecycle) ? input.hasScoreboard && !stale(input.signals?.latest_data_timestamp ?? null) ? "available" : "not_expected_yet" : input.hasScoreboard ? stale(input.signals?.latest_data_timestamp ?? null) ? "stale" : "available" : noDataStatus(input.signals?.state_error, null),
+    odds: lifecycleIsUpcoming(lifecycle) ? input.hasOdds && !stale(input.signals?.odds_latest_timestamp ?? null) ? "available" : "not_expected_yet" : input.hasOdds ? stale(input.signals?.odds_latest_timestamp ?? null) ? "stale" : "available" : noDataStatus(input.signals?.odds_error, null),
+    events: input.signals?.event_count && input.signals.event_count > 0
+      ? stale(input.signals.event_latest_timestamp) ? "stale" : "available"
+      : input.signals?.event_error ? "upstream_error" : lifecycleIsUpcoming(lifecycle) ? "not_expected_yet" : input.signals === undefined ? "not_attempted" : "upstream_no_data"
   } satisfies Record<keyof PublicMatchSummary["availability"], PublicAvailabilityStatus>;
   return sanitizeAndAssertPublicPayload({
     fixture_id: input.fixture.fixtureId,
@@ -1324,46 +1403,99 @@ function buildPublicMatchSummaryBase(input: {
   });
 }
 
+type BatchStateRow = { fixtureId: string; homeScore: number | null; awayScore: number | null; phase: string | null; lastDataReceivedAt: Date | null; minute?: number | null };
+type BatchAggregateRow = { fixtureId: string; _count: { _all: number }; _max?: { sourceTimestamp: Date | null } };
+
+async function enrichPublicFixtureSignals(
+  fixtures: PublicFixtureRow[],
+  deps: PublicApiDependencies,
+  now: Date
+): Promise<PublicFixtureRow[]> {
+  if (fixtures.length === 0) return fixtures;
+  const db = deps.getDbClient();
+  const ids = fixtures.map((fixture) => fixture.fixtureId);
+  const states = new Map<string, BatchStateRow>();
+  const odds = new Map<string, BatchAggregateRow>();
+  const events = new Map<string, BatchAggregateRow>();
+  let stateError = false;
+  let oddsError = false;
+  let eventError = false;
+
+  if (db.matchState.findMany !== undefined) {
+    try {
+      const rows = await db.matchState.findMany({ where: { fixtureId: { in: ids } }, select: { fixtureId: true, homeScore: true, awayScore: true, phase: true, minute: true, lastDataReceivedAt: true } });
+      for (const row of rows) states.set(row.fixtureId, row);
+    } catch { stateError = true; }
+  } else {
+    await Promise.all(ids.map(async (fixtureId) => {
+      try {
+        const row = await db.matchState.findUnique({ where: { fixtureId }, select: { homeScore: true, awayScore: true, phase: true, lastDataReceivedAt: true } });
+        if (row !== null) states.set(fixtureId, { fixtureId, ...row });
+      } catch { stateError = true; }
+    }));
+  }
+  const oddsGroupBy = db.oddsSnapshot.groupBy;
+  if (oddsGroupBy !== undefined) {
+    try {
+      const rows = await oddsGroupBy({ by: ["fixtureId"], where: { fixtureId: { in: ids } }, _count: { _all: true }, _max: { sourceTimestamp: true } });
+      for (const row of rows) odds.set(row.fixtureId, row);
+    } catch { oddsError = true; }
+  } else {
+    await Promise.all(ids.map(async (fixtureId) => {
+      try { const count = await db.oddsSnapshot.count({ where: { fixtureId } }); if (count > 0) odds.set(fixtureId, { fixtureId, _count: { _all: count } }); }
+      catch { oddsError = true; }
+    }));
+  }
+  if (db.matchEvent?.groupBy !== undefined) {
+    try {
+      const rows = await db.matchEvent.groupBy({ by: ["fixtureId"], where: { fixtureId: { in: ids } }, _count: { _all: true }, _max: { sourceTimestamp: true } });
+      for (const row of rows) events.set(row.fixtureId, row);
+    } catch { eventError = true; }
+  }
+  return fixtures.map((fixture) => {
+    const state = states.get(fixture.fixtureId);
+    const oddsRow = odds.get(fixture.fixtureId);
+    const eventRow = events.get(fixture.fixtureId);
+    const lifecycle = resolveMatchLifecycle({ providerStatus: fixture.status, persistedPhase: state?.phase, startTimeUtc: fixture.startTimeUtc, now, captureLeadMinutes: 60, captureTailMinutes: 180 });
+    const stateTimestamp = state?.lastDataReceivedAt === null || state?.lastDataReceivedAt === undefined ? null : parseTimestamp(toIsoTimestamp(state.lastDataReceivedAt));
+    const timestamps = [stateTimestamp, oddsRow?._max?.sourceTimestamp?.getTime() ?? null, eventRow?._max?.sourceTimestamp?.getTime() ?? null].filter((value): value is number => value !== null && Number.isFinite(value));
+    return {
+      ...fixture,
+      __signals: {
+        lifecycle,
+        state_available: state !== undefined,
+        home_score: state?.homeScore ?? null,
+        away_score: state?.awayScore ?? null,
+        phase: state?.phase ?? null,
+        minute: state?.minute ?? null,
+        latest_data_timestamp: timestamps.length === 0 ? null : Math.max(...timestamps),
+        odds_count: oddsRow?._count._all ?? 0,
+        odds_latest_timestamp: oddsRow?._max?.sourceTimestamp?.getTime() ?? null,
+        event_count: eventRow?._count._all ?? 0,
+        event_latest_timestamp: eventRow?._max?.sourceTimestamp?.getTime() ?? null,
+        state_error: stateError,
+        odds_error: oddsError,
+        event_error: eventError,
+        enrichment_error: stateError || oddsError || eventError
+      }
+    };
+  });
+}
+
 async function buildPublicMatchSummaries(
   fixtures: PublicFixtureRow[],
   normalized: ReturnType<typeof normalizePublicMatchesQuery>,
   deps: PublicApiDependencies,
   now: Date
 ): Promise<PublicMatchSummary[]> {
-  const db = deps.getDbClient();
   const filteredFixtures = fixtures.filter((fixture) => fixtureMatchesRequestedRange(fixture, normalized.range, now));
-  const fixtureIds = filteredFixtures.map((fixture) => fixture.fixtureId);
-  const stateMap = new Map<string, Awaited<ReturnType<PublicApiDbClient["matchState"]["findUnique"]>>>();
-  const oddsMap = new Map<string, number>();
-  if (fixtureIds.length > 0 && db.matchState.findMany !== undefined) {
-    try {
-      const states = await db.matchState.findMany({
-        where: { fixtureId: { in: fixtureIds } },
-        select: { fixtureId: true, homeScore: true, awayScore: true, phase: true, lastDataReceivedAt: true }
-      });
-      for (const state of states) stateMap.set(state.fixtureId, state);
-    } catch { /* per-domain fallback below preserves partial data */ }
-  }
-  const oddsGroupBy = (db.oddsSnapshot as unknown as {
-    groupBy?: (args: {
-      by: ["fixtureId"];
-      where: { fixtureId: { in: string[] } };
-      _count: { _all: true };
-    }) => Promise<Array<{ fixtureId: string; _count: { _all: number } }>>;
-  }).groupBy;
-  if (fixtureIds.length > 0 && oddsGroupBy !== undefined) {
-    try {
-      const grouped = await oddsGroupBy({ by: ["fixtureId"], where: { fixtureId: { in: fixtureIds } }, _count: { _all: true } });
-      for (const row of grouped) oddsMap.set(row.fixtureId, row._count._all);
-    } catch { /* per-domain fallback below preserves partial data */ }
-  }
   const summaries = await Promise.all(filteredFixtures.map(async (fixture) => {
-    let matchState = stateMap.get(fixture.fixtureId) ?? null;
-    let oddsCount = oddsMap.get(fixture.fixtureId) ?? 0;
-    if (matchState === null && db.matchState.findMany === undefined) {
+    const signals = fixture.__signals;
+    let matchState: Awaited<ReturnType<PublicApiDbClient["matchState"]["findUnique"]>> = signals?.state_available ? { homeScore: signals.home_score, awayScore: signals.away_score, phase: signals.phase, lastDataReceivedAt: signals.latest_data_timestamp === null ? null : new Date(signals.latest_data_timestamp), minute: signals.minute } : null;
+    let oddsCount = signals?.odds_count ?? 0;
+    if (signals === undefined) {
+      const db = deps.getDbClient();
       try { matchState = await db.matchState.findUnique({ where: { fixtureId: fixture.fixtureId }, select: { homeScore: true, awayScore: true, phase: true, lastDataReceivedAt: true } }); } catch { matchState = null; }
-    }
-    if (oddsCount === 0 && !oddsMap.has(fixture.fixtureId)) {
       try { oddsCount = await db.oddsSnapshot.count({ where: { fixtureId: fixture.fixtureId } }); } catch { oddsCount = 0; }
     }
     const hasScoreboard = matchState !== null;
@@ -1386,8 +1518,8 @@ async function buildPublicMatchSummaries(
       issues.push("lifecycle_time_conflict");
     }
 
-    if (!hasScoreboard) issues.push("scoreboard_missing");
-    if (!hasOdds) issues.push("odds_missing");
+    if (!hasScoreboard) issues.push(signals?.state_error ? "scoreboard_upstream_error" : "scoreboard_missing");
+    if (!hasOdds) issues.push(signals?.odds_error ? "odds_upstream_error" : "odds_missing");
     if (!hasIdentity) issues.push("identity_incomplete");
     if (!hasScoreboard && !hasOdds) issues.push("no_persisted_data");
 
@@ -1397,7 +1529,9 @@ async function buildPublicMatchSummaries(
         ? "complete" as const
         : "partial" as const;
     const insightIssues = [...issues];
-    const latestDataTimestamp = toIsoTimestamp(matchState?.lastDataReceivedAt);
+    const latestDataTimestamp = signals?.latest_data_timestamp === null || signals?.latest_data_timestamp === undefined
+      ? toIsoTimestamp(matchState?.lastDataReceivedAt)
+      : new Date(signals.latest_data_timestamp).toISOString();
     const isStale = latestDataTimestamp !== null &&
       now.getTime() - Date.parse(latestDataTimestamp) > 60 * 60_000;
     if (isStale) insightIssues.push("data_stale");
@@ -1410,6 +1544,7 @@ async function buildPublicMatchSummaries(
       qualityStatus,
       issues,
       latestDataTimestamp,
+      signals,
       now
     });
 
@@ -1441,6 +1576,54 @@ async function buildPublicMatchSummaries(
   }));
 
   return summaries.filter((summary): summary is PublicMatchSummary => summary !== null);
+}
+
+type PublicCatalogScan = {
+  fixtures: PublicFixtureRow[];
+  scanned_count: number;
+  snapshot_at: string;
+  scan_budget: number;
+  scan_budget_exhausted: boolean;
+};
+
+async function scanPublicCatalog(
+  normalized: ReturnType<typeof normalizePublicMatchesQuery>,
+  deps: PublicApiDependencies,
+  snapshotAt: Date,
+  now: Date
+): Promise<PublicCatalogScan> {
+  const db = deps.getDbClient();
+  const pageSize = 250;
+  const scanBudget = Math.max(pageSize, Math.min(250_000, Math.trunc(Number(process.env.MATCHPULSE_CATALOG_SCAN_BUDGET) || 100_000)));
+  const fixtures: PublicFixtureRow[] = [];
+  let cursorId: string | undefined;
+  let scanned = 0;
+  let exhausted = false;
+  while (scanned < scanBudget) {
+    const remaining = Math.min(pageSize, scanBudget - scanned);
+    const rows = await db.fixture.findMany({
+      where: {
+        ...(buildPublicFixtureWhere(normalized.range, normalized.competitionId, now) ?? {}),
+        createdAt: { lte: snapshotAt },
+        updatedAt: { lte: snapshotAt }
+      },
+      // Scan in the same unique order used by the database cursor. The catalog
+      // is sorted after enrichment, so this traversal order is only a stable
+      // bounded walk and must not be mixed with start-time ordering.
+      orderBy: { fixtureId: "asc" },
+      ...(cursorId === undefined ? {} : { cursor: { fixtureId: cursorId }, skip: 1 }),
+      take: remaining,
+      select: { fixtureId: true, sport: true, stage: true, competition: true, homeTeam: true, awayTeam: true, startTimeUtc: true, status: true, createdAt: true, updatedAt: true }
+    });
+    if (rows.length === 0) { exhausted = true; break; }
+    fixtures.push(...rows);
+    scanned += rows.length;
+    const nextId = rows[rows.length - 1]?.fixtureId;
+    if (nextId === undefined || nextId === cursorId) { exhausted = true; break; }
+    cursorId = nextId;
+    if (rows.length < remaining) { exhausted = true; break; }
+  }
+  return { fixtures, scanned_count: scanned, snapshot_at: snapshotAt.toISOString(), scan_budget: scanBudget, scan_budget_exhausted: !exhausted && scanned >= scanBudget };
 }
 
 export function registerPublicApiRoutes(
@@ -1477,31 +1660,22 @@ export function registerPublicApiRoutes(
         };
       }
 
-      const now = deps.now();
       const cursor = decodePublicSeekCursor(normalized.cursor, normalized.range);
-      const candidates = await deps.getDbClient().fixture.findMany({
-        where: buildPublicFixtureWhere(normalized.range, normalized.competitionId, now),
-        orderBy: { startTimeUtc: ["past", "recently_finished"].includes(normalized.range) ? "desc" : "asc" },
-        take: 10000,
-        select: {
-          fixtureId: true,
-          competition: true,
-          homeTeam: true,
-          awayTeam: true,
-          startTimeUtc: true,
-          status: true
-        }
-      });
-      const rangeCandidates = candidates.filter((fixture) => fixtureMatchesRequestedRange(fixture, normalized.range, now));
+      const now = deps.now();
+      const snapshotAt = cursor === undefined ? now : new Date(cursor.snapshot_at);
+      const effectiveNow = snapshotAt;
+      const scan = await scanPublicCatalog(normalized, deps, snapshotAt, effectiveNow);
+      const enriched = await enrichPublicFixtureSignals(scan.fixtures, deps, effectiveNow);
+      const rangeCandidates = enriched.filter((fixture) => fixtureMatchesRequestedRange(fixture, normalized.range, effectiveNow));
       const deduplicated = deduplicatePublicFixtures(rangeCandidates);
-      const descending = ["past", "recently_finished"].includes(normalized.range);
-      const sorted = deduplicated.fixtures.sort((left, right) => comparePublicFixtures(left, right, descending));
-      const afterCursor = cursor === undefined ? sorted : sorted.filter((fixture) => fixtureIsAfterCursor(fixture, cursor, descending));
+      const sorted = deduplicated.fixtures.sort((left, right) => comparePublicFixtures(left, right, normalized.range));
+      const afterCursor = cursor === undefined ? sorted : sorted.filter((fixture) => fixtureIsAfterCursor(fixture, cursor, normalized.range));
       const pageFixtures = afterCursor.slice(0, normalized.limit + 1);
-      const hasMore = pageFixtures.length > normalized.limit;
+      const hasMore = pageFixtures.length > normalized.limit || scan.scan_budget_exhausted;
       const visibleFixtures = pageFixtures.slice(0, normalized.limit);
-      const data = await buildPublicMatchSummaries(visibleFixtures, normalized, deps, now);
+      const data = await buildPublicMatchSummaries(visibleFixtures, normalized, deps, effectiveNow);
       const lastFixture = visibleFixtures[visibleFixtures.length - 1];
+      const lastSort = lastFixture === undefined ? null : publicSortValues(lastFixture, normalized.range);
       return {
         data,
         meta: {
@@ -1509,14 +1683,17 @@ export function registerPublicApiRoutes(
           source: "database" as const,
           mode: "public" as const,
           next_cursor: hasMore && lastFixture !== undefined
-            ? encodePublicSeekCursor({ version: 1, range: normalized.range, start_time_utc: lastFixture.startTimeUtc?.getTime() ?? null, fixture_id: lastFixture.fixtureId })
+            ? encodePublicSeekCursor({ version: 2, range: normalized.range, snapshot_at: scan.snapshot_at, primary_sort_value: lastSort?.primary ?? null, secondary_sort_value: lastSort?.secondary ?? null, fixture_id: lastFixture.fixtureId, direction: lastSort?.direction ?? "asc" })
             : null,
           has_more: hasMore,
           range: normalized.range,
           generated_at: now.toISOString(),
           result_count: data.length,
           deduplicated_count: deduplicated.deduplicatedCount,
-          data_status: data.length === visibleFixtures.length ? "complete" as const : "partial" as const
+          scanned_count: scan.scanned_count,
+          snapshot_at: scan.snapshot_at,
+          cursor_version: 2,
+          data_status: data.length === visibleFixtures.length && !scan.scan_budget_exhausted ? "complete" as const : "partial" as const
         }
       };
     } catch (error) {

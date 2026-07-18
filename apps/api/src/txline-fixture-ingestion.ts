@@ -34,15 +34,22 @@ export type FixtureIngestionResult = {
 
 export type FixtureDiscoveryCoverage = {
   requested_epoch_days: number[];
+  attempted_epoch_days: number[];
   successful_epoch_days: number[];
   failed_epoch_days: number[];
+  rate_limited_epoch_days: number[];
+  retry_count: number;
   earliest_discovered_start: string | null;
   latest_discovered_start: string | null;
   future_horizon_days: number;
+  discovery_backfill_days: number;
   fixtures_discovered: number;
   fixtures_upserted: number;
   fixtures_skipped: number;
   fixtures_failed: number;
+  fixtures_unchanged: number;
+  next_near_discovery_at: string | null;
+  next_far_discovery_at: string | null;
 };
 
 export type FixtureDiscoveryWindowInput = {
@@ -51,6 +58,9 @@ export type FixtureDiscoveryWindowInput = {
   backfillDays?: number;
   futureDays?: number;
   wait?: (ms: number) => Promise<void>;
+  jitter?: () => number;
+  retries?: number;
+  retryAfterMs?: (error: unknown) => number | null;
   fetchFixtures?: (params: { competitionId: string; startEpochDay: number }) => Promise<unknown>;
   upsertFixture?: (upsert: FixtureUpsert) => Promise<unknown>;
 };
@@ -58,11 +68,14 @@ export type FixtureDiscoveryWindowInput = {
 export type FixtureDiscoveryWindowResult = {
   coverage: FixtureDiscoveryCoverage;
   days: number;
+  fixtures: IngestedFixture[];
 };
 
 export type FixtureCatalogReconciliationInput = {
   fixtureId: string;
+  sport?: string | null;
   competition: string | null;
+  stage?: string | null;
   homeTeam: string | null;
   awayTeam: string | null;
   startTimeUtc: Date | null;
@@ -215,6 +228,25 @@ function nonNegativeEnvInteger(name: string, fallback: number): number {
   return Number.isInteger(value) && value >= 0 ? value : fallback;
 }
 
+function retryAfterMilliseconds(error: unknown): number | null {
+  if (!isRecord(error)) return null;
+  const direct = error.retryAfterMs ?? error.retry_after_ms;
+  if (typeof direct === "number" && Number.isFinite(direct) && direct >= 0) return direct;
+  const headers = error.headers;
+  if (isRecord(headers)) {
+    const value = headers["retry-after"] ?? headers["Retry-After"];
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) return value * 1_000;
+    if (typeof value === "string" && /^\d+(?:\.\d+)?$/.test(value.trim())) return Number(value.trim()) * 1_000;
+  }
+  const status = error.status ?? error.statusCode;
+  return status === 429 ? 1_000 : null;
+}
+
+function isRateLimited(error: unknown): boolean {
+  if (!isRecord(error)) return false;
+  return error.status === 429 || error.statusCode === 429 || error.code === "429" || error.code === "RATE_LIMITED";
+}
+
 function epochDay(date: Date): number {
   return Math.floor(date.getTime() / 86_400_000);
 }
@@ -234,7 +266,7 @@ export function buildFixtureCatalogReconciliationReport(
   for (const row of selected) {
     const start = row.startTimeUtc?.getTime();
     const bucket = start === undefined || start === null || !Number.isFinite(start) ? "unknown" : String(Math.floor(start / 300_000));
-    const key = [reconciliationText(row.competition), reconciliationText(row.homeTeam), reconciliationText(row.awayTeam), bucket].join("|");
+    const key = [reconciliationText(row.sport ?? "soccer"), reconciliationText(row.competition), reconciliationText(row.homeTeam), reconciliationText(row.awayTeam), reconciliationText(row.stage ?? ""), bucket].join("|");
     groups.set(key, [...(groups.get(key) ?? []), row]);
   }
   let highConfidence = 0;
@@ -272,6 +304,9 @@ export async function ingestTxlineFixtureDiscoveryWindow({
   backfillDays = nonNegativeEnvInteger("MATCHPULSE_DISCOVERY_BACKFILL_DAYS", 1),
   futureDays = nonNegativeEnvInteger("MATCHPULSE_DISCOVERY_FUTURE_DAYS", 14),
   wait = async () => undefined,
+  jitter,
+  retries,
+  retryAfterMs,
   fetchFixtures,
   upsertFixture
 }: FixtureDiscoveryWindowInput): Promise<FixtureDiscoveryWindowResult> {
@@ -282,35 +317,70 @@ export async function ingestTxlineFixtureDiscoveryWindow({
   const requested = Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index);
   const coverage: FixtureDiscoveryCoverage = {
     requested_epoch_days: requested,
+    attempted_epoch_days: [],
     successful_epoch_days: [],
     failed_epoch_days: [],
+    rate_limited_epoch_days: [],
+    retry_count: 0,
     earliest_discovered_start: null,
     latest_discovered_start: null,
     future_horizon_days: Math.max(0, Math.trunc(futureDays)),
+    discovery_backfill_days: Math.max(0, Math.trunc(backfillDays)),
     fixtures_discovered: 0,
     fixtures_upserted: 0,
     fixtures_skipped: 0,
-    fixtures_failed: 0
+    fixtures_failed: 0,
+    fixtures_unchanged: 0,
+    next_near_discovery_at: null,
+    next_far_discovery_at: null
   };
+  const discoveredFixtures: IngestedFixture[] = [];
 
   for (const day of requested) {
+    coverage.attempted_epoch_days.push(day);
+    let dayWasRateLimited = false;
     try {
-      const result = await ingestTxlineFixtures({ competitionId, startEpochDay: day, fetchFixtures, upsertFixture });
+      let attempt = 0;
+      const maxRetries = Math.max(0, Math.trunc(retries ?? nonNegativeEnvInteger("MATCHPULSE_DISCOVERY_RETRIES", 3)));
+      const result = await ingestTxlineFixtures({
+        competitionId,
+        startEpochDay: day,
+        fetchFixtures: async (params) => {
+          for (;;) {
+            try {
+              return await (fetchFixtures ?? ((input) => createTxlineLiveClient().getFixtureSnapshot(input)))(params);
+            } catch (error) {
+              if (isRateLimited(error)) dayWasRateLimited = true;
+              if (attempt >= maxRetries) throw error;
+              attempt += 1;
+              coverage.retry_count += 1;
+              const retryAfter = retryAfterMs?.(error) ?? retryAfterMilliseconds(error);
+              const backoff = Math.min(30_000, 500 * (2 ** (attempt - 1)));
+              const jitterMs = Math.max(0, Math.trunc(jitter?.() ?? Math.random() * 250));
+              await wait(Math.max(retryAfter ?? 0, backoff) + jitterMs);
+            }
+          }
+        },
+        upsertFixture
+      });
       coverage.successful_epoch_days.push(day);
+      if (dayWasRateLimited) coverage.rate_limited_epoch_days.push(day);
       coverage.fixtures_discovered += result.fetchedCount;
       coverage.fixtures_upserted += result.upsertedCount;
       coverage.fixtures_skipped += result.skippedCount;
       coverage.fixtures_failed += result.failedCount;
       for (const fixture of result.fixtures) {
+        discoveredFixtures.push(fixture);
         if (fixture.start_time_utc === null) continue;
         if (coverage.earliest_discovered_start === null || fixture.start_time_utc < coverage.earliest_discovered_start) coverage.earliest_discovered_start = fixture.start_time_utc;
         if (coverage.latest_discovered_start === null || fixture.start_time_utc > coverage.latest_discovered_start) coverage.latest_discovered_start = fixture.start_time_utc;
       }
-    } catch {
+    } catch (error) {
       coverage.failed_epoch_days.push(day);
+      if (isRateLimited(error) || dayWasRateLimited) coverage.rate_limited_epoch_days.push(day);
     }
     const isNear = day <= epochDay(now) + 1;
     await wait(isNear ? nearInterval : farInterval);
   }
-  return { coverage, days: requested.length };
+  return { coverage, days: requested.length, fixtures: discoveredFixtures };
 }

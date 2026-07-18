@@ -44,7 +44,7 @@ type PublicFixtureFindManyArgs = {
       lt?: Date;
     };
   };
-  orderBy: { startTimeUtc: "asc" | "desc" };
+  orderBy: { fixtureId: "asc" | "desc" };
   take: number;
 };
 
@@ -270,7 +270,7 @@ function makeRangeFilteringDbClient(
         const competition = args.where?.competition;
         const lowerBound = args.where?.startTimeUtc?.gte?.getTime();
         const upperBound = args.where?.startTimeUtc?.lt?.getTime();
-        const direction = args.orderBy.startTimeUtc;
+        const direction = args.orderBy.fixtureId;
 
         return rows
           .filter((row) => competition === undefined || row.competition === competition)
@@ -285,9 +285,7 @@ function makeRangeFilteringDbClient(
             return true;
           })
           .sort((left, right) => {
-            const leftTime = left.startTimeUtc?.getTime() ?? 0;
-            const rightTime = right.startTimeUtc?.getTime() ?? 0;
-            return direction === "asc" ? leftTime - rightTime : rightTime - leftTime;
+            return direction === "asc" ? left.fixtureId.localeCompare(right.fixtureId) : right.fixtureId.localeCompare(left.fixtureId);
           })
           .slice(0, args.take);
       }
@@ -1161,8 +1159,8 @@ test("public upcoming range filters before bounded take and returns nearest futu
     assert.equal(findManyArgs?.where?.competition, "World Cup");
     assert.equal(findManyArgs?.where?.startTimeUtc?.gte, now);
     assert.equal(findManyArgs?.where?.startTimeUtc?.lt, undefined);
-    assert.equal(findManyArgs?.orderBy.startTimeUtc, "asc");
-    assert.equal(findManyArgs?.take, 10000);
+    assert.equal(findManyArgs?.orderBy.fixtureId, "asc");
+    assert.equal(findManyArgs?.take, 250);
     await app.close();
   });
 });
@@ -1220,8 +1218,8 @@ test("public past range filters before bounded take and returns the most recent 
     ]);
     assert.equal(findManyArgs?.where?.startTimeUtc?.gte, undefined);
     assert.equal(findManyArgs?.where?.startTimeUtc?.lt, now);
-    assert.equal(findManyArgs?.orderBy.startTimeUtc, "desc");
-    assert.equal(findManyArgs?.take, 10000);
+    assert.equal(findManyArgs?.orderBy.fixtureId, "asc");
+    assert.equal(findManyArgs?.take, 250);
     await app.close();
   });
 });
@@ -1339,9 +1337,9 @@ test("public matches list can include compact insight summaries when includeInsi
         updated_at: "2026-07-18T12:00:00.000Z"
       },
       availability: {
-        score: "available",
+        score: "stale",
         odds: "upstream_no_data",
-        events: "not_attempted"
+        events: "upstream_no_data"
       },
       insight_summary: {
         agent_version: "product-agent-v1",
@@ -1858,7 +1856,11 @@ test("upcoming excludes future terminal rows and exposes lifecycle plus availabi
     ];
     const app = Fastify();
     registerPublicApiRoutes(app, {
-      getDbClient: () => makeDbClient(rows),
+      getDbClient: () => ({
+        fixture: { findMany: async () => rows },
+        matchState: { findUnique: async () => null },
+        oddsSnapshot: { count: async () => 0 }
+      }),
       getDbBackedMatchState: async () => makeState(),
       getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState()),
       now: () => now
@@ -1867,7 +1869,7 @@ test("upcoming excludes future terminal rows and exposes lifecycle plus availabi
     assert.equal(response.statusCode, 200);
     assert.deepEqual(response.json().data.map((item: { fixture_id: string }) => item.fixture_id), ["future-scheduled"]);
     assert.equal(response.json().data[0].lifecycle.lifecycle, "scheduled");
-    assert.equal(response.json().data[0].availability.score, "available");
+    assert.equal(response.json().data[0].availability.score, "not_expected_yet");
     await app.close();
   });
 });
@@ -1882,7 +1884,11 @@ test("catalog deduplicates equivalent source fixtures before cursor pagination",
     ];
     const app = Fastify();
     registerPublicApiRoutes(app, {
-      getDbClient: () => makeDbClient(rows),
+      getDbClient: () => ({
+        fixture: { findMany: async () => rows },
+        matchState: { findUnique: async () => null },
+        oddsSnapshot: { count: async () => 0 }
+      }),
       getDbBackedMatchState: async () => makeState(),
       getAgentPresenterBriefForFixture: async () => makePresenterOutput(makeState()),
       now: () => now
@@ -1926,6 +1932,105 @@ test("public list uses bounded batch enrichment instead of per-fixture reads", a
     assert.equal(stateBatchCalls, 1);
     assert.equal(oddsBatchCalls, 1);
     assert.equal(response.json().data.length, 2);
+    await app.close();
+  });
+});
+
+test("recently_finished is a strict 48-hour lifecycle window", async () => {
+  await withDatabaseUrl(async () => {
+    const now = new Date("2026-07-18T12:00:00.000Z");
+    const rows: PublicFixtureRow[] = [
+      { fixtureId: "inside", competition: "Cup", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date(now.getTime() - 48 * 60 * 60_000 + 1), status: "FT" },
+      { fixtureId: "outside", competition: "Cup", homeTeam: "C", awayTeam: "D", startTimeUtc: new Date(now.getTime() - 48 * 60 * 60_000 - 1), status: "FT" },
+      { fixtureId: "interrupted", competition: "Cup", homeTeam: "E", awayTeam: "F", startTimeUtc: new Date(now.getTime() - 60 * 60_000), status: "Postponed" }
+    ];
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => ({ fixture: { findMany: async () => rows }, matchState: { findUnique: async () => null, findMany: async () => [] }, oddsSnapshot: { count: async () => 0, groupBy: async () => [] }, matchEvent: { groupBy: async () => [] } }),
+      getDbBackedMatchState: async () => makeState(),
+      now: () => now
+    });
+    const response = await app.inject({ method: "GET", url: "/api/public/matches?range=recently_finished&limit=20" });
+    assert.deepEqual(response.json().data.map((item: { fixture_id: string }) => item.fixture_id), ["inside"]);
+    await app.close();
+  });
+});
+
+test("catalog scan continues past 10000 rows with bounded 250-row database pages", async () => {
+  await withDatabaseUrl(async () => {
+    const now = new Date("2026-07-18T12:00:00.000Z");
+    const rows: PublicFixtureRow[] = Array.from({ length: 10_001 }, (_, index) => ({ fixtureId: `large-${String(index).padStart(5, "0")}`, competition: "Cup", homeTeam: `Home ${index}`, awayTeam: `Away ${index}`, startTimeUtc: new Date(now.getTime() + (index + 1) * 60_000), status: "Scheduled" }));
+    let maxTake = 0;
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => ({
+        fixture: { findMany: async (args: { cursor?: { fixtureId: string }; take: number }) => { maxTake = Math.max(maxTake, args.take); const start = args.cursor === undefined ? 0 : Number(args.cursor.fixtureId.slice(6)) + 1; return rows.slice(start, start + args.take); } },
+        matchState: { findUnique: async () => null, findMany: async () => [] },
+        oddsSnapshot: { count: async () => 0, groupBy: async () => [] },
+        matchEvent: { groupBy: async () => [] }
+      }),
+      getDbBackedMatchState: async () => makeState(),
+      now: () => now
+    });
+    const response = await app.inject({ method: "GET", url: "/api/public/matches?range=upcoming&limit=1" });
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().meta.scanned_count, 10_001);
+    assert.equal(maxTake, 250);
+    assert.equal(response.json().data[0].fixture_id, "large-00000");
+    await app.close();
+  });
+});
+
+test("snapshot cursor excludes fixtures inserted after traversal began", async () => {
+  await withDatabaseUrl(async () => {
+    const now = new Date("2026-07-18T12:00:00.000Z");
+    const rows: Array<PublicFixtureRow & { createdAt: Date }> = [
+      { fixtureId: "snap-a", competition: "Cup", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-18T13:00:00Z"), status: "Scheduled", createdAt: new Date("2026-07-18T11:00:00Z") },
+      { fixtureId: "snap-b", competition: "Cup", homeTeam: "C", awayTeam: "D", startTimeUtc: new Date("2026-07-18T14:00:00Z"), status: "Scheduled", createdAt: new Date("2026-07-18T11:00:00Z") }
+    ];
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => ({
+        fixture: { findMany: async (args: { cursor?: { fixtureId: string }; where?: { createdAt?: { lte?: Date } }; take: number }) => rows.filter((row) => (args.where?.createdAt?.lte === undefined || row.createdAt <= args.where.createdAt.lte) && (args.cursor === undefined || row.fixtureId > args.cursor.fixtureId)).slice(0, args.take) },
+        matchState: { findUnique: async () => null, findMany: async () => [] },
+        oddsSnapshot: { count: async () => 0, groupBy: async () => [] },
+        matchEvent: { groupBy: async () => [] }
+      }),
+      getDbBackedMatchState: async () => makeState(),
+      now: () => now
+    });
+    const first = await app.inject({ method: "GET", url: "/api/public/matches?range=upcoming&limit=1" });
+    rows.unshift({ fixtureId: "snap-inserted", competition: "Cup", homeTeam: "X", awayTeam: "Y", startTimeUtc: new Date("2026-07-18T12:30:00Z"), status: "Scheduled", createdAt: new Date("2026-07-18T12:00:00.001Z") });
+    const second = await app.inject({ method: "GET", url: `/api/public/matches?range=upcoming&limit=1&cursor=${encodeURIComponent(first.json().meta.next_cursor)}` });
+    assert.deepEqual(second.json().data.map((item: { fixture_id: string }) => item.fixture_id), ["snap-b"]);
+    await app.close();
+  });
+});
+
+test("event availability is batch-derived and distinguishes available, stale, and upstream-no-data", async () => {
+  await withDatabaseUrl(async () => {
+    const now = new Date("2026-07-18T12:00:00.000Z");
+    const rows: PublicFixtureRow[] = [
+      { fixtureId: "event-live", competition: "Cup", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-18T10:00:00Z"), status: "Live" },
+      { fixtureId: "event-stale", competition: "Cup", homeTeam: "C", awayTeam: "D", startTimeUtc: new Date("2026-07-18T09:00:00Z"), status: "FT" },
+      { fixtureId: "event-none", competition: "Cup", homeTeam: "E", awayTeam: "F", startTimeUtc: new Date("2026-07-18T08:00:00Z"), status: "FT" }
+    ];
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => ({
+        fixture: { findMany: async () => rows },
+        matchState: { findUnique: async () => null, findMany: async () => [] },
+        oddsSnapshot: { count: async () => 0, groupBy: async () => [] },
+        matchEvent: { groupBy: async () => [{ fixtureId: "event-live", _count: { _all: 1 }, _max: { sourceTimestamp: now } }, { fixtureId: "event-stale", _count: { _all: 1 }, _max: { sourceTimestamp: new Date(now.getTime() - 2 * 60 * 60_000) } }] }
+      }),
+      getDbBackedMatchState: async () => makeState(),
+      now: () => now
+    });
+    const response = await app.inject({ method: "GET", url: "/api/public/matches?range=all&limit=20" });
+    const byId = new Map((response.json().data as Array<{ fixture_id: string; availability: { events: string } }>).map((item) => [item.fixture_id, item]));
+    assert.equal(byId.get("event-live")!.availability.events, "available");
+    assert.equal(byId.get("event-stale")!.availability.events, "stale");
+    assert.equal(byId.get("event-none")!.availability.events, "upstream_no_data");
     await app.close();
   });
 });

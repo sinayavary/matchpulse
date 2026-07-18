@@ -33,6 +33,43 @@ async function runAutomaticMode() {
   } });
 }
 
+function readFlag(args: string[], name: string): string | undefined {
+  const prefix = `${name}=`;
+  const value = args.find((item) => item.startsWith(prefix));
+  return value === undefined ? undefined : value.slice(prefix.length);
+}
+
+function hasFlag(args: string[], name: string): boolean {
+  return args.includes(name);
+}
+
+async function runMatchesCatalogReconcile(args: string[]) {
+  const runtimePath = process.env.MATCHPULSE_API_RUNTIME_PATH ?? "../../api/src/automatic-data-runtime.js";
+  const apiModule = await import(runtimePath) as {
+    runMatchesCatalogReconciliation: (options: Record<string, unknown>) => Promise<unknown>;
+  };
+  const parseDate = (name: string): Date | undefined => {
+    const value = readFlag(args, name);
+    if (value === undefined) return undefined;
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) throw new Error(`Invalid ${name} value.`);
+    return date;
+  };
+  const batchSizeValue = readFlag(args, "--batch-size");
+  const maxBatchesValue = readFlag(args, "--max-batches");
+  const output = await apiModule.runMatchesCatalogReconciliation({
+    dryRun: !hasFlag(args, "--apply"),
+    competition: readFlag(args, "--competition"),
+    from: parseDate("--from"),
+    to: parseDate("--to"),
+    batchSize: batchSizeValue === undefined ? undefined : Number(batchSizeValue),
+    cursor: readFlag(args, "--cursor"),
+    resume: hasFlag(args, "--resume"),
+    maxBatches: maxBatchesValue === undefined ? undefined : Number(maxBatchesValue)
+  });
+  console.log(JSON.stringify(output, null, 2));
+}
+
 async function executeIngestion(input: {
   fixtureId: string;
   competitionId: number;
@@ -74,6 +111,15 @@ async function runSchedule(args: string[]) {
 
 async function main() {
   const args = process.argv.slice(2);
+
+  if (args[0] === "matches-catalog-reconcile") {
+    try { await runMatchesCatalogReconcile(args.slice(1)); }
+    catch (error) {
+      console.error(error instanceof Error ? error.message : "Reconciliation failed.");
+      process.exitCode = 1;
+    }
+    return;
+  }
 
   if (process.env.MATCHPULSE_DATA_WORKER_ENABLED === "true" && args.length === 0) {
     try { await runAutomaticMode(); } catch { process.exitCode = 1; }

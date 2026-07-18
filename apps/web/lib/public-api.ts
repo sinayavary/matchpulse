@@ -13,6 +13,9 @@ export type ApiMeta = {
   generated_at?: string;
   result_count?: number;
   deduplicated_count?: number;
+  scanned_count?: number;
+  snapshot_at?: string;
+  cursor_version?: number;
   data_status?: "complete" | "partial" | "unavailable";
 };
 

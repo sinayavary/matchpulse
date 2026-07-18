@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildWorkerCycleRecord, cadenceForPhase, discoveryEpochDays, normalizeWorkerHealthState, parseCompetitionConfig, pollPhase, toSafeRuntimeError, withProviderRetry } from "./automatic-data-runtime.js";
+import { buildWorkerCycleRecord, cadenceForPhase, discoveryEpochDays, normalizeWorkerHealthState, parseCompetitionConfig, pollPhase, runMatchesCatalogReconciliation, toSafeRuntimeError, withProviderRetry } from "./automatic-data-runtime.js";
 
 test("production competition configuration fails closed", () => {
   assert.deepEqual(parseCompetitionConfig("430:20608,431:20609"), [{ competitionId: "430", startEpochDay: 20608 }, { competitionId: "431", startEpochDay: 20609 }]);
@@ -24,8 +24,8 @@ test("provider retry honors retry count without fabricating a result", async () 
   assert.equal(calls, 3);
 });
 
-test("discovery uses the UTC yesterday/today/tomorrow window", () => {
-  assert.deepEqual(discoveryEpochDays(new Date("2026-07-18T23:59:00Z")), [20651, 20652, 20653]);
+test("discovery uses the dynamic UTC backfill and fourteen-day future window", () => {
+  assert.deepEqual(discoveryEpochDays(new Date("2026-07-18T23:59:00Z")), Array.from({ length: 16 }, (_, index) => 20651 + index));
 });
 
 test("runtime errors are safe and stage-labelled", () => {
@@ -53,4 +53,32 @@ test("new cycle errors remain cycle-local", () => {
   assert.equal(error.errorCount, 1);
   assert.match(error.lastError ?? "", /new failure/);
   assert.equal(normalizeWorkerHealthState({ errorCount: 0 }).lastError, null);
+});
+
+test("reconciliation is dry-run by default, resumable, batch-isolated, and non-destructive", async () => {
+  const rows = [
+    { fixtureId: "a", competition: "430", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-18T15:00:00Z"), status: "UNKNOWN" },
+    { fixtureId: "b", competition: "430", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-18T15:02:00Z"), status: "UNKNOWN" }
+  ];
+  const checkpoints: unknown[] = [];
+  const db = {
+    fixture: {
+      findMany: async ({ cursor, take }: { cursor?: { fixtureId: string }; take: number }) => {
+        const start = cursor === undefined ? 0 : rows.findIndex((row) => row.fixtureId === cursor.fixtureId) + 1;
+        return rows.slice(start, start + take);
+      },
+      update: async () => { throw new Error("apply must not run in dry-run"); }
+    },
+    healthStatus: {
+      findUnique: async () => null,
+      upsert: async (input: unknown) => { checkpoints.push(input); }
+    }
+  };
+  const result = await runMatchesCatalogReconciliation({ db, batchSize: 1 });
+  assert.equal(result.mode, "dry-run");
+  assert.equal(result.rows_scanned, 2);
+  assert.equal(result.duplicate_candidate_groups, 1);
+  assert.equal(result.source_rows_deleted, 0);
+  assert.equal(result.finished, true);
+  assert.ok(checkpoints.length >= 1);
 });

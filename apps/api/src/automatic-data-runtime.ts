@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { createTxlineLiveClient } from "@matchpulse/txline-client";
 import { getDbClient } from "./db.js";
-import { ingestTxlineFixtures } from "./txline-fixture-ingestion.js";
+import { buildFixtureCatalogReconciliationReport, ingestTxlineFixtureDiscoveryWindow, type FixtureCatalogReconciliationInput, type FixtureDiscoveryCoverage } from "./txline-fixture-ingestion.js";
 import { ingestTxlineScoreSnapshot } from "./txline-score-ingestion.js";
 import { ingestTxlineOddsSnapshot } from "./txline-odds-ingestion.js";
 import { ingestTxlineMatchEvents } from "./txline-event-ingestion.js";
@@ -26,6 +26,24 @@ export type WorkerCycleRecord = {
   configuration_error: boolean;
   lock_acquired: boolean;
   lease_expires_at: string;
+  discovery?: {
+    requested_epoch_days: number[];
+    attempted_epoch_days: number[];
+    successful_epoch_days: number[];
+    failed_epoch_days: number[];
+    rate_limited_epoch_days: number[];
+    retry_count: number;
+    earliest_discovered_start: string | null;
+    latest_discovered_start: string | null;
+    future_horizon_days: number;
+    discovery_backfill_days: number;
+    fixtures_discovered: number;
+    fixtures_upserted: number;
+    fixtures_unchanged: number;
+    fixtures_failed: number;
+    next_near_discovery_at: string;
+    next_far_discovery_at: string;
+  };
 };
 
 const envNumber = (name: string, fallback: number) => {
@@ -42,7 +60,12 @@ export const automaticRuntimeConfig = () => ({
   liveMs: envNumber("MATCHPULSE_LIVE_POLL_INTERVAL_MS", 15_000),
   postmatchMs: envNumber("MATCHPULSE_POSTMATCH_POLL_INTERVAL_MS", 30_000),
   leadMinutes: envNumber("MATCHPULSE_CAPTURE_LEAD_MINUTES", 60),
-  tailMinutes: envNumber("MATCHPULSE_CAPTURE_TAIL_MINUTES", 180)
+  tailMinutes: envNumber("MATCHPULSE_CAPTURE_TAIL_MINUTES", 180),
+  discoveryBackfillDays: Math.max(0, Math.trunc(envNumber("MATCHPULSE_DISCOVERY_BACKFILL_DAYS", 1))),
+  discoveryFutureDays: Math.max(0, Math.trunc(envNumber("MATCHPULSE_DISCOVERY_FUTURE_DAYS", 14))),
+  nearDiscoveryIntervalMs: envNumber("MATCHPULSE_NEAR_DISCOVERY_INTERVAL_MS", 5 * 60_000),
+  farDiscoveryIntervalMs: envNumber("MATCHPULSE_FAR_DISCOVERY_INTERVAL_MS", 30 * 60_000),
+  discoveryRetries: Math.max(0, Math.trunc(envNumber("MATCHPULSE_DISCOVERY_RETRIES", 3)))
 });
 
 const workerOwnerId = randomUUID();
@@ -65,9 +88,41 @@ export function normalizeWorkerHealthState(input: { error?: unknown; errorCount?
 
 function utcEpochDay(date: Date): number { return Math.floor(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) / 86_400_000); }
 
-export function discoveryEpochDays(now = new Date()): number[] {
+export function discoveryEpochDays(now = new Date(), backfillDays = automaticRuntimeConfig().discoveryBackfillDays, futureDays = automaticRuntimeConfig().discoveryFutureDays): number[] {
   const day = utcEpochDay(now);
-  return [day - 1, day, day + 1];
+  return Array.from({ length: Math.max(0, Math.trunc(backfillDays) + Math.trunc(futureDays) + 1) }, (_, index) => day - Math.trunc(backfillDays) + index);
+}
+
+function emptyDiscoveryCoverage(futureDays: number, backfillDays: number): FixtureDiscoveryCoverage {
+  return {
+    requested_epoch_days: [], attempted_epoch_days: [], successful_epoch_days: [], failed_epoch_days: [], rate_limited_epoch_days: [], retry_count: 0,
+    earliest_discovered_start: null, latest_discovered_start: null, future_horizon_days: futureDays,
+    fixtures_discovered: 0, fixtures_upserted: 0, fixtures_skipped: 0, fixtures_failed: 0,
+    fixtures_unchanged: 0, next_near_discovery_at: null, next_far_discovery_at: null,
+    discovery_backfill_days: backfillDays
+  };
+}
+
+function mergeDiscoveryCoverage(target: FixtureDiscoveryCoverage, next: FixtureDiscoveryCoverage): void {
+  target.requested_epoch_days.push(...next.requested_epoch_days);
+  target.attempted_epoch_days.push(...next.attempted_epoch_days);
+  target.successful_epoch_days.push(...next.successful_epoch_days);
+  target.failed_epoch_days.push(...next.failed_epoch_days);
+  target.rate_limited_epoch_days.push(...next.rate_limited_epoch_days);
+  target.retry_count += next.retry_count;
+  target.fixtures_discovered += next.fixtures_discovered;
+  target.fixtures_upserted += next.fixtures_upserted;
+  target.fixtures_skipped += next.fixtures_skipped;
+  target.fixtures_failed += next.fixtures_failed;
+  target.fixtures_unchanged += next.fixtures_unchanged;
+  if (next.earliest_discovered_start !== null && (target.earliest_discovered_start === null || next.earliest_discovered_start < target.earliest_discovered_start)) target.earliest_discovered_start = next.earliest_discovered_start;
+  if (next.latest_discovered_start !== null && (target.latest_discovered_start === null || next.latest_discovered_start > target.latest_discovered_start)) target.latest_discovered_start = next.latest_discovered_start;
+}
+
+function discoveryHealth(coverage: FixtureDiscoveryCoverage, now: Date, config: ReturnType<typeof automaticRuntimeConfig>) {
+  const nextNear = new Date(now.getTime() + config.nearDiscoveryIntervalMs).toISOString();
+  const nextFar = new Date(now.getTime() + config.farDiscoveryIntervalMs).toISOString();
+  return { ...coverage, discovery_backfill_days: config.discoveryBackfillDays, next_near_discovery_at: nextNear, next_far_discovery_at: nextFar };
 }
 
 export function parseCompetitionConfig(value = process.env.MATCHPULSE_COMPETITIONS): CompetitionConfig[] {
@@ -93,6 +148,7 @@ export function parseCompetitionConfig(value = process.env.MATCHPULSE_COMPETITIO
 
 export function pollPhase(startTime: Date | null, status: string | null, now = new Date(), config: PollConfig = automaticRuntimeConfig()): PollPhase {
   const lifecycle = resolveMatchLifecycle({ providerStatus: status, startTimeUtc: startTime, now, captureLeadMinutes: config.leadMinutes, captureTailMinutes: config.tailMinutes });
+  if (lifecycle.lifecycle === "scheduled" && startTime !== null && startTime.getTime() - now.getTime() <= config.leadMinutes * 60_000 && startTime.getTime() > now.getTime()) return "prematch";
   switch (lifecycle.lifecycle) {
     case "scheduled": return "upcoming";
     case "prematch": return "prematch";
@@ -170,10 +226,108 @@ export function buildWorkerCycleRecord(input: Omit<WorkerCycleRecord, "owner_id"
   };
 }
 
+export type MatchesCatalogReconciliationOptions = {
+  dryRun?: boolean;
+  competition?: string;
+  from?: Date;
+  to?: Date;
+  batchSize?: number;
+  cursor?: string;
+  resume?: boolean;
+  maxBatches?: number;
+  now?: Date;
+  db?: any;
+};
+
+export type MatchesCatalogReconciliationResult = {
+  job_version: "matches-catalog-reconcile-v2";
+  mode: "dry-run" | "apply";
+  cursor: string | null;
+  next_cursor: string | null;
+  batches: number;
+  rows_scanned: number;
+  lifecycle_corrections: number;
+  status_corrections: number;
+  duplicate_candidate_groups: number;
+  high_confidence_duplicates: number;
+  ambiguous_groups: number;
+  representatives_selected: number;
+  rows_unchanged: number;
+  failures: number;
+  source_rows_deleted: 0;
+  finished: boolean;
+};
+
+function parseResumeCursor(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+export async function runMatchesCatalogReconciliation(options: MatchesCatalogReconciliationOptions = {}): Promise<MatchesCatalogReconciliationResult> {
+  const db = (options.db ?? getDbClient()) as any;
+  const dryRun = options.dryRun !== false;
+  const batchSize = Math.min(250, Math.max(1, Math.trunc(options.batchSize ?? 250)));
+  const maxBatches = options.maxBatches === undefined ? Number.POSITIVE_INFINITY : Math.max(1, Math.trunc(options.maxBatches));
+  let cursor = parseResumeCursor(options.cursor);
+  if (cursor === null && options.resume) {
+    try {
+      const checkpoint = await db.healthStatus.findUnique({ where: { serviceName: "matchpulse-matches-catalog-reconcile" }, select: { raw: true } });
+      const raw = checkpoint?.raw as Record<string, unknown> | null | undefined;
+      cursor = parseResumeCursor(raw?.cursor);
+    } catch { cursor = null; }
+  }
+  const allRows: FixtureCatalogReconciliationInput[] = [];
+  let batches = 0;
+  let failures = 0;
+  let nextCursor: string | null = cursor;
+  let finished = false;
+  for (; batches < maxBatches;) {
+    const where: Record<string, unknown> = {
+      ...(options.competition === undefined ? {} : { competition: options.competition }),
+      ...(options.from === undefined && options.to === undefined ? {} : { startTimeUtc: { ...(options.from === undefined ? {} : { gte: options.from }), ...(options.to === undefined ? {} : { lt: options.to }) } })
+    };
+    const rows = await db.fixture.findMany({
+      where,
+      ...(nextCursor === null ? {} : { cursor: { fixtureId: nextCursor }, skip: 1 }),
+      orderBy: { fixtureId: "asc" },
+      take: batchSize,
+      select: { fixtureId: true, sport: true, stage: true, competition: true, homeTeam: true, awayTeam: true, startTimeUtc: true, status: true }
+    }) as Array<FixtureCatalogReconciliationInput & { fixtureId: string }>;
+    batches += 1;
+    if (rows.length === 0) { finished = true; nextCursor = null; break; }
+    for (const row of rows) {
+      allRows.push(row);
+      const lifecycle = resolveMatchLifecycle({ providerStatus: row.status, startTimeUtc: row.startTimeUtc, now: options.now ?? new Date() });
+      if (!dryRun && (row.status === null || row.status.trim() === "" || row.status === "UNKNOWN")) {
+        try { await db.fixture.update({ where: { fixtureId: row.fixtureId }, data: { status: lifecycle.lifecycle } }); }
+        catch { failures += 1; }
+      }
+    }
+    nextCursor = rows[rows.length - 1]!.fixtureId;
+    const safeCheckpoint = { job_version: "matches-catalog-reconcile-v2", mode: dryRun ? "dry-run" : "apply", cursor: nextCursor, scanned: allRows.length, failures, updated_at: new Date().toISOString() };
+    try {
+      await db.healthStatus.upsert({ where: { serviceName: "matchpulse-matches-catalog-reconcile" }, create: { serviceName: "matchpulse-matches-catalog-reconcile", status: "running", lastHeartbeat: new Date(), errorCount: failures, raw: safeCheckpoint }, update: { status: "running", lastHeartbeat: new Date(), errorCount: failures, raw: safeCheckpoint } });
+    } catch { /* checkpoint failure must not turn a row-level report into a destructive retry */ }
+    if (rows.length < batchSize) { finished = true; nextCursor = null; break; }
+  }
+  const report = buildFixtureCatalogReconciliationReport(allRows, { dryRun, competition: options.competition, now: options.now });
+  const result: MatchesCatalogReconciliationResult = {
+    job_version: "matches-catalog-reconcile-v2", mode: dryRun ? "dry-run" : "apply", cursor: options.cursor ?? null, next_cursor: nextCursor,
+    batches, rows_scanned: report.rows_scanned, lifecycle_corrections: report.lifecycle_corrections,
+    status_corrections: dryRun ? report.status_corrections : report.status_corrections - failures,
+    duplicate_candidate_groups: report.duplicate_candidate_groups, high_confidence_duplicates: report.high_confidence_duplicates,
+    ambiguous_groups: report.ambiguous_groups, representatives_selected: report.representatives_selected,
+    rows_unchanged: report.rows_unchanged, failures, source_rows_deleted: 0, finished
+  };
+  try {
+    await db.healthStatus.upsert({ where: { serviceName: "matchpulse-matches-catalog-reconcile" }, create: { serviceName: "matchpulse-matches-catalog-reconcile", status: finished ? "idle" : "paused", lastHeartbeat: new Date(), errorCount: failures, raw: result }, update: { status: finished ? "idle" : "paused", lastHeartbeat: new Date(), errorCount: failures, raw: result } });
+  } catch { /* safe summary remains the authoritative return value */ }
+  return result;
+}
+
 export async function runAutomaticIngestionCycle(now = new Date()) {
   const startedAt = now;
   const config = automaticRuntimeConfig();
-  const startCycle = buildWorkerCycleRecord({ last_cycle_status: "starting", started_at: startedAt.toISOString(), finished_at: null, discovered_competitions: 0, discovered_fixture_count: 0, active_fixture_count: 0, persisted_fixture_count: 0, successful_fixture_count: 0, failed_fixture_count: 0, configuration_error: false, lock_acquired: true, leaseExpiresAt: new Date(startedAt.getTime() + LEASE_MS) });
+  const startCycle = buildWorkerCycleRecord({ last_cycle_status: "starting", started_at: startedAt.toISOString(), finished_at: null, discovered_competitions: 0, discovered_fixture_count: 0, active_fixture_count: 0, persisted_fixture_count: 0, successful_fixture_count: 0, failed_fixture_count: 0, configuration_error: false, lock_acquired: true, leaseExpiresAt: new Date(startedAt.getTime() + LEASE_MS), discovery: discoveryHealth(emptyDiscoveryCoverage(config.discoveryFutureDays, config.discoveryBackfillDays), now, config) });
   await updateWorkerHealth({ status: "starting", errorCount: 0, stage: "startup", cycle: startCycle });
   let competitions: CompetitionConfig[];
   try {
@@ -198,15 +352,24 @@ export async function runAutomaticIngestionCycle(now = new Date()) {
   const discoveredFixtureIds = new Set<string>();
   let lastCycleError: unknown = null;
   let lastCycleErrorStage = "cycle";
+  const discoveryCoverage = emptyDiscoveryCoverage(config.discoveryFutureDays, config.discoveryBackfillDays);
   for (const competition of competitions) {
-    for (const startEpochDay of (process.env.MATCHPULSE_COMPETITIONS ? [competition.startEpochDay] : discoveryEpochDays(now))) {
-      try {
-        const result = await withProviderRetry(() => ingestTxlineFixtures({ competitionId: competition.competitionId, startEpochDay, includeRaw: false }));
-        discoveredFixtureCount += result.fetchedCount;
-        persistedFixtureCount += result.upsertedCount;
-        for (const fixture of result.fixtures) discoveredFixtureIds.add(fixture.fixture_id);
-      } catch (error) { discoveryFailed += 1; lastCycleError = error; lastCycleErrorStage = "discovery"; }
-    }
+    try {
+      const result = await ingestTxlineFixtureDiscoveryWindow({
+        competitionId: competition.competitionId,
+        now,
+        backfillDays: config.discoveryBackfillDays,
+        futureDays: config.discoveryFutureDays,
+        retries: config.discoveryRetries,
+        wait: async () => undefined,
+        fetchFixtures: ({ competitionId, startEpochDay }) => client.getFixtureSnapshot({ competitionId, startEpochDay })
+      });
+      mergeDiscoveryCoverage(discoveryCoverage, result.coverage);
+      for (const fixture of result.fixtures) discoveredFixtureIds.add(fixture.fixture_id);
+      discoveredFixtureCount += result.coverage.fixtures_discovered;
+      persistedFixtureCount += result.coverage.fixtures_upserted;
+      discoveryFailed += result.coverage.failed_epoch_days.length;
+    } catch (error) { discoveryFailed += 1; lastCycleError = error; lastCycleErrorStage = "discovery"; }
   }
   const fixtures = await getDbClient().fixture.findMany({ select: { fixtureId: true, startTimeUtc: true, status: true } });
   let nextWakeMs = config.discoveryIntervalMs;
@@ -228,7 +391,7 @@ export async function runAutomaticIngestionCycle(now = new Date()) {
     } catch (error) { failed += 1; lastCycleError = error; lastCycleErrorStage = "ingestion"; }
   }
   const status = failed === 0 && discoveryFailed === 0 ? "healthy" : success > 0 ? "degraded" : "error";
-  const cycle = buildWorkerCycleRecord({ last_cycle_status: status, started_at: startedAt.toISOString(), finished_at: now.toISOString(), discovered_competitions: competitions.length, discovered_fixture_count: discoveredFixtureCount, active_fixture_count: activeFixtures.length, persisted_fixture_count: persistedFixtureCount, successful_fixture_count: success, failed_fixture_count: failed + discoveryFailed, configuration_error: false, lock_acquired: true, leaseExpiresAt: new Date(now.getTime() + LEASE_MS) });
+  const cycle = buildWorkerCycleRecord({ last_cycle_status: status, started_at: startedAt.toISOString(), finished_at: now.toISOString(), discovered_competitions: competitions.length, discovered_fixture_count: discoveredFixtureCount, active_fixture_count: activeFixtures.length, persisted_fixture_count: persistedFixtureCount, successful_fixture_count: success, failed_fixture_count: failed + discoveryFailed, configuration_error: false, lock_acquired: true, leaseExpiresAt: new Date(now.getTime() + LEASE_MS), discovery: discoveryHealth(discoveryCoverage, now, config) });
   await updateWorkerHealth({ status, lastIngestion: success > 0 ? now : undefined, error: lastCycleError, errorCount: failed + discoveryFailed, stage: lastCycleErrorStage, cycle });
   return { success, failed: failed + discoveryFailed, activeFixtures: activeFixtures.length, persistedFixtures: persistedFixtureCount, agentEnabled: config.agentEnabled, discoveredCompetitions: competitions.length, discoveredFixtures: discoveredFixtureCount, discoveryFailed, configurationError: false, nextWakeMs, status };
 }

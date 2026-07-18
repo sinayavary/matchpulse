@@ -867,6 +867,22 @@ Supported ranges are `live`, `starting_soon`, `upcoming`, `recently_finished`, `
 
 Filtering, lifecycle classification, canonical deduplication, and deterministic sorting happen before `limit` and cursor pagination. Sorting uses kickoff time plus `fixture_id` as a tie-breaker. `meta` includes `next_cursor`, `has_more`, `range`, `generated_at`, `result_count`, `deduplicated_count`, and `data_status`.
 
+The reliability-v2 scanner reads database pages of at most 250 rows and continues until the
+requested snapshot is exhausted or its explicit bounded scan budget is reached; it has no
+hard `take:10000` catalog ceiling. Metadata additionally exposes `scanned_count`,
+`snapshot_at`, and `cursor_version`. The cursor contains the range, snapshot, direction,
+primary/secondary sort values, and fixture tie-breaker and is opaque to clients.
+
 Every list item includes a lifecycle object (`lifecycle`, `source`, `reason_code`, `normalized_phase`, `is_active`, `is_terminal`, `updated_at`) and availability objects for score, odds, and events. Availability is one of `available`, `not_expected_yet`, `not_attempted`, `upstream_no_data`, `stale`, `upstream_error`, or `unsupported`.
 
 Upcoming is strictly limited to non-terminal scheduled/prematch fixtures whose `start_time_utc` is strictly later than the request instant. Finished, finished-unconfirmed, postponed, cancelled, abandoned, live, past-kickoff, and non-representative rows are excluded. No raw provider status or payload is exposed.
+
+`recently_finished` is limited to finished or finished-unconfirmed fixtures whose kickoff
+is within the latest 48 hours; legacy `past` remains broader history. Event availability
+is batch-derived from stored MatchEvent aggregates and distinguishes available, stale,
+upstream-no-data, upstream-error, not-expected-yet, and not-attempted.
+
+Pagination captures a snapshot timestamp. The scanner walks fixtures by unique `fixture_id`
+in bounded pages and includes only rows whose `created_at` and `updated_at` are at or before
+that snapshot; final catalog ordering is applied after enrichment. Inserts or updates during
+traversal therefore cannot shift later pages.
