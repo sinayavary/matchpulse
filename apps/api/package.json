@@ -29,6 +29,7 @@
                     "txline:activate-devnet":  "tsx src/scripts/activate-txline-devnet.ts",
                     "txline:activate-token":  "tsx src/scripts/activate-token-from-txsig.ts",
                     "test:free-access-security":  "prisma generate --schema ../../prisma/schema.prisma && tsx --test src/security/free-access-security.test.ts src/security/api-access-boundary.test.ts src/security/security-routes.test.ts"
+                    ,"test:free-access-postgres":  "prisma generate --schema ../../prisma/schema.prisma && tsx --test src/security/free-access-postgres.integration.test.ts"
                 },
     "dependencies":  {
                          "@coral-xyz/anchor":  "^0.32.1",

@@ -1,13 +1,13 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "ready",
+  "state": "completed_pending_review",
   "phase_id": "FREE-ACCESS-LOCAL-DB-VALIDATION-A",
   "phase_title": "Isolated local PostgreSQL validation for Free Access security",
   "pack_path": "docs/codex-master-plan/phases/phase-free-access-local-db-validation-a-v1",
   "pack_version": "FREE-ACCESS-LOCAL-DB-VALIDATION-A-v1",
   "baseline_commit": "2fc45285a5e39c48f4a1e6ed7d97f0e70b8f8256",
-  "human_approved": true,
+  "human_approved": false,
   "activation_note": "Successor governance after completed FREE-ACCESS-SECURITY-B. Future execution is limited to one isolated disposable local PostgreSQL 16 database whose name begins matchpulse_free_access_validation_.",
   "execution": {
     "continue_until_phase_gate": true,
@@ -15,5 +15,41 @@
     "allow_completion_state_update": true,
     "stop_after_phase": true
   },
-  "last_result": null
+  "last_result": {
+    "status": "PHASE_COMPLETE",
+    "phase_id": "FREE-ACCESS-LOCAL-DB-VALIDATION-A",
+    "pack_version": "FREE-ACCESS-LOCAL-DB-VALIDATION-A-v1",
+    "baseline_commit": "2fc45285a5e39c48f4a1e6ed7d97f0e70b8f8256",
+    "completed_at": "2026-07-18T13:48:37.6122399Z",
+    "files_changed": [
+      "apps/api/package.json",
+      "apps/api/src/security/free-access-postgres.integration.test.ts",
+      "apps/api/src/security/security-routes.ts",
+      "scripts/free-access-local-db-validation.ps1",
+      "docs/security/free-access-local-db-validation-report.md"
+    ],
+    "validation_summary": [
+      "resumed isolated PostgreSQL 16.14 loopback database with six successful migrations",
+      "validation harness: pass",
+      "PostgreSQL integration suite: 11/11 pass",
+      "focused security suite: 15/15 pass",
+      "API regression suite: 958/958 pass",
+      "API/Web/root typecheck: pass",
+      "Web/root build: pass",
+      "migration idempotency and catalog constraints: pass",
+      "git diff --check and exact allowlist: pass"
+    ],
+    "migration_applied": true,
+    "migration_applied_during_prior_same_phase_attempt": true,
+    "database_connected": true,
+    "database_scope": "isolated_disposable_local_postgresql_16",
+    "local_loopback_database_accessed": true,
+    "network_accessed": false,
+    "external_network_accessed": false,
+    "registry_accessed": false,
+    "production_database_accessed": false,
+    "shared_database_accessed": false,
+    "deployment_performed": false,
+    "production_acceptance": false
+  }
 }
