@@ -148,6 +148,10 @@ The exact identity `MATCHES-RAILWAY-TOPOLOGY-A` / `MATCHES-RAILWAY-TOPOLOGY-A-v1
 
 Every topology preflight, staging-environment create, staging-services create, production-workers create, staging-domains configure, production-domains configure and topology acceptance gate requires its own explicit human instruction. The scope is additive only: preserve production `mathpluse-api` and `matchpulse-web`; never delete, rename or reuse the ambiguous existing services. Railway variables, migrations, database access, deployments and domain changes remain forbidden unless their exact separately approved gate authorizes only that operation. Secrets may be consumed only from existing secure environment or platform storage and must never be printed, copied into Git, or returned to the user.
 
+### Matches Railway topology retry exception
+
+The exact identity `MATCHES-RAILWAY-TOPOLOGY-RETRY-A` / `MATCHES-RAILWAY-TOPOLOGY-RETRY-A-v1`, baseline `25156b8d22d1488f27da6bafeee9b6d88ece6773`, may diagnose the failed staging-environment create attempt and, only after a separate gate, make one new create attempt for `staging`. It starts `awaiting_human_approval`; governance publication authorizes no Railway action. Variables, domains, services, databases, deployments, migrations and source connections remain forbidden.
+
 ### Free Access security governance exception
 
 The exact future identity `FREE-ACCESS-SECURITY-A` / `FREE-ACCESS-SECURITY-A-v4` is a source-governance exception only. During its explicitly approved implementation it permits only the exact manifest allowlist, source-level Prisma schema edits, SQL migration source creation, Prisma format/validate/generate without a database connection, offline-only lockfile resolution, and local tests. It does not permit applying migrations, database connection or writes, registry or application network access, production/Railway access, deployment, secret access, blockchain transactions or wallet-asset authorization, payment/billing/paywall behavior, private keys or seed phrases, or public leakage.

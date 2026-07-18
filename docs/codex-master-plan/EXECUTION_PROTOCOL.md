@@ -56,6 +56,8 @@ For `MATCHES-PRODUCTION-ROLLOUT-A-v1`, migration, deployment, backfill and produ
 
 For `MATCHES-RAILWAY-TOPOLOGY-A-v1`, staging environment and service creation, production worker creation, and domain configuration are never inferred from `state=ready` or `human_approved=true`. Each requires its own gate instruction. The phase is additive only and does not authorize variables, migrations, database access or deployments. Preserve the identified production API and Web services and leave ambiguous existing services untouched.
 
+For `MATCHES-RAILWAY-TOPOLOGY-RETRY-A-v1`, diagnosis is read-only and a retry is one separately approved, non-retried `staging` environment-create attempt. No other Railway mutation is inferred or authorized.
+
 Only `ready` authorizes implementation.
 
 ## 5. Pack manifest contract

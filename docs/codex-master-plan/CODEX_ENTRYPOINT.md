@@ -73,7 +73,7 @@ Publish fetches again, requires exactly one prepared commit directly above `orig
 
 ## State handling
 
-Before production access, verify the phase-specific exception in `EXECUTION_PROTOCOL.md`. `PROD-LIVE-E2E-ACCEPTANCE-A-v1` may use only its read-only production allowlist. `MATCHES-PRODUCTION-ROLLOUT-A-v1` may use only the separately approved gate currently named by the human; governance publication and general phase approval do not authorize migration, deployment, backfill, or acceptance. `MATCHES-RAILWAY-TOPOLOGY-A-v1` may use only its separately approved topology gate; governance publication never authorizes a Railway mutation. Normal production stops remain unchanged for all other phases.
+Before production access, verify the phase-specific exception in `EXECUTION_PROTOCOL.md`. `PROD-LIVE-E2E-ACCEPTANCE-A-v1`, `MATCHES-PRODUCTION-ROLLOUT-A-v1`, `MATCHES-RAILWAY-TOPOLOGY-A-v1` and `MATCHES-RAILWAY-TOPOLOGY-RETRY-A-v1` may use only their separately approved gates; governance publication never authorizes a Railway mutation. Normal production stops remain unchanged for all other phases.
 
 - `awaiting_pack` → `MISSING_SOURCE`
 - `awaiting_human_approval` → `HUMAN_APPROVAL_REQUIRED`
