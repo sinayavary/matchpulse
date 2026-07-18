@@ -8,8 +8,8 @@
   "pack_version": "MATCHES-RAILWAY-TOPOLOGY-RETRY-A-v1",
   "baseline_commit": "25156b8d22d1488f27da6bafeee9b6d88ece6773",
   "human_approved": true,
-  "activation_note": "Human-approved execution of STAGING-ENVIRONMENT-DIAGNOSE-READONLY only. Railway CLI and environment metadata may be read; no mutation is authorized.",
-  "authorized_gate": {"id":"STAGING-ENVIRONMENT-DIAGNOSE-READONLY","approved_at":"2026-07-18T20:01:25.883Z","project_id":"e8540514-d2b9-4585-8d2a-a62fc3c87829","read_only":true,"allowed_credential_name":"RAILWAY_TOKEN","forbidden_mutations":["environment","service","variable","domain","database","deployment","migration","source_connection"]},
+  "activation_note": "Human-approved execution of STAGING-ENVIRONMENT-CREATE-RETRY only. Railway may make exactly one retry create attempt for absent staging; no other mutation is authorized.",
+  "authorized_gate": {"id":"STAGING-ENVIRONMENT-CREATE-RETRY","approved_at":"2026-07-18T20:01:25.883Z","project_id":"e8540514-d2b9-4585-8d2a-a62fc3c87829","read_only":false,"allowed_credential_name":"RAILWAY_TOKEN","allowed_mutation":{"resource":"environment","operation":"create","name":"staging","attempts":1},"forbidden_mutations":["service","variable","domain","database","deployment","migration","source_connection"]},
   "execution": {
     "continue_until_phase_gate": true,
     "allow_next_phase_transition": false,
