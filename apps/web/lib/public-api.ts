@@ -65,6 +65,7 @@ export type PublicMatchSummary = {
   odds: PublicOddsSummary;
   quality: PublicQuality;
   latest_data_timestamp: string | null;
+  lifecycle?: { lifecycle: string; source: string; reason_code: string; normalized_phase: string; is_active: boolean; is_terminal: boolean; updated_at: string };
 };
 
 export type PublicMatchState = {
@@ -168,6 +169,7 @@ export type PublicReplay = {
 export type PublicMatchesParams = {
   range?: "past" | "upcoming" | "live" | "all";
   limit?: number;
+  cursor?: string;
 };
 
 export type PublicMatchOptions = {
@@ -215,6 +217,7 @@ export async function fetchPublicMatches(
   const search = new URLSearchParams();
   search.set("range", params.range ?? "all");
   search.set("limit", String(params.limit ?? 50));
+  if (params.cursor) search.set("cursor", params.cursor);
   return fetchPublic<PublicMatchSummary[]>(`/api/public/matches?${search.toString()}`);
 }
 

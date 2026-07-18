@@ -113,6 +113,7 @@ export type PublicMatchSummary = {
     issues: string[];
   };
   latest_data_timestamp: string | null;
+  lifecycle?: CanonicalMatchState["lifecycle"];
   insight_summary?: ProductAgentV1InsightSummary;
 };
 
@@ -395,11 +396,13 @@ export function normalizePublicMatchesQuery(query: {
   competitionId?: unknown;
   limit?: unknown;
   includeInsight?: unknown;
+  cursor?: unknown;
 }): {
   range: PublicMatchesRange;
   competitionId?: string;
   limit: number;
   includeInsight: boolean;
+  cursor?: number;
 } {
   const range = typeof query.range === "string" && query.range.trim() !== ""
     ? query.range.trim().toLowerCase()
@@ -415,11 +418,13 @@ export function normalizePublicMatchesQuery(query: {
       ? String(query.competitionId)
     : undefined;
 
+  const cursor = typeof query.cursor === "string" && /^\d+$/.test(query.cursor) ? Number(query.cursor) : undefined;
   return {
     range: range as PublicMatchesRange,
     competitionId,
     limit: normalizeLimit(query.limit, 20, 100),
-    includeInsight: readBoolean(query.includeInsight, false)
+    includeInsight: readBoolean(query.includeInsight, false),
+    cursor
   };
 }
 
@@ -765,7 +770,8 @@ export function buildPublicMatchSummary(
       status: state.quality.status,
       issues: [...state.quality.issues]
     },
-    latest_data_timestamp: state.freshness.latest_data_timestamp
+    latest_data_timestamp: state.freshness.latest_data_timestamp,
+    ...(state.lifecycle === undefined ? {} : { lifecycle: state.lifecycle })
   };
   assertNoForbiddenPublicKeys(output);
   return output;
@@ -1289,6 +1295,7 @@ export function registerPublicApiRoutes(
       competitionId?: unknown;
       limit?: unknown;
       includeInsight?: unknown;
+      cursor?: unknown;
     };
 
     try {
@@ -1320,7 +1327,7 @@ export function registerPublicApiRoutes(
         }
       });
 
-      const data = await buildPublicMatchSummaries(candidates, normalized, deps, now);
+      const data = await buildPublicMatchSummaries(candidates.slice(normalized.cursor ?? 0), normalized, deps, now);
       return {
         data: data.slice(0, normalized.limit),
         meta: {

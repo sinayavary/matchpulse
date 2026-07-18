@@ -45,10 +45,9 @@ export default function MatchesBrowser() {
       }
 
       if (!matchesResult.ok || !matchesResult.data) {
-        setMatches([]);
         setMeta(matchesResult.meta);
-        setError(matchesResult.meta?.message ?? "Public match list is unavailable right now.");
-        setPhase("error");
+        setError(matchesResult.meta?.message ?? "Public match list is temporarily unavailable; showing the last valid data.");
+        setPhase(matches.length > 0 ? "loaded" : "error");
         return;
       }
 
@@ -132,7 +131,7 @@ export default function MatchesBrowser() {
           {matches.map((match) => (
             <Link className="card match-card" href={`/matches/${match.fixture_id}`} key={match.fixture_id}>
               <div className="match-card-top">
-                <span className="status">{match.status ?? "unknown"}{String(match.status).toLowerCase().includes("live") ? " · LIVE" : ""}</span>
+                <span className="status">{match.lifecycle?.lifecycle ?? match.status ?? "unknown"}{match.lifecycle?.is_active ? " · LIVE" : ""}</span>
                 <span className="muted match-card-time">
                   {match.start_time_utc ?? "Start time unavailable"}
                 </span>
