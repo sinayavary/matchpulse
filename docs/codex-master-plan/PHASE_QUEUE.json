@@ -2,7 +2,7 @@
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
   "active_phase_id": "MATCHES-PRODUCTION-ROLLOUT-A",
-  "updated_at": "2026-07-18T16:45:00Z",
+  "updated_at": "2026-07-18T16:45:13Z",
   "items": [
     {
       "id": "AUTO-DATA-HEALTH-REPORTING-A",
@@ -157,7 +157,7 @@
     {
       "id": "MATCHES-PRODUCTION-ROLLOUT-A",
       "title": "Gated Matches staging and production rollout",
-      "status": "awaiting_human_approval",
+      "status": "ready",
       "depends_on": ["MATCHES-FULL-PRODUCTION-REMEDIATION-A"],
       "pack_version": "MATCHES-PRODUCTION-ROLLOUT-A-v1",
       "baseline_commit": "03f308be14a330d269c484efc853e307ffb9c7ce",
