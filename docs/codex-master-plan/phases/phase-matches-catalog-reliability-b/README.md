@@ -19,15 +19,17 @@ Rebuild Matches as a canonical, complete, lifecycle-correct catalog from provide
 
 ## Allowed implementation
 
-The exact implementation and documentation targets are listed in `manifest.json`. Additive Prisma changes are permitted only through the explicitly named migration target; production migration, seed, deployment, and production writes are not permitted by this phase.
+The exact implementation and documentation targets are listed in `manifest.json`. The only allowed documentation target is `docs/public-api-contract.md`.
+
+Prisma schema change is prohibited. Migration creation is prohibited. Migration application is prohibited. Database write is prohibited. `migration_applied=false`.
 
 ## Required audit and verification
 
-Before implementation, record the read-only discovery-to-Web audit in `docs/matches-catalog-audit.md`. Run all commands in `manifest.json`, including focused lifecycle/discovery/dedup/cursor/API/Web tests, query-count and leakage checks, typechecks, build, Prisma validation/diff, and `git diff --check`. Production verification is read-only and only runs when an authorized origin and credentials exist; otherwise record `IMPLEMENTATION_COMPLETE_WAITING_FOR_PRODUCTION_VERIFICATION` without fabricated evidence.
+Run all commands in `manifest.json`, including focused lifecycle, public API, fixture ingestion, TxLINE normalizer, odds discovery window, public-contract leakage, Web typecheck, and Web production build validation; also run API regression, Prisma validation/diff, and `git diff --check`. Do not create documentation outside the manifest allowlist. Production network access and production verification are prohibited.
 
 ## Rollback
 
-Rollback is one scoped prepared commit. Never delete fixtures, MatchState, Odds, Event, Replay, Prediction, or source payload records. Do not apply the migration without separate explicit authorization.
+Rollback is one scoped prepared commit. Never delete fixtures, MatchState, Odds, Event, Replay, Prediction, or source payload records. No migration may be created or applied by this phase.
 
 ## Completion gate
 
