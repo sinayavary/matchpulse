@@ -8,14 +8,15 @@
   "pack_version": "MATCHES-RAILWAY-TOPOLOGY-A-v1",
   "baseline_commit": "accbd80d6e5a796a19aebea4bfaab1a2b50703c3",
   "human_approved": true,
-  "activation_note": "Human-approved execution of TOPOLOGY-PREFLIGHT-READONLY only. Railway project metadata may be read; environment, service, variable, domain, database, deployment, migration and source-connection mutation remain forbidden.",
+  "activation_note": "Human-approved execution of STAGING-ENVIRONMENT-CREATE only. Railway may create exactly one absent environment named staging; service, variable, domain, database, deployment, migration and source-connection mutation remain forbidden.",
   "authorized_gate": {
-    "id": "TOPOLOGY-PREFLIGHT-READONLY",
-    "approved_at": "2026-07-18T19:43:01.735Z",
+    "id": "STAGING-ENVIRONMENT-CREATE",
+    "approved_at": "2026-07-18T19:55:52.723Z",
     "project_id": "e8540514-d2b9-4585-8d2a-a62fc3c87829",
-    "read_only": true,
+    "read_only": false,
     "allowed_credential_name": "RAILWAY_TOKEN",
-    "forbidden_mutations": ["environment", "service", "variable", "domain", "database", "deployment", "migration", "source_connection"]
+    "allowed_mutation": {"resource": "environment", "operation": "create", "name": "staging", "attempts": 1},
+    "forbidden_mutations": ["service", "variable", "domain", "database", "deployment", "migration", "source_connection"]
   },
   "execution": {
     "continue_until_phase_gate": true,
