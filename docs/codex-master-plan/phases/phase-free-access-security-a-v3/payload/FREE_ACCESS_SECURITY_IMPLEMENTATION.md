@@ -8,7 +8,7 @@ Implement the complete v3 architecture: free off-chain Solana wallet identity, s
 
 | Target | Required responsibility |
 | --- | --- |
-| `apps/api/package.json` | Add only required crypto dependency; retain scripts. |
+| `apps/api/package.json` | Move the existing `tweetnacl` `^1.0.3` declaration from `devDependencies` to `dependencies` for runtime availability; do not change its version or add another crypto package. |
 | `apps/api/src/security/free-access-contract.ts` | Fixed public contract, formats, scopes, limits, environment and safe errors. |
 | `apps/api/src/security/security-crypto.ts` | Randomness, base64url, scrypt, hashes/HMAC and timing-safe malformed-input rejection. |
 | `apps/api/src/security/wallet-auth.ts` | Five-minute canonical challenge, exact binding checks, three attempts and Ed25519 verification. |
@@ -46,7 +46,7 @@ Implement the complete v3 architecture: free off-chain Solana wallet identity, s
 | `docs/security/free-access-operations-runbook.md` | Configuration, redaction, incident/revocation, rollback and no-production-change guidance. |
 | `prisma/schema.prisma` | Exact nine security models/enums; no sports-data rewrite or payment fields. |
 | `prisma/migrations/20260718190000_free_access_security/migration.sql` | Create-only PostgreSQL source matching schema; never apply. |
-| `pnpm-lock.yaml` | Only required dependency resolution. |
+| `pnpm-lock.yaml` | Update only the API importer classification for the already-locked `tweetnacl` version using offline lockfile-only resolution; no registry or application-network access. |
 
 ## Route, scope, and negative contract
 
@@ -58,4 +58,4 @@ Canonical limits are health/status 60/min/IP; challenge/verify 10/10m/IP and 5/1
 
 Run every manifest command, record actual counts, verify schema/migration equivalence, exact changed paths and `git diff --check`. Focused tests must cover signature/message binding, replay/attempt cap, session/CSRF/origin, client secret/tokens/scopes, boundary ordering/internal isolation, rate/quota/concurrency, recursive redaction, BFF behavior, and Developer Portal behavior. Completion must state `migration_applied=false`, `network_accessed=false`, `deployment_performed=false`, `database_connected=false`, no secret acquisition, and no fabricated data.
 
-Source schema edits, SQL migration source creation, and local Prisma format/validate/generate are permitted only after the phase is actively executed. `migrate_dev`, `migrate_deploy`, `migrate_reset`, `db_push`, all database connections, migration application, production/application network, Railway, deployment, and secret access are forbidden. This governance transition does not execute the contract.
+Source schema edits, SQL migration source creation, and local Prisma format/validate/generate are permitted only after the phase is actively executed. Dependency resolution must use offline mode; `registry_accessed=false` and `network_accessed=false` are required. `migrate_dev`, `migrate_deploy`, `migrate_reset`, `db_push`, all database connections, migration application, production/application network, Railway, deployment, and secret access are forbidden. This governance transition does not execute the contract.

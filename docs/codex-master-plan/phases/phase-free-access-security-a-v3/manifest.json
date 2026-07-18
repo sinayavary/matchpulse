@@ -45,7 +45,7 @@
     "prisma/schema.prisma"
   ],
   "required_validation_commands": [
-    "pnpm.cmd install --lockfile-only",
+    "pnpm.cmd install --lockfile-only --offline",
     "pnpm.cmd exec prisma format --schema prisma/schema.prisma",
     "pnpm.cmd exec prisma validate --schema prisma/schema.prisma",
     "pnpm.cmd exec prisma generate --schema prisma/schema.prisma",
