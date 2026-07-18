@@ -133,6 +133,10 @@ Do not:
 
 The only production exception is the exact identity `PROD-LIVE-E2E-ACCEPTANCE-A` / `PROD-LIVE-E2E-ACCEPTANCE-A-v1`, with `human_approved=true`, `allows_network=true`, and `allows_migration=false`. It permits only Railway status and sanitized logs, public GETs, authenticated internal status GETs without printing secrets, read-only TxLINE level-12 validation, public-Web browser automation, waiting for a real fixture, and public-safe evidence written to the allowlisted repository file. It is not reusable by another phase.
 
+### Free Access security governance exception
+
+The exact future identity `FREE-ACCESS-SECURITY-A` / `FREE-ACCESS-SECURITY-A-v4` is a source-governance exception only. During its explicitly approved implementation it permits only the exact manifest allowlist, source-level Prisma schema edits, SQL migration source creation, Prisma format/validate/generate without a database connection, offline-only lockfile resolution, and local tests. It does not permit applying migrations, database connection or writes, registry or application network access, production/Railway access, deployment, secret access, blockchain transactions or wallet-asset authorization, payment/billing/paywall behavior, private keys or seed phrases, or public leakage.
+
 This exception forbids all writes and deployments: production POST/PUT/PATCH/DELETE, manual ingestion, database or fixture writes, Railway configuration changes, restart/redeploy, replica/domain changes, migration/seed, secret/token/header output, raw provider payloads, mock/demo/fallback/fabricated data, capture-window or Agent-configuration changes. Any write or deployment operation must stop.
 
 ## Git and Automation v2

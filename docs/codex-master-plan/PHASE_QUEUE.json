@@ -1,8 +1,8 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "MATCHES-PRODUCTION-DEFECT-ERADICATION-A",
-  "updated_at": "2026-07-18T00:00:00Z",
+  "active_phase_id": "FREE-ACCESS-SECURITY-A",
+  "updated_at": "2026-07-18T08:49:17Z",
   "items": [
     {
       "id": "AUTO-DATA-HEALTH-REPORTING-A",
@@ -86,24 +86,36 @@
     {
       "id": "MATCHES-CATALOG-RELIABILITY-C",
       "title": "Post-review completion of Matches catalog reliability",
-      "status": "ready",
+      "status": "completed",
       "depends_on": ["PROD-LIVE-E2E-ACCEPTANCE-B"],
       "pack_version": "MATCHES-CATALOG-RELIABILITY-C-v1",
       "baseline_commit": "75390e501164eff37998e4151b310ca2c81b9d1f",
-      "human_gate": true,
+      "completion_commit": "7d99b1d59f1c5811943553cb4226cf05e62fac7a",
+      "human_gate": false,
       "resume_after": "PROD-LIVE-E2E-ACCEPTANCE-B",
-      "reason": "successor remediation of the review-rejected B completion; no other phase is activated"
+      "reason": "completed catalog reliability successor; later production-visible defects were handled by MATCHES-PRODUCTION-DEFECT-ERADICATION-A"
     },
     {
       "id": "MATCHES-PRODUCTION-DEFECT-ERADICATION-A",
       "title": "Production-visible Matches defect eradication",
-      "status": "ready",
+      "status": "completed",
       "depends_on": ["MATCHES-CATALOG-RELIABILITY-C"],
       "pack_version": "MATCHES-PRODUCTION-DEFECT-ERADICATION-A-v1",
       "baseline_commit": "7d99b1d59f1c5811943553cb4226cf05e62fac7a",
-      "human_gate": true,
+      "completion_commit": "659fadc198da7ddb18b3fd9cc221f226804e6f32",
+      "human_gate": false,
       "resume_after": "PROD-LIVE-E2E-ACCEPTANCE-B",
-      "reason": "human-authorized read-only production defect investigation and implementation successor"
+      "reason": "local implementation completed with production acceptance still pending deployment and live verification"
+    },
+    {
+      "id": "FREE-ACCESS-SECURITY-A",
+      "title": "Free wallet identity and secure Developer API",
+      "status": "ready",
+      "depends_on": ["MATCHES-PRODUCTION-DEFECT-ERADICATION-A"],
+      "pack_version": "FREE-ACCESS-SECURITY-A-v4",
+      "baseline_commit": "659fadc198da7ddb18b3fd9cc221f226804e6f32",
+      "human_gate": true,
+      "reason": "independent governance transition for the approved free off-chain identity and secure Developer API contract"
     },
     {
       "id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",

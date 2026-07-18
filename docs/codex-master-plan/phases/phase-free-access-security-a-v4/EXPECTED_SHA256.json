@@ -1,0 +1,9 @@
+{
+  "algorithm": "SHA-256",
+  "canonical_encoding": "UTF-8 with LF line endings",
+  "files": {
+    "README.md": "dc91ba5dc5431b77ccf3ec458b49eb2b4eb82879dcb3f54939e520d5a7deeed3",
+    "manifest.json": "c9d9bcf82ce3b2d69d2acd406d501a5a87d9bcda8427abd0011fe968b5577a6d",
+    "payload/FREE_ACCESS_SECURITY_IMPLEMENTATION.md": "a23e3923b0a0056ed759ddd3b1829fec95b9439b57d650cdbe2352a58b8624e0"
+  }
+}
