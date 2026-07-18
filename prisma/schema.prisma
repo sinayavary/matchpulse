@@ -712,7 +712,7 @@ model FreeAccessApplication {
   id          String                      @id @default(cuid())
   walletId    String                      @map("wallet_id")
   name        String
-  scopes      Json
+  scopes      Json @default("[\"matches:read\"]")
   status      FreeAccessApplicationStatus @default(ENABLED)
   createdAt   DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
