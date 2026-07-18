@@ -25,10 +25,11 @@
     {
       "id": "MATCH-LIFECYCLE-CATALOG-A",
       "title": "Canonical match lifecycle catalog and resolver",
-      "status": "ready",
+      "status": "completed",
       "depends_on": ["PROD-LIVE-E2E-ACCEPTANCE-A"],
       "pack_version": "MATCH-LIFECYCLE-CATALOG-A-v1",
       "baseline_commit": "5102320e13d0a25ea2a5b346043acc500ac92e65",
+      "completion_commit": "df335532f7a624d29eeb1f7811b85dee87de0ba3",
       "human_gate": false
     },
     {
@@ -37,6 +38,7 @@
       "status": "planned",
       "depends_on": ["MATCH-LIFECYCLE-CATALOG-A"],
       "pack_version": "BACKGROUND-AGENT-PREDICTION-A-v1",
+      "baseline_commit": "df335532f7a624d29eeb1f7811b85dee87de0ba3",
       "human_gate": false
     },
     {
