@@ -17,7 +17,7 @@
   },
   "last_result": {
     "status": "WAITING_FOR_REAL_FIXTURE",
-    "evidence_commit": "f85c6b6f5e31ed87d92a1ebd0decdac7d401ec7b",
+    "evidence_commit": "f85c6b64495cbeab00c93f8758e1904f4ffdcb7f",
     "evidence_path": "docs/production-live-e2e-acceptance-evidence.md",
     "competition": 430,
     "fixture_observed": false,
