@@ -1,2 +1,2 @@
-import { NextResponse } from "next/server";
-export async function POST() { const response = NextResponse.json({ ok: true }); response.cookies.set("mp_session", "", { maxAge: 0, httpOnly: true, sameSite: "lax", path: "/" }); return response; }
+import { proxyBackend } from "../../../../lib/backend-auth-proxy";
+export async function POST(request: Request) { return proxyBackend("/api/auth/logout", { method: "POST", headers: { cookie: request.headers.get("cookie") ?? "", origin: request.headers.get("origin") ?? "", referer: request.headers.get("referer") ?? "", "x-csrf-token": request.headers.get("x-csrf-token") ?? "" } }); }

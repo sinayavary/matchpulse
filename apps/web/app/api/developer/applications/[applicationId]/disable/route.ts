@@ -1,2 +1,2 @@
-import { NextResponse } from "next/server";
-export async function POST(_: Request, context: { params: Promise<{ applicationId: string }> }) { const { applicationId } = await context.params; return NextResponse.json({ data: { id: applicationId, disabled: true } }); }
+import { proxyBackend } from "../../../../../../lib/backend-auth-proxy";
+export async function POST(request: Request, context: { params: Promise<{ applicationId: string }> }) { const { applicationId } = await context.params; if (!/^[A-Za-z0-9_-]+$/.test(applicationId)) return new Response(JSON.stringify({ error: "request_rejected" }), { status: 404 }); return proxyBackend(`/api/developer/applications/${applicationId}/disable`, { method: "POST", headers: { cookie: request.headers.get("cookie") ?? "", origin: request.headers.get("origin") ?? "", "x-csrf-token": request.headers.get("x-csrf-token") ?? "" } }); }

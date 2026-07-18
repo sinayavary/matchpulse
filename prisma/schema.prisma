@@ -739,6 +739,12 @@ model FreeAccessCredential {
 model FreeAccessChallenge {
   id            String    @id @default(cuid())
   walletAddress String    @map("wallet_address")
+  domain        String
+  uri           String
+  chain         String
+  nonce         String
+  issuedAt      DateTime  @map("issued_at") @db.Timestamptz(3)
+  requestId     String    @map("request_id")
   challengeHash String    @unique @map("challenge_hash")
   expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
   attempts      Int       @default(0)
@@ -747,6 +753,18 @@ model FreeAccessChallenge {
 
   @@index([walletAddress, expiresAt])
   @@map("free_access_challenges")
+}
+
+model FreeAccessQuota {
+  id            String   @id @default(cuid())
+  applicationId String   @map("application_id")
+  quotaDay      DateTime @map("quota_day") @db.Date
+  used          Int      @default(0)
+  dailyLimit    Int      @map("daily_limit")
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([applicationId, quotaDay])
+  @@map("free_access_quotas")
 }
 
 model FreeAccessSession {
