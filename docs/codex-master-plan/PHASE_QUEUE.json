@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "BACKGROUND-AGENT-PREDICTION-A",
+  "active_phase_id": "EVALUATION-LEARNING-A",
   "updated_at": "2026-07-18T00:00:00Z",
   "items": [
     {
@@ -45,7 +45,7 @@
     {
       "id": "EVALUATION-LEARNING-A",
       "title": "Temporal evaluation and controlled versioned learning",
-      "status": "planned",
+      "status": "ready",
       "depends_on": ["BACKGROUND-AGENT-PREDICTION-A"],
       "pack_version": "EVALUATION-LEARNING-A-v1",
       "baseline_commit": "639cf1e7fdaf7e6faf0b7fb8f734d0f151beb92e",
