@@ -1,8 +1,8 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "FREE-ACCESS-LOCAL-DB-VALIDATION-A",
-  "updated_at": "2026-07-18T10:06:00Z",
+  "active_phase_id": "MATCHES-FULL-PRODUCTION-REMEDIATION-A",
+  "updated_at": "2026-07-18T16:45:00Z",
   "items": [
     {
       "id": "AUTO-DATA-HEALTH-REPORTING-A",
@@ -134,13 +134,24 @@
     {
       "id": "FREE-ACCESS-LOCAL-DB-VALIDATION-A",
       "title": "Isolated local PostgreSQL validation for Free Access security",
-      "status": "ready",
+      "status": "completed",
       "depends_on": ["FREE-ACCESS-SECURITY-B"],
       "pack_version": "FREE-ACCESS-LOCAL-DB-VALIDATION-A-v1",
       "baseline_commit": "2fc45285a5e39c48f4a1e6ed7d97f0e70b8f8256",
       "human_gate": true,
       "program_alignment": "10O-B",
-      "reason": "Validate the Free Access migration and durable security repositories against isolated disposable PostgreSQL 16 before Docker release or production deployment."
+      "completion_commit": "9c2c7ea5230781a4942b7a7ce6ccc01f1a69745c",
+      "reason": "Reviewed completion: isolated PostgreSQL 16 validation, all required suites passed, no external network or production access."
+    },
+    {
+      "id": "MATCHES-FULL-PRODUCTION-REMEDIATION-A",
+      "title": "Complete Matches production remediation and release gates",
+      "status": "ready",
+      "depends_on": ["FREE-ACCESS-LOCAL-DB-VALIDATION-A", "MATCHES-PRODUCTION-DEFECT-ERADICATION-A"],
+      "pack_version": "MATCHES-FULL-PRODUCTION-REMEDIATION-A-v1",
+      "baseline_commit": "9c2c7ea5230781a4942b7a7ce6ccc01f1a69745c",
+      "human_gate": true,
+      "reason": "Human-authorized implementation of the complete reviewed Matches production remediation plan."
     },
     {
       "id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",
