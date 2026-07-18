@@ -2,7 +2,7 @@
   "schema_version": "matchpulse-phase-pack-v1",
   "phase": "EVALUATION-LEARNING-A",
   "pack_version": "EVALUATION-LEARNING-A-v1",
-  "baseline_commit": "5102320e13d0a25ea2a5b346043acc500ac92e65",
+  "baseline_commit": "639cf1e7fdaf7e6faf0b7fb8f734d0f151beb92e",
   "allowed_target_files": ["apps/api/src/evaluation-learning-runtime.ts", "apps/api/src/evaluation-learning-runtime.test.ts", "apps/api/src/prediction-evaluation.ts", "apps/api/src/prediction-registry-storage.ts"],
   "required_validation_commands": ["pnpm.cmd --filter @matchpulse/api test", "pnpm.cmd --filter @matchpulse/api typecheck", "git diff --check", "git diff --name-only -- prisma"],
   "expected_results": ["temporal leakage tests pass", "evaluation and dataset sealing are deterministic", "shadow/champion/promotion/rollback gates pass", "no fabricated training data or migration"],

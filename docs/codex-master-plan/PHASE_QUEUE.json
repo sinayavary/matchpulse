@@ -35,10 +35,11 @@
     {
       "id": "BACKGROUND-AGENT-PREDICTION-A",
       "title": "Independent background Agent and Prediction execution",
-      "status": "ready",
+      "status": "completed",
       "depends_on": ["MATCH-LIFECYCLE-CATALOG-A"],
       "pack_version": "BACKGROUND-AGENT-PREDICTION-A-v1",
       "baseline_commit": "df335532f7a624d29eeb1f7811b85dee87de0ba3",
+      "completion_commit": "639cf1e7fdaf7e6faf0b7fb8f734d0f151beb92e",
       "human_gate": false
     },
     {
@@ -47,6 +48,7 @@
       "status": "planned",
       "depends_on": ["BACKGROUND-AGENT-PREDICTION-A"],
       "pack_version": "EVALUATION-LEARNING-A-v1",
+      "baseline_commit": "639cf1e7fdaf7e6faf0b7fb8f734d0f151beb92e",
       "human_gate": false
     },
     {
