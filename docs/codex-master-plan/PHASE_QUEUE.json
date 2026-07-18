@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "MATCH-LIFECYCLE-CATALOG-A",
+  "active_phase_id": "BACKGROUND-AGENT-PREDICTION-A",
   "updated_at": "2026-07-18T00:00:00Z",
   "items": [
     {
@@ -35,7 +35,7 @@
     {
       "id": "BACKGROUND-AGENT-PREDICTION-A",
       "title": "Independent background Agent and Prediction execution",
-      "status": "planned",
+      "status": "ready",
       "depends_on": ["MATCH-LIFECYCLE-CATALOG-A"],
       "pack_version": "BACKGROUND-AGENT-PREDICTION-A-v1",
       "baseline_commit": "df335532f7a624d29eeb1f7811b85dee87de0ba3",
