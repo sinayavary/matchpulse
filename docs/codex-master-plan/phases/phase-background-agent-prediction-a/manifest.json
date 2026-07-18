@@ -1,0 +1,11 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "BACKGROUND-AGENT-PREDICTION-A",
+  "pack_version": "BACKGROUND-AGENT-PREDICTION-A-v1",
+  "baseline_commit": "5102320e13d0a25ea2a5b346043acc500ac92e65",
+  "allowed_target_files": ["apps/api/src/automatic-data-runtime.ts", "apps/api/src/product-runtime-refresh-worker.ts", "apps/api/src/prediction-runtime-orchestrator.ts", "apps/api/src/prediction-runtime-cycle.ts", "apps/api/src/prediction-runtime-storage.ts", "apps/api/src/background-intelligence-runtime.ts", "apps/api/src/background-intelligence-runtime.test.ts"],
+  "required_validation_commands": ["pnpm.cmd --filter @matchpulse/api test", "pnpm.cmd --filter @matchpulse/api typecheck", "pnpm.cmd --filter @matchpulse/worker typecheck", "git diff --check"],
+  "expected_results": ["automatic Agent and Prediction cycles execute without browser/API request", "deduplicated immutable snapshots", "worker isolation and health gates pass", "no migration or network access"],
+  "allows_migration": false,
+  "allows_network": false
+}

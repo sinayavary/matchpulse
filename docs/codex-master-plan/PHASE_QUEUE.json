@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "PROD-LIVE-E2E-ACCEPTANCE-A",
+  "active_phase_id": "MATCH-LIFECYCLE-CATALOG-A",
   "updated_at": "2026-07-18T00:00:00Z",
   "items": [
     {
@@ -16,10 +16,51 @@
     {
       "id": "PROD-LIVE-E2E-ACCEPTANCE-A",
       "title": "Production live automatic-ingestion and historical-replay acceptance",
-      "status": "ready",
+      "status": "paused_superseded_for_remediation",
       "depends_on": ["AUTO-DATA-HEALTH-REPORTING-A"],
       "pack_version": "PROD-LIVE-E2E-ACCEPTANCE-A-v1",
       "baseline_commit": "f3caf00fc05ac8616b6e49061a987dddc117c343",
+      "human_gate": true
+    },
+    {
+      "id": "MATCH-LIFECYCLE-CATALOG-A",
+      "title": "Canonical match lifecycle catalog and resolver",
+      "status": "ready",
+      "depends_on": ["PROD-LIVE-E2E-ACCEPTANCE-A"],
+      "pack_version": "MATCH-LIFECYCLE-CATALOG-A-v1",
+      "baseline_commit": "5102320e13d0a25ea2a5b346043acc500ac92e65",
+      "human_gate": false
+    },
+    {
+      "id": "BACKGROUND-AGENT-PREDICTION-A",
+      "title": "Independent background Agent and Prediction execution",
+      "status": "planned",
+      "depends_on": ["MATCH-LIFECYCLE-CATALOG-A"],
+      "pack_version": "BACKGROUND-AGENT-PREDICTION-A-v1",
+      "human_gate": false
+    },
+    {
+      "id": "EVALUATION-LEARNING-A",
+      "title": "Temporal evaluation and controlled versioned learning",
+      "status": "planned",
+      "depends_on": ["BACKGROUND-AGENT-PREDICTION-A"],
+      "pack_version": "EVALUATION-LEARNING-A-v1",
+      "human_gate": false
+    },
+    {
+      "id": "MATCHES-EXPERIENCE-A",
+      "title": "Lifecycle-aware Matches experience and replay",
+      "status": "planned",
+      "depends_on": ["EVALUATION-LEARNING-A"],
+      "pack_version": "MATCHES-EXPERIENCE-A-v1",
+      "human_gate": false
+    },
+    {
+      "id": "PROD-LIVE-E2E-ACCEPTANCE-B",
+      "title": "Production live E2E acceptance with real competition 430 fixture",
+      "status": "planned",
+      "depends_on": ["MATCHES-EXPERIENCE-A"],
+      "pack_version": "PROD-LIVE-E2E-ACCEPTANCE-B-v1",
       "human_gate": true
     },
     {

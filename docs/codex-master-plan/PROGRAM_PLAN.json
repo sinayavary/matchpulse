@@ -1,9 +1,9 @@
 {
   "schema_version": "matchpulse-program-plan-v2",
   "project": "MatchPulse",
-  "program_id": "matchpulse-competition-product-v1",
+  "program_id": "MATCHPULSE-AUTONOMOUS-INTELLIGENCE-PROGRAM-A",
   "program_mode": {
-    "enabled": false,
+    "enabled": true,
     "requires_human_enablement": true,
     "auto_select_next_phase": true,
     "auto_prepare_low_risk_phases": true,
@@ -84,6 +84,6 @@
     {"id":"10P","title":"CI and competition submission release","dependencies":["10J-C","10O-C"],"gates":["GATE_LOCAL_RELEASE"],"deliverables":["CI gates","release notes","submission artifact and evidence"]},
     {"id":"10N-B","title":"Solana/on-chain verification","dependencies":["10N-A"],"gates":[],"status":"deferred_not_required","required_for_program_complete":false,"deliverables":[]}
   ],
-  "completion_status": "not_started",
+  "completion_status": "active",
   "program_complete_code": "PROGRAM_COMPLETE"
 }

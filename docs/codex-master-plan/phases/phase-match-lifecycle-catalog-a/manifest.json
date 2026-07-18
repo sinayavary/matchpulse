@@ -1,0 +1,31 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "MATCH-LIFECYCLE-CATALOG-A",
+  "pack_version": "MATCH-LIFECYCLE-CATALOG-A-v1",
+  "baseline_commit": "5102320e13d0a25ea2a5b346043acc500ac92e65",
+  "allowed_target_files": [
+    "apps/api/src/match-lifecycle.ts",
+    "apps/api/src/match-lifecycle.test.ts",
+    "apps/api/src/match-state-builder.ts",
+    "apps/api/src/match-state-builder.test.ts",
+    "apps/api/src/automatic-data-runtime.ts",
+    "apps/api/src/public-api.ts"
+  ],
+  "required_validation_commands": [
+    "pnpm.cmd --filter @matchpulse/api test",
+    "pnpm.cmd --filter @matchpulse/api typecheck",
+    "pnpm.cmd --filter @matchpulse/api build",
+    "pnpm.cmd --filter @matchpulse/worker typecheck",
+    "git diff --check",
+    "git diff --name-only -- prisma"
+  ],
+  "expected_results": [
+    "lifecycle focused and API tests pass",
+    "worker typecheck passes",
+    "Prisma diff is empty",
+    "no migration, seed, production write, or network access",
+    "public forbidden-field scan passes"
+  ],
+  "allows_migration": false,
+  "allows_network": false
+}

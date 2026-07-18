@@ -1,0 +1,11 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "PROD-LIVE-E2E-ACCEPTANCE-B",
+  "pack_version": "PROD-LIVE-E2E-ACCEPTANCE-B-v1",
+  "baseline_commit": "5102320e13d0a25ea2a5b346043acc500ac92e65",
+  "allowed_target_files": ["docs/production-live-e2e-acceptance-evidence.md"],
+  "required_validation_commands": ["JSON parse and schema validation", "public leakage scan", "exact changed-path verification"],
+  "expected_results": ["real fixture evidence or WAITING_FOR_REAL_FIXTURE", "no migration or fabricated production data"],
+  "allows_migration": false,
+  "allows_network": true
+}

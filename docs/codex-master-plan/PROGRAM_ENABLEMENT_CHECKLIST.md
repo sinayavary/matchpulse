@@ -1,11 +1,11 @@
 # MatchPulse Technical Enablement Checklist
 
-Program mode may be enabled only after these technical checks are satisfied. Enabling it is a separate governance action.
+Program mode was explicitly enabled by the Autonomous Intelligence Program A bootstrap transition in the clean recovery worktree. This checklist remains the evidence ledger for the ordered five-phase program.
 
 ## Authority and state
 
 - [ ] Primary competition-product authority files parse or render correctly and contain no contradictions.
-- [ ] `PROGRAM_PLAN.json` has `program_mode.enabled: false` before the explicit enablement commit and `max_parallel_phases: 1`.
+- [x] `PROGRAM_PLAN.json` has `program_mode.enabled: true` after the explicit enablement commit and `max_parallel_phases: 1`.
 - [ ] The active phase, queue, dependencies, baselines, allowlists and payload hashes are valid.
 - [ ] Phase 10H-A remains review-only and is not selected or activated.
 
