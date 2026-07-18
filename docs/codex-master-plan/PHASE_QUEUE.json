@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "MATCHES-EXPERIENCE-A",
+  "active_phase_id": "FREE-ACCESS-SECURITY-A",
   "updated_at": "2026-07-18T00:00:00Z",
   "items": [
     {
@@ -49,7 +49,7 @@
       "depends_on": ["BACKGROUND-AGENT-PREDICTION-A"],
       "pack_version": "EVALUATION-LEARNING-A-v1",
       "baseline_commit": "639cf1e7fdaf7e6faf0b7fb8f734d0f151beb92e",
-      "completion_commit": "fce4916f96f037fa9eb75b2fc7762431c6bca8f1",
+      "completion_commit": "fce4916caa1f680048a59e9ff4073728790945f2",
       "human_gate": false
     },
     {
@@ -58,7 +58,7 @@
       "status": "completed",
       "depends_on": ["EVALUATION-LEARNING-A"],
       "pack_version": "MATCHES-EXPERIENCE-A-v1",
-      "baseline_commit": "fce4916f96f037fa9eb75b2fc7762431c6bca8f1",
+      "baseline_commit": "fce4916caa1f680048a59e9ff4073728790945f2",
       "completion_commit": "32a1447f2e3f9f80c82bc1eb0e3cb69fba9cb4ef",
       "human_gate": false
     },
@@ -69,7 +69,27 @@
       "depends_on": ["MATCHES-EXPERIENCE-A"],
       "pack_version": "PROD-LIVE-E2E-ACCEPTANCE-B-v1",
       "baseline_commit": "32a1447f2e3f9f80c82bc1eb0e3cb69fba9cb4ef",
-      "human_gate": true
+      "human_gate": true,
+      "evidence_commit": "f85c6b64495cbeab00c93f8758e1904f4ffdcb7f",
+      "evidence_path": "docs/production-live-e2e-acceptance-evidence.md",
+      "last_result_status": "WAITING_FOR_REAL_FIXTURE",
+      "competition": 430,
+      "fixture_observed": false,
+      "production_network_accessed": false,
+      "migration_applied": false,
+      "fabricated_data": false,
+      "success_claimed": false,
+      "next_action": "resume read-only acceptance when a real competition 430 fixture and authorized production origin are available"
+    },
+    {
+      "id": "FREE-ACCESS-SECURITY-A",
+      "title": "Free wallet authentication, secure developer API, and documentation portal",
+      "status": "ready",
+      "depends_on": ["MATCHES-EXPERIENCE-A"],
+      "pack_version": "FREE-ACCESS-SECURITY-A-v2",
+      "baseline_commit": "df9d8cfd7d8076f6ffc2924823ee9b78c4e4cb74",
+      "human_gate": true,
+      "human_approved": true
     },
     {
       "id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",
