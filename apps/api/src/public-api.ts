@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { createHash } from "node:crypto";
 import {
   getAgentPresenterBriefForFixture,
   type AgentPresenterEventImpactHint,
@@ -53,6 +54,7 @@ type PublicFixtureRow = {
   createdAt?: Date | null;
   updatedAt?: Date | null;
   __signals?: PublicCatalogSignals;
+  catalogIdentity?: string;
 };
 
 type PublicCatalogSignals = {
@@ -126,6 +128,7 @@ type PublicApiDbClient = {
 
 export type PublicMatchSummary = {
   fixture_id: string;
+  catalog_identity: string;
   competition: string | null;
   home_team: string | null;
   away_team: string | null;
@@ -196,6 +199,14 @@ export type PublicMatchesResponse = {
     snapshot_at?: string;
     cursor_version?: number;
     data_status?: "complete" | "partial" | "unavailable";
+    source_rows_scanned?: number;
+    representatives_returned?: number;
+    duplicate_rows_suppressed?: number;
+    lifecycle_rows_excluded?: number;
+    cursor_rows_excluded?: number;
+    earliest_returned_start?: string | null;
+    latest_returned_start?: string | null;
+    missing_day_warnings?: string[];
   };
 };
 
@@ -716,15 +727,54 @@ function decodePublicSeekCursor(value: string | undefined, range: PublicMatchesR
   }
 }
 
-function normalizedCatalogText(value: string | null): string {
+function normalizedCatalogText(value: string | null | undefined): string {
   return (value ?? "").normalize("NFKC").trim().toLocaleLowerCase().replace(/\s+/g, " ");
 }
 
-function fixtureCatalogKey(fixture: PublicFixtureRow): string {
+function fixtureCatalogBaseKey(fixture: PublicFixtureRow): string {
   if (fixture.competition === null || fixture.homeTeam === null || fixture.awayTeam === null) return `incomplete|${fixture.fixtureId}`;
-  const start = fixture.startTimeUtc?.getTime();
-  const bucket = start === undefined || !Number.isFinite(start) ? "unknown" : String(Math.floor(start / 300_000));
-  return [normalizedCatalogText(fixture.sport ?? "soccer"), normalizedCatalogText(fixture.competition), normalizedCatalogText(fixture.homeTeam), normalizedCatalogText(fixture.awayTeam), normalizedCatalogText(fixture.stage ?? ""), bucket].join("|");
+  return [
+    normalizedCatalogText(fixture.sport ?? "soccer"),
+    normalizedCatalogText(fixture.competition),
+    normalizedCatalogText(fixture.homeTeam),
+    normalizedCatalogText(fixture.awayTeam)
+  ].join("|");
+}
+
+function fixtureCatalogStage(fixture: PublicFixtureRow): string {
+  return normalizedCatalogText(fixture.stage);
+}
+
+function fixtureStartMs(fixture: PublicFixtureRow): number | null {
+  const value = fixture.startTimeUtc?.getTime() ?? null;
+  return value !== null && Number.isFinite(value) ? value : null;
+}
+
+function publicCatalogIdentity(fixture: PublicFixtureRow): string {
+  if (fixture.catalogIdentity !== undefined) return fixture.catalogIdentity;
+  const start = fixtureStartMs(fixture);
+  // This is only an opaque public identity hint. Actual duplicate matching is
+  // interval-based below; rounding must never be used as the match condition.
+  const canonicalStart = start === null ? "unknown" : String(Math.round(start / 300_000));
+  return `mc_${createHash("sha256").update([fixtureCatalogBaseKey(fixture), fixtureCatalogStage(fixture), canonicalStart].join("|"), "utf8").digest("hex").slice(0, 24)}`;
+}
+
+function hasConflictingScoreEvidence(left: PublicFixtureRow, right: PublicFixtureRow): boolean {
+  const leftSignals = left.__signals;
+  const rightSignals = right.__signals;
+  if (leftSignals?.home_score !== null && leftSignals?.home_score !== undefined &&
+    rightSignals?.home_score !== null && rightSignals?.home_score !== undefined &&
+    leftSignals.home_score !== rightSignals.home_score) return true;
+  if (leftSignals?.away_score !== null && leftSignals?.away_score !== undefined &&
+    rightSignals?.away_score !== null && rightSignals?.away_score !== undefined &&
+    leftSignals.away_score !== rightSignals.away_score) return true;
+  return false;
+}
+
+function hasConflictingLifecycleEvidence(left: PublicFixtureRow, right: PublicFixtureRow): boolean {
+  const leftLifecycle = left.__signals?.lifecycle ?? resolveMatchLifecycle({ providerStatus: left.status, startTimeUtc: left.startTimeUtc });
+  const rightLifecycle = right.__signals?.lifecycle ?? resolveMatchLifecycle({ providerStatus: right.status, startTimeUtc: right.startTimeUtc });
+  return (leftLifecycle.is_terminal && lifecycleIsLive(rightLifecycle)) || (rightLifecycle.is_terminal && lifecycleIsLive(leftLifecycle));
 }
 
 function chooseCatalogRepresentative(current: PublicFixtureRow, candidate: PublicFixtureRow): PublicFixtureRow {
@@ -746,24 +796,43 @@ function chooseCatalogRepresentative(current: PublicFixtureRow, candidate: Publi
 }
 
 function deduplicatePublicFixtures(fixtures: PublicFixtureRow[]): { fixtures: PublicFixtureRow[]; deduplicatedCount: number } {
-  const representatives = new Map<string, PublicFixtureRow>();
+  const clusters = new Map<string, Array<{ fixtures: PublicFixtureRow[]; minStart: number; maxStart: number }>>();
   for (const fixture of fixtures) {
-    const key = fixtureCatalogKey(fixture);
-    const current = representatives.get(key);
-    if (current === undefined) {
-      representatives.set(key, fixture);
-      continue;
+    const baseKey = fixtureCatalogBaseKey(fixture);
+    const start = fixtureStartMs(fixture);
+    const stage = fixtureCatalogStage(fixture);
+    const candidates = clusters.get(baseKey) ?? [];
+    let matched: { fixtures: PublicFixtureRow[]; minStart: number; maxStart: number } | undefined;
+    if (start !== null) {
+      matched = candidates.find((cluster) => {
+        if (cluster.minStart === Number.NEGATIVE_INFINITY || cluster.maxStart === Number.POSITIVE_INFINITY) return false;
+        if (start - cluster.minStart > 5 * 60_000 || cluster.maxStart - start > 5 * 60_000) return false;
+        return cluster.fixtures.every((member) => {
+          const memberStage = fixtureCatalogStage(member);
+          const stageConflict = stage !== "" && memberStage !== "" && stage !== memberStage;
+          return !stageConflict && !hasConflictingScoreEvidence(member, fixture) && !hasConflictingLifecycleEvidence(member, fixture);
+        });
+      });
     }
-    const currentLifecycle = current.__signals?.lifecycle ?? resolveMatchLifecycle({ providerStatus: current.status, startTimeUtc: current.startTimeUtc });
-    const candidateLifecycle = fixture.__signals?.lifecycle ?? resolveMatchLifecycle({ providerStatus: fixture.status, startTimeUtc: fixture.startTimeUtc });
-    const conflictingEvidence = (currentLifecycle.is_terminal && lifecycleIsLive(candidateLifecycle)) || (candidateLifecycle.is_terminal && lifecycleIsLive(currentLifecycle));
-    if (conflictingEvidence) {
-      representatives.set(`${key}|${fixture.fixtureId}`, fixture);
+    if (matched === undefined) {
+      const cluster = { fixtures: [fixture], minStart: start ?? Number.NEGATIVE_INFINITY, maxStart: start ?? Number.POSITIVE_INFINITY };
+      candidates.push(cluster);
+      clusters.set(baseKey, candidates);
     } else {
-      representatives.set(key, chooseCatalogRepresentative(current, fixture));
+      matched.fixtures.push(fixture);
+      matched.minStart = Math.min(matched.minStart, start ?? matched.minStart);
+      matched.maxStart = Math.max(matched.maxStart, start ?? matched.maxStart);
     }
   }
-  return { fixtures: [...representatives.values()], deduplicatedCount: Math.max(0, fixtures.length - representatives.size) };
+  const representatives: PublicFixtureRow[] = [];
+  for (const groups of clusters.values()) {
+    for (const cluster of groups) {
+      const representative = cluster.fixtures.reduce((current, candidate) => chooseCatalogRepresentative(current, candidate));
+      representative.catalogIdentity = publicCatalogIdentity(representative);
+      representatives.push(representative);
+    }
+  }
+  return { fixtures: representatives, deduplicatedCount: Math.max(0, fixtures.length - representatives.length) };
 }
 
 function lifecyclePriority(lifecycle: ReturnType<typeof resolveMatchLifecycle>): number {
@@ -804,6 +873,18 @@ function fixtureIsAfterCursor(fixture: PublicFixtureRow, cursor: PublicSeekCurso
   const cursorSecondary = cursor.secondary_sort_value ?? (direction < 0 ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY);
   if (secondary !== cursorSecondary) return direction < 0 ? secondary < cursorSecondary : secondary > cursorSecondary;
   return direction < 0 ? fixture.fixtureId < cursor.fixture_id : fixture.fixtureId > cursor.fixture_id;
+}
+
+function missingUpcomingDayWarnings(fixtures: PublicFixtureRow[], now: Date): string[] {
+  const horizon = Math.max(1, Math.min(31, Math.trunc(Number(process.env.MATCHPULSE_DISCOVERY_FUTURE_DAYS) || 14)));
+  const days = new Set(fixtures.map((fixture) => {
+    const start = fixture.startTimeUtc?.getTime();
+    return start === undefined || !Number.isFinite(start) ? null : Math.floor(start / 86_400_000);
+  }).filter((day): day is number => day !== null));
+  const today = Math.floor(now.getTime() / 86_400_000);
+  return Array.from({ length: horizon + 1 }, (_, offset) => today + offset)
+    .filter((day) => !days.has(day))
+    .map((day) => new Date(day * 86_400_000).toISOString().slice(0, 10));
 }
 
 function isStateStale(state: CanonicalMatchState, staleAfterMinutes: number, now: Date): boolean {
@@ -933,6 +1014,7 @@ export function buildPublicMatchSummary(
   });
   const output: PublicMatchSummary = {
     fixture_id: state.fixture_id,
+    catalog_identity: publicCatalogIdentity({ fixtureId: state.fixture_id, competition: state.identity.competition, homeTeam: state.identity.home_team, awayTeam: state.identity.away_team, startTimeUtc: state.identity.start_time_utc === null ? null : new Date(state.identity.start_time_utc), status: state.identity.status }),
     competition: state.identity.competition,
     home_team: state.identity.home_team,
     away_team: state.identity.away_team,
@@ -1370,6 +1452,7 @@ function buildPublicMatchSummaryBase(input: {
   } satisfies Record<keyof PublicMatchSummary["availability"], PublicAvailabilityStatus>;
   return sanitizeAndAssertPublicPayload({
     fixture_id: input.fixture.fixtureId,
+    catalog_identity: input.fixture.catalogIdentity ?? publicCatalogIdentity(input.fixture),
     competition: input.fixture.competition,
     home_team: input.fixture.homeTeam,
     away_team: input.fixture.awayTeam,
@@ -1693,7 +1776,15 @@ export function registerPublicApiRoutes(
           scanned_count: scan.scanned_count,
           snapshot_at: scan.snapshot_at,
           cursor_version: 2,
-          data_status: data.length === visibleFixtures.length && !scan.scan_budget_exhausted ? "complete" as const : "partial" as const
+          data_status: data.length === visibleFixtures.length && !scan.scan_budget_exhausted ? "complete" as const : "partial" as const,
+          source_rows_scanned: scan.scanned_count,
+          representatives_returned: sorted.length,
+          duplicate_rows_suppressed: deduplicated.deduplicatedCount,
+          lifecycle_rows_excluded: Math.max(0, enriched.length - rangeCandidates.length),
+          cursor_rows_excluded: Math.max(0, sorted.length - afterCursor.length),
+          earliest_returned_start: visibleFixtures[0]?.startTimeUtc?.toISOString() ?? null,
+          latest_returned_start: visibleFixtures[visibleFixtures.length - 1]?.startTimeUtc?.toISOString() ?? null,
+          missing_day_warnings: normalized.range === "upcoming" ? missingUpcomingDayWarnings(sorted, effectiveNow) : []
         }
       };
     } catch (error) {

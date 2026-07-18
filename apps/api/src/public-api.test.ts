@@ -1144,6 +1144,7 @@ test("public upcoming range filters before bounded take and returns nearest futu
     assert.deepEqual(Object.keys(body.data[0]).sort(), [
       "availability",
       "away_team",
+      "catalog_identity",
       "competition",
       "fixture_id",
       "home_team",
@@ -1307,6 +1308,7 @@ test("public matches list can include compact insight summaries when includeInsi
     assert.equal(response.statusCode, 200);
     assert.deepEqual(response.json().data, [{
       fixture_id: "17952170",
+      catalog_identity: "mc_0ccfcc39792bdc49f54fd19f",
       competition: "Friendlies",
       home_team: "Slovenia",
       away_team: "Cyprus",
@@ -1898,6 +1900,47 @@ test("catalog deduplicates equivalent source fixtures before cursor pagination",
     assert.deepEqual(first.json().data.map((item: { fixture_id: string }) => item.fixture_id), ["duplicate-strong"]);
     const second = await app.inject({ method: "GET", url: `/api/public/matches?range=upcoming&limit=1&cursor=${encodeURIComponent(first.json().meta.next_cursor)}` });
     assert.deepEqual(second.json().data.map((item: { fixture_id: string }) => item.fixture_id), ["next-match"]);
+    await app.close();
+  });
+});
+
+test("catalog deduplicates across a five-minute bucket boundary using interval evidence", async () => {
+  await withDatabaseUrl(async () => {
+    const now = new Date("2026-07-18T12:00:00.000Z");
+    const rows: PublicFixtureRow[] = [
+      { fixtureId: "boundary-1459", competition: "Cup", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-18T14:59:00.000Z"), status: "Scheduled" },
+      { fixtureId: "boundary-1501", competition: "Cup", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-18T15:01:00.000Z"), status: "Scheduled" }
+    ];
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => ({ fixture: { findMany: async () => rows }, matchState: { findUnique: async () => null }, oddsSnapshot: { count: async () => 0 } }),
+      getDbBackedMatchState: async () => makeState(),
+      now: () => now
+    });
+    const response = await app.inject({ method: "GET", url: "/api/public/matches?range=upcoming&limit=10" });
+    assert.equal(response.json().data.length, 1);
+    assert.equal(response.json().meta.deduplicated_count, 1);
+    assert.match(response.json().data[0].catalog_identity, /^mc_[a-f0-9]{24}$/);
+    await app.close();
+  });
+});
+
+test("catalog keeps same-team fixtures separate when the interval exceeds tolerance or evidence conflicts", async () => {
+  await withDatabaseUrl(async () => {
+    const now = new Date("2026-07-18T12:00:00.000Z");
+    const rows: PublicFixtureRow[] = [
+      { fixtureId: "real-a", competition: "Cup", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-18T15:00:00.000Z"), status: "Scheduled" },
+      { fixtureId: "real-b", competition: "Cup", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-18T15:04:00.000Z"), status: "Scheduled" },
+      { fixtureId: "real-c", competition: "Cup", homeTeam: "A", awayTeam: "B", startTimeUtc: new Date("2026-07-18T15:08:00.000Z"), status: "Scheduled" }
+    ];
+    const app = Fastify();
+    registerPublicApiRoutes(app, {
+      getDbClient: () => ({ fixture: { findMany: async () => rows }, matchState: { findUnique: async () => null, findMany: async () => [] }, oddsSnapshot: { count: async () => 0, groupBy: async () => [] } }),
+      now: () => now
+    });
+    const response = await app.inject({ method: "GET", url: "/api/public/matches?range=upcoming&limit=10" });
+    assert.equal(response.json().data.length, 2);
+    assert.equal(response.json().meta.deduplicated_count, 1);
     await app.close();
   });
 });

@@ -11,6 +11,7 @@ import {
   type PublicMatchSummary,
   type PublicStatus
 } from "../../lib/public-api";
+import { localCalendarDayKey, localCalendarDayLabel } from "../../lib/local-calendar";
 
 type MatchRange = "all" | "live" | "starting_soon" | "upcoming" | "recently_finished" | "interrupted";
 type Phase = "loading" | "loaded" | "error";
@@ -32,14 +33,6 @@ const REFRESH_MS: Record<MatchRange, number> = {
   interrupted: 300_000,
   all: 60_000
 };
-
-function localDate(value: string | null): string {
-  if (value === null) return "Date unavailable";
-  const parsed = new Date(value);
-  return Number.isFinite(parsed.getTime())
-    ? new Intl.DateTimeFormat(undefined, { dateStyle: "full" }).format(parsed)
-    : "Date unavailable";
-}
 
 function localTime(value: string | null): string {
   if (value === null) return "Start time unavailable";
@@ -157,9 +150,9 @@ export default function MatchesBrowser() {
       return;
     }
     setMatches((current) => {
-      const byId = new Map(current.map((match) => [match.fixture_id, match]));
-      for (const match of result.data ?? []) byId.set(match.fixture_id, match);
-      return [...byId.values()];
+      const byIdentity = new Map(current.map((match) => [match.catalog_identity || match.fixture_id, match]));
+      for (const match of result.data ?? []) byIdentity.set(match.catalog_identity || match.fixture_id, match);
+      return [...byIdentity.values()];
     });
     setMeta(result.meta);
     setNextCursor(result.meta?.next_cursor ?? null);
@@ -169,10 +162,14 @@ export default function MatchesBrowser() {
   const groupedMatches = useMemo(() => {
     const groups = new Map<string, PublicMatchSummary[]>();
     for (const match of matches) {
-      const key = localDate(match.start_time_utc);
+      const key = localCalendarDayKey(match.start_time_utc);
       groups.set(key, [...(groups.get(key) ?? []), match]);
     }
-    return [...groups.entries()];
+    return [...groups.entries()].map(([key, grouped]) => [key, [...grouped].sort((left, right) => {
+      const leftStart = left.start_time_utc === null ? Number.POSITIVE_INFINITY : Date.parse(left.start_time_utc);
+      const rightStart = right.start_time_utc === null ? Number.POSITIVE_INFINITY : Date.parse(right.start_time_utc);
+      return leftStart - rightStart || left.catalog_identity.localeCompare(right.catalog_identity);
+    })] as [string, PublicMatchSummary[]]);
   }, [matches]);
 
   return (
@@ -208,7 +205,7 @@ export default function MatchesBrowser() {
         <div>
           {groupedMatches.map(([date, dateMatches]) => (
             <section key={date} aria-labelledby={`matches-${date}`}>
-              <h2 id={`matches-${date}`}>{date}</h2>
+              <h2 id={`matches-${date}`}>{localCalendarDayLabel(dateMatches[0]?.start_time_utc ?? null, new Date(clock))}</h2>
               <div className="grid match-card-grid">
                 {dateMatches.map((match) => (
                   <Link className="card match-card" href={`/matches/${match.fixture_id}`} key={match.fixture_id}>

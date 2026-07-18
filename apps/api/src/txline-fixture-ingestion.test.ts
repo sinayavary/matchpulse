@@ -132,6 +132,9 @@ test("fixture discovery window covers configured backfill and future horizon wit
   assert.deepEqual(requestedDays, result.coverage.requested_epoch_days);
   assert.equal(result.coverage.future_horizon_days, 14);
   assert.deepEqual(result.coverage.attempted_epoch_days, result.coverage.requested_epoch_days);
+  assert.equal(result.coverage.daily_coverage.length, 16);
+  assert.equal(result.coverage.daily_coverage.filter((day) => day.status === "failed").length, 8);
+  assert.equal(result.coverage.daily_coverage.filter((day) => day.status === "no_data").length, 8);
 });
 
 test("fixture discovery retries a rate-limited day with Retry-After and continues the window", async () => {
@@ -153,6 +156,8 @@ test("fixture discovery retries a rate-limited day with Retry-After and continue
   assert.equal(calls, 2);
   assert.equal(result.coverage.retry_count, 1);
   assert.deepEqual(result.coverage.rate_limited_epoch_days, [20652]);
+  assert.equal(result.coverage.daily_coverage[0]?.attempts, 2);
+  assert.equal(result.coverage.daily_coverage[0]?.status, "no_data");
   assert.ok(waits.some((ms) => ms >= 2_000));
 });
 

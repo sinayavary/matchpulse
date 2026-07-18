@@ -50,6 +50,19 @@ export type FixtureDiscoveryCoverage = {
   fixtures_unchanged: number;
   next_near_discovery_at: string | null;
   next_far_discovery_at: string | null;
+  daily_coverage: FixtureDiscoveryDayCoverage[];
+};
+
+export type FixtureDiscoveryDayCoverage = {
+  epoch_day: number;
+  calendar_date_utc: string;
+  attempts: number;
+  last_attempt_at: string | null;
+  last_success_at: string | null;
+  fixture_count: number;
+  status: "pending" | "success" | "no_data" | "retry_scheduled" | "rate_limited" | "failed";
+  safe_error_code: string | null;
+  retry_at: string | null;
 };
 
 export type FixtureDiscoveryWindowInput = {
@@ -251,7 +264,7 @@ function epochDay(date: Date): number {
   return Math.floor(date.getTime() / 86_400_000);
 }
 
-function reconciliationText(value: string | null): string {
+function reconciliationText(value: string | null | undefined): string {
   return (value ?? "").normalize("NFKC").trim().toLocaleLowerCase().replace(/\s+/g, " ");
 }
 
@@ -262,20 +275,39 @@ export function buildFixtureCatalogReconciliationReport(
   const selected = options.competition === undefined
     ? rows
     : rows.filter((row) => reconciliationText(row.competition) === reconciliationText(options.competition ?? null));
-  const groups = new Map<string, FixtureCatalogReconciliationInput[]>();
+  const groups = new Map<string, Array<{ rows: FixtureCatalogReconciliationInput[]; minStart: number; maxStart: number }>>();
   for (const row of selected) {
     const start = row.startTimeUtc?.getTime();
-    const bucket = start === undefined || start === null || !Number.isFinite(start) ? "unknown" : String(Math.floor(start / 300_000));
-    const key = [reconciliationText(row.sport ?? "soccer"), reconciliationText(row.competition), reconciliationText(row.homeTeam), reconciliationText(row.awayTeam), reconciliationText(row.stage ?? ""), bucket].join("|");
-    groups.set(key, [...(groups.get(key) ?? []), row]);
+    const key = row.competition === null || row.homeTeam === null || row.awayTeam === null
+      ? `incomplete|${row.fixtureId}`
+      : [reconciliationText(row.sport ?? "soccer"), reconciliationText(row.competition), reconciliationText(row.homeTeam), reconciliationText(row.awayTeam)].join("|");
+    const candidates = groups.get(key) ?? [];
+    const stage = reconciliationText(row.stage);
+    const matched = start !== undefined && start !== null && Number.isFinite(start)
+      ? candidates.find((cluster) => cluster.minStart !== Number.NEGATIVE_INFINITY && cluster.maxStart !== Number.POSITIVE_INFINITY &&
+        start - cluster.minStart <= 5 * 60_000 && cluster.maxStart - start <= 5 * 60_000 &&
+        cluster.rows.every((member) => {
+          const memberStage = reconciliationText(member.stage);
+          return stage === "" || memberStage === "" || stage === memberStage;
+        }))
+      : undefined;
+    if (matched === undefined) {
+      candidates.push({ rows: [row], minStart: start ?? Number.NEGATIVE_INFINITY, maxStart: start ?? Number.POSITIVE_INFINITY });
+      groups.set(key, candidates);
+    } else {
+      matched.rows.push(row);
+      matched.minStart = Math.min(matched.minStart, start as number);
+      matched.maxStart = Math.max(matched.maxStart, start as number);
+    }
   }
   let highConfidence = 0;
   let ambiguous = 0;
   let unchanged = 0;
-  for (const group of groups.values()) {
-    if (group.length === 1) unchanged += 1;
+  const clusters = [...groups.values()].flat();
+  for (const cluster of clusters) {
+    if (cluster.rows.length === 1) unchanged += 1;
     else {
-      const hasCompleteIdentity = group.every((row) => row.competition !== null && row.homeTeam !== null && row.awayTeam !== null);
+      const hasCompleteIdentity = cluster.rows.every((row) => row.competition !== null && row.homeTeam !== null && row.awayTeam !== null);
       if (hasCompleteIdentity) highConfidence += 1;
       else ambiguous += 1;
     }
@@ -288,10 +320,10 @@ export function buildFixtureCatalogReconciliationReport(
     rows_scanned: selected.length,
     lifecycle_corrections: lifecycleCorrections,
     status_corrections: statusCorrections,
-    duplicate_candidate_groups: [...groups.values()].filter((group) => group.length > 1).length,
+    duplicate_candidate_groups: clusters.filter((group) => group.rows.length > 1).length,
     high_confidence_duplicates: highConfidence,
     ambiguous_groups: ambiguous,
-    representatives_selected: groups.size,
+    representatives_selected: clusters.length,
     rows_unchanged: unchanged,
     errors: 0,
     source_rows_deleted: 0
@@ -332,15 +364,32 @@ export async function ingestTxlineFixtureDiscoveryWindow({
     fixtures_failed: 0,
     fixtures_unchanged: 0,
     next_near_discovery_at: null,
-    next_far_discovery_at: null
+    next_far_discovery_at: null,
+    daily_coverage: requested.map((day) => ({
+      epoch_day: day,
+      calendar_date_utc: new Date(day * 86_400_000).toISOString().slice(0, 10),
+      attempts: 0,
+      last_attempt_at: null,
+      last_success_at: null,
+      fixture_count: 0,
+      status: "pending" as const,
+      safe_error_code: null,
+      retry_at: null
+    }))
   };
   const discoveredFixtures: IngestedFixture[] = [];
 
   for (const day of requested) {
     coverage.attempted_epoch_days.push(day);
+    const dayCoverage = coverage.daily_coverage.find((entry) => entry.epoch_day === day);
+    if (dayCoverage !== undefined) {
+      dayCoverage.attempts = 1;
+      dayCoverage.last_attempt_at = new Date().toISOString();
+      dayCoverage.status = "pending";
+    }
     let dayWasRateLimited = false;
+    let attempt = 0;
     try {
-      let attempt = 0;
       const maxRetries = Math.max(0, Math.trunc(retries ?? nonNegativeEnvInteger("MATCHPULSE_DISCOVERY_RETRIES", 3)));
       const result = await ingestTxlineFixtures({
         competitionId,
@@ -365,6 +414,13 @@ export async function ingestTxlineFixtureDiscoveryWindow({
       });
       coverage.successful_epoch_days.push(day);
       if (dayWasRateLimited) coverage.rate_limited_epoch_days.push(day);
+      if (dayCoverage !== undefined) {
+        dayCoverage.attempts = attempt + 1;
+        dayCoverage.fixture_count = result.fetchedCount;
+        dayCoverage.last_success_at = new Date().toISOString();
+        dayCoverage.status = result.fetchedCount === 0 ? "no_data" : "success";
+        dayCoverage.safe_error_code = null;
+      }
       coverage.fixtures_discovered += result.fetchedCount;
       coverage.fixtures_upserted += result.upsertedCount;
       coverage.fixtures_skipped += result.skippedCount;
@@ -378,6 +434,12 @@ export async function ingestTxlineFixtureDiscoveryWindow({
     } catch (error) {
       coverage.failed_epoch_days.push(day);
       if (isRateLimited(error) || dayWasRateLimited) coverage.rate_limited_epoch_days.push(day);
+      if (dayCoverage !== undefined) {
+        dayCoverage.attempts = attempt + 1;
+        dayCoverage.status = isRateLimited(error) || dayWasRateLimited ? "rate_limited" : "failed";
+        dayCoverage.safe_error_code = isRateLimited(error) || dayWasRateLimited ? "UPSTREAM_RATE_LIMITED" : "UPSTREAM_DISCOVERY_FAILED";
+        dayCoverage.retry_at = new Date(Date.now() + nearInterval).toISOString();
+      }
     }
     const isNear = day <= epochDay(now) + 1;
     await wait(isNear ? nearInterval : farInterval);

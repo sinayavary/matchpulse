@@ -17,6 +17,14 @@ export type ApiMeta = {
   snapshot_at?: string;
   cursor_version?: number;
   data_status?: "complete" | "partial" | "unavailable";
+  source_rows_scanned?: number;
+  representatives_returned?: number;
+  duplicate_rows_suppressed?: number;
+  lifecycle_rows_excluded?: number;
+  cursor_rows_excluded?: number;
+  earliest_returned_start?: string | null;
+  latest_returned_start?: string | null;
+  missing_day_warnings?: string[];
 };
 
 export type PublicStatus = {
@@ -66,6 +74,7 @@ export type PublicFreshness = {
 
 export type PublicMatchSummary = {
   fixture_id: string;
+  catalog_identity: string;
   competition: string | null;
   home_team: string | null;
   away_team: string | null;

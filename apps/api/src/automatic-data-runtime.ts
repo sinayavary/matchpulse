@@ -99,6 +99,7 @@ function emptyDiscoveryCoverage(futureDays: number, backfillDays: number): Fixtu
     earliest_discovered_start: null, latest_discovered_start: null, future_horizon_days: futureDays,
     fixtures_discovered: 0, fixtures_upserted: 0, fixtures_skipped: 0, fixtures_failed: 0,
     fixtures_unchanged: 0, next_near_discovery_at: null, next_far_discovery_at: null,
+    daily_coverage: [],
     discovery_backfill_days: backfillDays
   };
 }
@@ -115,6 +116,7 @@ function mergeDiscoveryCoverage(target: FixtureDiscoveryCoverage, next: FixtureD
   target.fixtures_skipped += next.fixtures_skipped;
   target.fixtures_failed += next.fixtures_failed;
   target.fixtures_unchanged += next.fixtures_unchanged;
+  target.daily_coverage.push(...next.daily_coverage);
   if (next.earliest_discovered_start !== null && (target.earliest_discovered_start === null || next.earliest_discovered_start < target.earliest_discovered_start)) target.earliest_discovered_start = next.earliest_discovered_start;
   if (next.latest_discovered_start !== null && (target.latest_discovered_start === null || next.latest_discovered_start > target.latest_discovered_start)) target.latest_discovered_start = next.latest_discovered_start;
 }

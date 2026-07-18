@@ -865,13 +865,18 @@ The current Matches catalog supersedes the earlier range/pagination description 
 
 Supported ranges are `live`, `starting_soon`, `upcoming`, `recently_finished`, `interrupted`, and `all`. The legacy `past` value remains accepted and maps to recently-finished behavior. The list endpoint accepts an opaque versioned `cursor`; clients must not parse or manufacture it.
 
-Filtering, lifecycle classification, canonical deduplication, and deterministic sorting happen before `limit` and cursor pagination. Sorting uses kickoff time plus `fixture_id` as a tie-breaker. `meta` includes `next_cursor`, `has_more`, `range`, `generated_at`, `result_count`, `deduplicated_count`, and `data_status`.
+Filtering, lifecycle classification, canonical deduplication, and deterministic sorting happen before `limit` and cursor pagination. Each list item includes an opaque `catalog_identity`; it is safe for client deduplication and contains no provider lineage. Sorting uses kickoff time plus the opaque catalog identity and provider fixture ID as deterministic tie-breakers. `meta` includes `next_cursor`, `has_more`, `range`, `generated_at`, `result_count`, `deduplicated_count`, and `data_status`.
 
 The reliability-v2 scanner reads database pages of at most 250 rows and continues until the
 requested snapshot is exhausted or its explicit bounded scan budget is reached; it has no
 hard `take:10000` catalog ceiling. Metadata additionally exposes `scanned_count`,
 `snapshot_at`, and `cursor_version`. The cursor contains the range, snapshot, direction,
 primary/secondary sort values, and fixture tie-breaker and is opaque to clients.
+
+Safe catalog diagnostics may additionally include `source_rows_scanned`,
+`representatives_returned`, `duplicate_rows_suppressed`, `lifecycle_rows_excluded`,
+`cursor_rows_excluded`, `earliest_returned_start`, `latest_returned_start`, and
+`missing_day_warnings`. These are diagnostic metadata, not provider payloads.
 
 Every list item includes a lifecycle object (`lifecycle`, `source`, `reason_code`, `normalized_phase`, `is_active`, `is_terminal`, `updated_at`) and availability objects for score, odds, and events. Availability is one of `available`, `not_expected_yet`, `not_attempted`, `upstream_no_data`, `stale`, `upstream_error`, or `unsupported`.
 
