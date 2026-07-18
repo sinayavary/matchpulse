@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "MATCHES-CATALOG-RELIABILITY-C",
+  "active_phase_id": "MATCHES-PRODUCTION-DEFECT-ERADICATION-A",
   "updated_at": "2026-07-18T00:00:00Z",
   "items": [
     {
@@ -93,6 +93,17 @@
       "human_gate": true,
       "resume_after": "PROD-LIVE-E2E-ACCEPTANCE-B",
       "reason": "successor remediation of the review-rejected B completion; no other phase is activated"
+    },
+    {
+      "id": "MATCHES-PRODUCTION-DEFECT-ERADICATION-A",
+      "title": "Production-visible Matches defect eradication",
+      "status": "ready",
+      "depends_on": ["MATCHES-CATALOG-RELIABILITY-C"],
+      "pack_version": "MATCHES-PRODUCTION-DEFECT-ERADICATION-A-v1",
+      "baseline_commit": "7d99b1d59f1c5811943553cb4226cf05e62fac7a",
+      "human_gate": true,
+      "resume_after": "PROD-LIVE-E2E-ACCEPTANCE-B",
+      "reason": "human-authorized read-only production defect investigation and implementation successor"
     },
     {
       "id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",

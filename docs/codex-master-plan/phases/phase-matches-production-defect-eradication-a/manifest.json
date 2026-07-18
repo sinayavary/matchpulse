@@ -1,0 +1,46 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "MATCHES-PRODUCTION-DEFECT-ERADICATION-A",
+  "pack_version": "MATCHES-PRODUCTION-DEFECT-ERADICATION-A-v1",
+  "baseline_commit": "7d99b1d59f1c5811943553cb4226cf05e62fac7a",
+  "allowed_target_files": [
+    "apps/api/src/automatic-data-runtime.test.ts",
+    "apps/api/src/automatic-data-runtime.ts",
+    "apps/api/src/public-api.test.ts",
+    "apps/api/src/public-api.ts",
+    "apps/api/src/txline-fixture-ingestion.test.ts",
+    "apps/api/src/txline-fixture-ingestion.ts",
+    "apps/api/src/txline-normalizer.test.ts",
+    "apps/api/src/txline-normalizer.ts",
+    "apps/worker/src/index.ts",
+    "apps/web/components/matches/MatchesBrowser.tsx",
+    "apps/web/lib/public-api.ts",
+    "docs/matches-production-defect-audit.md",
+    "docs/matches-production-defect-provenance.md",
+    "docs/operations/matches-production-verification.md",
+    "docs/operations/matches-reconciliation-dry-run.md",
+    "docs/public-api-contract.md"
+  ],
+  "required_validation_commands": [
+    "production version verification contract or read-only evidence",
+    "duplicate boundary, lifecycle, discovery gap, retry, pagination, timezone, and Web grouping tests",
+    "full API regression",
+    "full Worker regression",
+    "Web typecheck and production build",
+    "API and Worker typecheck",
+    "Prisma validate",
+    "Prisma diff",
+    "git diff --check",
+    "forbidden public-field scan"
+  ],
+  "expected_results": [
+    "duplicate cards are suppressed by canonical public identity with bounded confidence matching",
+    "tomorrow and missing discovery days are traceable to an explicit upstream or pipeline cause",
+    "Upcoming is chronological, lifecycle-correct, complete within the configured horizon, and cursor-stable",
+    "Web grouping uses browser-local calendar days without changing API instants",
+    "production verification never claims acceptance without deployed SHA evidence",
+    "no migration, seed, deployment, production write, or fabricated production data"
+  ],
+  "allows_migration": false,
+  "allows_network": false
+}
