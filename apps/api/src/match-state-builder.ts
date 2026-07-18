@@ -1,4 +1,7 @@
 import { getDbClient } from "./db.js";
+import { resolveMatchLifecycle, type MatchLifecycleResult } from "./match-lifecycle.js";
+
+export type CanonicalLifecycleState = Pick<MatchLifecycleResult, "lifecycle" | "source" | "reason_code" | "normalized_phase" | "is_active" | "is_terminal" | "updated_at">;
 
 export type MatchStateBuilderOptions = {
   includeOdds?: boolean;
@@ -41,6 +44,7 @@ export type MatchStateBuilderInput = {
 
 export type CanonicalMatchState = {
   fixture_id: string;
+  lifecycle?: CanonicalLifecycleState;
   identity: {
     fixture_id: string;
     competition: string | null;
@@ -137,9 +141,28 @@ export function buildCanonicalMatchState(input: MatchStateBuilderInput): Canonic
     input.scoreboard?.lastDataReceivedAt ?? null,
     ...odds.map((row) => row.sourceTimestamp)
   ]);
+  const resolvedLifecycle = resolveMatchLifecycle({
+    providerStatus: input.fixture?.status,
+    persistedPhase: input.scoreboard?.phase,
+    startTimeUtc: input.fixture?.startTimeUtc,
+    now: input.builtAt ?? new Date(),
+    captureLeadMinutes: 60,
+    hasScoreOrEventEvidence: hasScoreboard
+  });
+
+  const lifecycle: CanonicalLifecycleState = {
+    lifecycle: resolvedLifecycle.lifecycle,
+    source: resolvedLifecycle.source,
+    reason_code: resolvedLifecycle.reason_code,
+    normalized_phase: resolvedLifecycle.normalized_phase,
+    is_active: resolvedLifecycle.is_active,
+    is_terminal: resolvedLifecycle.is_terminal,
+    updated_at: resolvedLifecycle.updated_at
+  };
 
   return {
     fixture_id: input.fixtureId,
+    lifecycle,
     identity: {
       fixture_id: input.fixtureId,
       competition: input.fixture?.competition ?? null,

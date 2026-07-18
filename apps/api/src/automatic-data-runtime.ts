@@ -6,6 +6,7 @@ import { ingestTxlineFixtures } from "./txline-fixture-ingestion.js";
 import { ingestTxlineScoreSnapshot } from "./txline-score-ingestion.js";
 import { ingestTxlineOddsSnapshot } from "./txline-odds-ingestion.js";
 import { ingestTxlineMatchEvents } from "./txline-event-ingestion.js";
+import { resolveMatchLifecycle } from "./match-lifecycle.js";
 
 export type CompetitionConfig = { competitionId: string; startEpochDay: number };
 export type PollPhase = "upcoming" | "prematch" | "live" | "postmatch" | "finished";
@@ -91,15 +92,19 @@ export function parseCompetitionConfig(value = process.env.MATCHPULSE_COMPETITIO
 }
 
 export function pollPhase(startTime: Date | null, status: string | null, now = new Date(), config: PollConfig = automaticRuntimeConfig()): PollPhase {
-  const token = (status ?? "").toLowerCase();
-  if (["finished", "final", "ft", "completed", "ended"].includes(token)) return "finished";
-  if (["live", "1h", "2h", "ht", "inplay", "in_running", "running"].includes(token)) return "live";
-  if (startTime === null) return "upcoming";
-  const minutes = (startTime.getTime() - now.getTime()) / 60_000;
-  if (minutes > config.leadMinutes) return "upcoming";
-  if (minutes > 0) return "prematch";
-  if (minutes >= -config.tailMinutes) return "postmatch";
-  return "finished";
+  const lifecycle = resolveMatchLifecycle({ providerStatus: status, startTimeUtc: startTime, now, captureLeadMinutes: config.leadMinutes, captureTailMinutes: config.tailMinutes });
+  switch (lifecycle.lifecycle) {
+    case "scheduled": return "upcoming";
+    case "prematch": return "prematch";
+    case "live_first_half":
+    case "halftime":
+    case "live_second_half":
+    case "extra_time":
+    case "penalties":
+    case "unknown_in_progress": return "live";
+    case "finished_unconfirmed": return "postmatch";
+    default: return "finished";
+  }
 }
 
 export function cadenceForPhase(phase: PollPhase, config: PollConfig = automaticRuntimeConfig()): number {

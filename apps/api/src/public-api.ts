@@ -4,6 +4,7 @@ import {
   type AgentPresenterEventImpactHint,
   type AgentPresenterResponse
 } from "./agent-presenter-v0.js";
+import { lifecycleIsLive, lifecycleIsUpcoming, resolveMatchLifecycle, lifecycleIsRecentlyFinished } from "./match-lifecycle.js";
 import { buildDemoReadiness } from "./demo-bundle.js";
 import { getDbClient } from "./db.js";
 import {
@@ -652,6 +653,7 @@ function readStatusToken(state: CanonicalMatchState): string {
 }
 
 function isPastState(state: CanonicalMatchState, now: Date): boolean {
+  if (state.lifecycle) return lifecycleIsRecentlyFinished(state.lifecycle) || state.lifecycle.is_terminal;
   const token = readStatusToken(state);
   if (pastStatusTokens.has(token)) return true;
 
@@ -660,11 +662,13 @@ function isPastState(state: CanonicalMatchState, now: Date): boolean {
 }
 
 function isLiveState(state: CanonicalMatchState): boolean {
+  if (state.lifecycle) return lifecycleIsLive(state.lifecycle);
   const token = readStatusToken(state);
   return liveStatusTokens.has(token);
 }
 
 function isUpcomingState(state: CanonicalMatchState, now: Date): boolean {
+  if (state.lifecycle) return lifecycleIsUpcoming(state.lifecycle);
   if (isLiveState(state) || isPastState(state, now)) return false;
   const startTime = parseTimestamp(state.identity.start_time_utc);
   return startTime === null || startTime >= now.getTime();
@@ -689,10 +693,10 @@ function fixtureMatchesRequestedRange(
   if (range === "all") return true;
   const token = (fixture.status ?? "").trim().toLowerCase();
   const startTime = parseTimestamp(toIsoTimestamp(fixture.startTimeUtc));
-  const isLive = liveStatusTokens.has(token);
-  const isPast = pastStatusTokens.has(token) ||
-    (startTime !== null && startTime < now.getTime() && !isLive);
-  const isUpcoming = !isLive && !isPast;
+  const lifecycle = resolveMatchLifecycle({ providerStatus: fixture.status, startTimeUtc: fixture.startTimeUtc, now, captureLeadMinutes: 60 });
+  const isLive = lifecycleIsLive(lifecycle);
+  const isPast = lifecycleIsRecentlyFinished(lifecycle) || lifecycle.is_terminal;
+  const isUpcoming = lifecycleIsUpcoming(lifecycle);
 
   if (range === "live") return isLive;
   if (range === "past") return isPast;
