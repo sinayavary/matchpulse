@@ -94,7 +94,7 @@ import { registerCompetitionPredictionRoutes } from "./server-competition-predic
 import { registerHistoricalReplayRoute } from "./historical-replay.js";
 import { registerInternalAuthBoundary } from "./internal-auth-boundary.js";
 import { createPrismaServiceAuthResolver } from "./internal-service-identity-store.js";
-import { registerSecurityRoutes } from "./security/security-routes.js";
+import { createPrismaSecurityDependencies, createUnavailableSecurityDependencies, registerSecurityRoutes } from "./security/security-routes.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);
@@ -126,11 +126,17 @@ const readBoolean = (value: unknown): boolean | undefined => {
 const readNumber = (value: unknown): number | undefined =>
   typeof value === "number" ? value : typeof value === "string" ? Number(value) : undefined;
 
+const configuredOrigins = (process.env.CORS_ORIGIN ?? "").split(",").map(value => value.trim()).filter(Boolean);
 await app.register(cors, {
-  origin: process.env.CORS_ORIGIN ?? true
+  origin: configuredOrigins.length ? configuredOrigins : false,
+  methods: ["GET", "POST", "OPTIONS"],
+  credentials: true
 });
 
-registerSecurityRoutes(app);
+const securityDependencies = process.env.DATABASE_URL
+  ? createPrismaSecurityDependencies(getDbClient())
+  : createUnavailableSecurityDependencies();
+registerSecurityRoutes(app, securityDependencies);
 
 app.get("/api/health", async () => ({
   data: { service: "matchpulse-api", ok: true, txline_network: process.env.TXLINE_NETWORK ?? "unknown", service_level_id: Number(process.env.TXLINE_SERVICE_LEVEL_ID ?? 0) },

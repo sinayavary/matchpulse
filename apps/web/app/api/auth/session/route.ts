@@ -1,2 +1,2 @@
-import { NextResponse } from "next/server";
-export async function GET(request: Request) { const cookie = request.headers.get("cookie") ?? ""; return NextResponse.json({ authenticated: cookie.includes("mp_session=") }); }
+import { proxyBackend } from "../../../../lib/backend-auth-proxy";
+export async function GET(request: Request) { return proxyBackend("/api/auth/session", { headers: { cookie: request.headers.get("cookie") ?? "", accept: "application/json" } }); }
