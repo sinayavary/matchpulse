@@ -1,0 +1,22 @@
+openapi: 3.0.3
+info:
+  title: MatchPulse Free Access API
+  version: 1.0.0
+  description: Free read-only sports intelligence API. No payment, billing, subscription, or wallet asset is required.
+servers:
+  - url: https://api.matchpulse.example
+paths:
+  /oauth/token:
+    post:
+      summary: Issue a 600-second opaque access token
+      requestBody:
+        required: true
+        content: { application/x-www-form-urlencoded: { schema: { type: object, required: [grant_type], properties: { grant_type: { type: string, enum: [client_credentials] }, scope: { type: string } } } } }
+      responses: { '200': { description: Token response }, '401': { description: Generic authentication failure } }
+  /api/matches:
+    get:
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Public-safe matches DTO }, '401': { description: Unauthorized }, '429': { description: Fair-use limit } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }

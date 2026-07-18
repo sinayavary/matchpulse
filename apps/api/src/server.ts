@@ -94,6 +94,7 @@ import { registerCompetitionPredictionRoutes } from "./server-competition-predic
 import { registerHistoricalReplayRoute } from "./historical-replay.js";
 import { registerInternalAuthBoundary } from "./internal-auth-boundary.js";
 import { createPrismaServiceAuthResolver } from "./internal-service-identity-store.js";
+import { registerSecurityRoutes } from "./security/security-routes.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);
@@ -128,6 +129,8 @@ const readNumber = (value: unknown): number | undefined =>
 await app.register(cors, {
   origin: process.env.CORS_ORIGIN ?? true
 });
+
+registerSecurityRoutes(app);
 
 app.get("/api/health", async () => ({
   data: { service: "matchpulse-api", ok: true, txline_network: process.env.TXLINE_NETWORK ?? "unknown", service_level_id: Number(process.env.TXLINE_SERVICE_LEVEL_ID ?? 0) },

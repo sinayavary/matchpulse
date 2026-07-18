@@ -1,0 +1,2 @@
+import { NextResponse } from "next/server";
+export async function POST(request: Request) { const body = await request.json(); const origin = process.env.NEXT_PUBLIC_API_ORIGIN ?? "http://localhost:4000"; const result = await fetch(`${origin}/api/auth/wallet/challenge`, { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(body) }); return NextResponse.json(await result.json(), { status: result.status }); }

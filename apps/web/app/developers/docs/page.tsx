@@ -1,0 +1,1 @@
+export default function DeveloperDocsPage() { return <main><h1>MatchPulse Developer API</h1><p>Use client credentials to obtain an opaque 600-second token and request read-only scopes: matches:read, events:read, scenarios:read, historical:read, verification:read, stream:read.</p></main>; }

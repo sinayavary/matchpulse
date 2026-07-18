@@ -1,0 +1,2 @@
+export async function authRequest<T>(path: string, init: RequestInit = {}): Promise<T> { const response = await fetch(`/api/auth/${path}`, { ...init, headers: { "content-type": "application/json", ...(init.headers ?? {}) }, credentials: "include" }); const body = await response.json(); if (!response.ok) throw new Error("The request could not be completed."); return body as T; }
+export const getSession = () => authRequest<{ authenticated: boolean }>("session");

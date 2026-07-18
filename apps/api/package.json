@@ -27,7 +27,8 @@
                     "txline:guest-jwt":  "tsx src/scripts/fetch-guest-jwt.ts",
                     "txline:activation-preflight":  "tsx src/scripts/activation-preflight.ts",
                     "txline:activate-devnet":  "tsx src/scripts/activate-txline-devnet.ts",
-                    "txline:activate-token":  "tsx src/scripts/activate-token-from-txsig.ts"
+                    "txline:activate-token":  "tsx src/scripts/activate-token-from-txsig.ts",
+                    "test:free-access-security":  "prisma generate --schema ../../prisma/schema.prisma && tsx --test src/security/free-access-security.test.ts src/security/api-access-boundary.test.ts src/security/security-routes.test.ts"
                 },
     "dependencies":  {
                          "@coral-xyz/anchor":  "^0.32.1",
@@ -40,12 +41,12 @@
                          "bs58":  "^6.0.0",
                          "dotenv":  "^16.6.1",
                          "fastify":  "^5.2.1",
-                         "zod":  "^3.24.1"
+                    "zod":  "^3.24.1",
+                    "tweetnacl":  "^1.0.3"
                      },
     "devDependencies":  {
                             "prisma":  "^6.0.1",
                             "tsx":  "^4.19.2",
-                            "tweetnacl":  "^1.0.3",
                             "typescript":  "^5.7.2"
                         }
 }
