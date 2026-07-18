@@ -9,10 +9,10 @@ const match = (fixtureId: string, home: string, away: string) => ({
   availability: { score: "not_expected_yet", odds: "not_attempted", events: "not_attempted" }
 });
 
-async function mockPublicApi(page: Page, readiness: "ready" | "degraded" = "ready") {
+async function mockPublicApi(page: Page, readiness: "ready" | "degraded" = "ready", statusData?: unknown) {
   await page.route("**/api/public/**", async (route) => {
     const url = new URL(route.request().url());
-    if (url.pathname === "/api/public/status") return route.fulfill({ json: { data: { service: "matchpulse-api", ok: true, public_api_version: "public-v0", product_ready: readiness === "ready", readiness: { overall: readiness, checked_at: new Date().toISOString(), components: { database: { status: "ready", timestamp: new Date().toISOString(), reason_code: "ok" }, ingestion_worker: { status: readiness, timestamp: null, reason_code: readiness === "ready" ? "ok" : "heartbeat_stale" } } } }, meta: { status: "live", source: "database", mode: "public" } } });
+    if (url.pathname === "/api/public/status") return route.fulfill({ json: { data: statusData ?? { service: "matchpulse-api", ok: true, public_api_version: "public-v0", product_ready: readiness === "ready", readiness: { overall: readiness, checked_at: new Date().toISOString(), components: { database: { status: "ready", timestamp: new Date().toISOString(), reason_code: "ok" }, ingestion_worker: { status: readiness, timestamp: null, reason_code: readiness === "ready" ? "ok" : "heartbeat_stale" } } } }, meta: { status: "live", source: "database", mode: "public" } } });
     if (url.pathname === "/api/public/competitions") return route.fulfill({ json: { data: [{ competition_id: "430", name: "Alpha Cup" }], meta: { status: "live", source: "database", mode: "public" } } });
     if (url.pathname === "/api/public/matches") {
       const second = url.searchParams.has("cursor");
@@ -56,5 +56,12 @@ test("matches exposes degraded reason and safe request errors", async ({ page })
   await page.route("**/api/public/**", (route) => route.abort());
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await expect(page.getByText(/temporarily unavailable/)).toBeVisible();
+});
+
+test("matches tolerates incomplete status metadata", async ({ page }) => {
+  await mockPublicApi(page, "ready", { service: "matchpulse-api", ok: true });
+  await page.goto("/matches");
+  await expect(page.getByText("Alpha vs Beta")).toBeVisible();
+  await expect(page.getByText("readiness: unknown")).toBeVisible();
 });
 
