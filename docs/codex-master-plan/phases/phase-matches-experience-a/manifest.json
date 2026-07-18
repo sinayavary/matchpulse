@@ -2,7 +2,7 @@
   "schema_version": "matchpulse-phase-pack-v1",
   "phase": "MATCHES-EXPERIENCE-A",
   "pack_version": "MATCHES-EXPERIENCE-A-v1",
-  "baseline_commit": "5102320e13d0a25ea2a5b346043acc500ac92e65",
+  "baseline_commit": "fce4916f96f037fa9eb75b2fc7762431c6bca8f1",
   "allowed_target_files": ["apps/api/src/public-api.ts", "apps/api/src/public-api.test.ts", "apps/web/lib/public-api.ts", "apps/web/components/matches/MatchesBrowser.tsx", "apps/web/components/matches/MatchDetailView.tsx", "apps/web/components/matches/MatchesBrowser.test.tsx"],
   "required_validation_commands": ["pnpm.cmd --filter @matchpulse/api test", "pnpm.cmd --filter @matchpulse/web typecheck", "pnpm.cmd --filter @matchpulse/web build", "git diff --check"],
   "expected_results": ["lifecycle filters and cursor pagination are stable", "auto-refresh preserves last valid data", "replay has no future leakage", "public leakage scan passes"],
