@@ -1,0 +1,308 @@
+diff --git a/apps/api/src/prediction-engine-v1.ts b/apps/api/src/prediction-engine-v1.ts
+--- a/apps/api/src/prediction-engine-v1.ts
++++ b/apps/api/src/prediction-engine-v1.ts
+@@ -167,27 +167,26 @@
+   keys: readonly K[],
+   fallback: Record<K, number>,
+ ): Record<K, number> {
+-  const usable = specialists.filter((specialist) => (
+-    specialist.available &&
+-    specialist.assigned_weight > 0 &&
+-    specialist.output?.[outputKey] !== undefined
++  const contributors = specialists.filter((specialist) => (
++    specialist.available && specialist.assigned_weight > 0
+   ));
+ 
+-  if (usable.length === 0) {
++  if (contributors.length === 0) {
+     return structuredClone(fallback);
+   }
+ 
+-  const weightTotal = usable.reduce((sum, specialist) => sum + specialist.assigned_weight, 0);
+   const result = Object.fromEntries(keys.map((key) => [key, 0])) as Record<K, number>;
+ 
+-  for (const specialist of usable) {
+-    const distribution = specialist.output?.[outputKey] as unknown as NumericDistribution;
++  for (const specialist of contributors) {
++    const distribution = (
++      specialist.output?.[outputKey] ?? fallback
++    ) as unknown as NumericDistribution;
+     let distributionTotal = 0;
+     for (const key of keys) {
+       const value = distribution[key];
+       assertUnit(value, `${String(outputKey)}.${key}`);
+       distributionTotal += value;
+-      result[key] += value * specialist.assigned_weight / weightTotal;
++      result[key] += value * specialist.assigned_weight;
+     }
+     if (Math.abs(distributionTotal - 1) > 1e-9) {
+       throw new Error(`${String(outputKey)} specialist distribution must sum to one.`);
+@@ -211,23 +211,19 @@
+   specialists: readonly PredictionSpecialistInput[],
+   fallback: FinalPredictionModelOutput["goal_horizon"],
+ ): FinalPredictionModelOutput["goal_horizon"] {
+-  const usable = specialists.filter((specialist) => (
+-    specialist.available &&
+-    specialist.assigned_weight > 0 &&
+-    specialist.output?.goal_horizon !== undefined
++  const contributors = specialists.filter((specialist) => (
++    specialist.available && specialist.assigned_weight > 0
+   ));
+ 
+-  if (usable.length === 0) return structuredClone(fallback);
++  if (contributors.length === 0) return structuredClone(fallback);
+ 
+-  const weightTotal = usable.reduce((sum, specialist) => sum + specialist.assigned_weight, 0);
+   const raw = { next_5m: 0, next_10m: 0, next_15m: 0 };
+ 
+-  for (const specialist of usable) {
+-    const horizon = specialist.output?.goal_horizon;
+-    if (horizon === undefined) continue;
++  for (const specialist of contributors) {
++    const horizon = specialist.output?.goal_horizon ?? fallback;
+     for (const key of ["next_5m", "next_10m", "next_15m"] as const) {
+       assertUnit(horizon[key], `goal_horizon.${key}`);
+-      raw[key] += horizon[key] * specialist.assigned_weight / weightTotal;
++      raw[key] += horizon[key] * specialist.assigned_weight;
+     }
+   }
+ 
+@@ -244,21 +244,17 @@
+   fallback: FinalPredictionModelOutput["final_score"],
+   maxScorelines: number,
+ ): FinalPredictionModelOutput["final_score"] {
+-  const usable = specialists.filter((specialist) => (
+-    specialist.available &&
+-    specialist.assigned_weight > 0 &&
+-    specialist.output?.final_score !== undefined
++  const contributors = specialists.filter((specialist) => (
++    specialist.available && specialist.assigned_weight > 0
+   ));
+ 
+-  if (usable.length === 0) return structuredClone(fallback);
++  if (contributors.length === 0) return structuredClone(fallback);
+ 
+-  const weightTotal = usable.reduce((sum, specialist) => sum + specialist.assigned_weight, 0);
+   const merged = new Map<string, { home_score: number; away_score: number; probability: number }>();
+ 
+-  for (const specialist of usable) {
+-    const distribution = specialist.output?.final_score;
+-    if (distribution === undefined) continue;
+-    const normalizedWeight = specialist.assigned_weight / weightTotal;
++  for (const specialist of contributors) {
++    const distribution = specialist.output?.final_score ?? fallback;
++    const normalizedWeight = specialist.assigned_weight;
+     assertUnit(distribution.other_probability, "final_score.other_probability");
+     let distributionTotal = distribution.other_probability;
+ 
+diff --git a/apps/api/src/prediction-engine-v1.test.ts b/apps/api/src/prediction-engine-v1.test.ts
+--- a/apps/api/src/prediction-engine-v1.test.ts
++++ b/apps/api/src/prediction-engine-v1.test.ts
+@@ -275,3 +275,45 @@
+     /distribution must sum to one/,
+   );
+ });
++
++test("partial specialist outputs preserve global weights and use fallback mass", () => {
++  const input = baseInput();
++  input.specialists = [
++    {
++      model_role: "live_state",
++      model_version: "state-global-weight-v1",
++      available: true,
++      assigned_weight: 0.9,
++      output_quality: 0.9,
++      limitations: [],
++      output: {
++        final_outcome: { home: 1, draw: 0, away: 0 },
++      },
++    },
++    {
++      model_role: "market",
++      model_version: "market-global-weight-v1",
++      available: true,
++      assigned_weight: 0.1,
++      output_quality: 0.9,
++      limitations: [],
++      output: {
++        next_goal: { home: 0, none: 0, away: 1 },
++      },
++    },
++  ];
++  input.odds_intelligence_reference.assigned_market_weight = 0.1;
++
++  const snapshot = composeFinalPredictionSnapshot(input);
++
++  assert.deepEqual(snapshot.model_output.final_outcome, {
++    home: 0.934,
++    draw: 0.033,
++    away: 0.033,
++  });
++  assert.deepEqual(snapshot.model_output.next_goal, {
++    home: 0.297,
++    none: 0.306,
++    away: 0.397,
++  });
++});
+diff --git a/apps/api/src/competition-model-profile.ts b/apps/api/src/competition-model-profile.ts
+--- a/apps/api/src/competition-model-profile.ts
++++ b/apps/api/src/competition-model-profile.ts
+@@ -368,7 +368,4 @@
+   const diff = home - away;
+   let homeAttack = 0.51 + (diff < 0 ? 0.1 : diff > 0 ? -0.05 : 0);
+   if (input.events.available) homeAttack += eventBalance(input) * 0.16;
+-  if (input.market.usable_for_model && input.market.next_goal !== null) {
+-    homeAttack = homeAttack * 0.65 + input.market.next_goal.home * 0.35;
+-  }
+   homeAttack = clamp01(homeAttack);
+@@ -557,6 +557,10 @@
+   const limitations = [
+     "competition_baseline_v1 is intentionally limited and not production calibrated.",
+-    ...input.market.limitations,
+-    ...input.events.limitations,
+   ];
++  if (input.market.limitations.length > 0) {
++    limitations.push("Market evidence has internal limitations.");
++  }
++  if (input.events.limitations.length > 0) {
++    limitations.push("Event evidence has internal limitations.");
++  }
+   if (!scoreboard) limitations.push("Current score is unavailable.");
+@@ -646,5 +646,11 @@
+   if (input.normalized_phase === "finished" && hasScoreboard(input)) {
+     const output = terminalOutput(input);
++    const terminalQuality = confidenceAndRisk(
++      input,
++      dataCoverage,
++      { final_outcome: output.final_outcome },
++      false,
++    );
+     return composeFinalPredictionSnapshot({
+       fixture_id: input.fixture_id,
+       as_of: input.as_of,
+@@ -664,15 +670,6 @@
+         output,
+       }],
+       fallback_output: output,
+-      confidence: {
+-        level: "high",
+-        score: MAX_BASELINE_CONFIDENCE,
+-        calibration_score: BASELINE_CALIBRATION_SCORE,
+-        model_agreement_score: 1,
+-        data_coverage_score: dataCoverage.feature_coverage_score,
+-        freshness_score: input.freshness_score,
+-        out_of_distribution_score: 0,
+-        reasons: ["The match is finished and the terminal score state is available."],
+-      },
+-      risk: { level: "low", reasons: [] },
++      confidence: terminalQuality.confidence,
++      risk: terminalQuality.risk,
+       odds_intelligence_reference: {
+diff --git a/apps/api/src/competition-model-profile.test.ts b/apps/api/src/competition-model-profile.test.ts
+--- a/apps/api/src/competition-model-profile.test.ts
++++ b/apps/api/src/competition-model-profile.test.ts
+@@ -179,3 +179,85 @@
+     /Usable market evidence requires/,
+   );
+ });
++
++test("market counterfactual influence stays within the approved model-use cap", () => {
++  const homeMarket = baseInput();
++  homeMarket.market.approved_model_weight_cap = 0.01;
++  homeMarket.market.direction = "neutral";
++  homeMarket.market.next_goal = { home: 1, none: 0, away: 0 };
++
++  const awayMarket = structuredClone(homeMarket);
++  awayMarket.market.next_goal = { home: 0, none: 0, away: 1 };
++
++  const homeSnapshot = buildCompetitionPredictionSnapshot(homeMarket);
++  const awaySnapshot = buildCompetitionPredictionSnapshot(awayMarket);
++  const cap = homeSnapshot.odds_intelligence_reference.assigned_market_weight;
++
++  assert.equal(cap, 0.01);
++  assert.ok(Math.abs(
++    homeSnapshot.model_output.next_goal.home - awaySnapshot.model_output.next_goal.home,
++  ) <= cap + 1e-12);
++  assert.ok(Math.abs(
++    homeSnapshot.model_output.next_goal.away - awaySnapshot.model_output.next_goal.away,
++  ) <= cap + 1e-12);
++});
++
++test("finished probabilities remain terminal while stale incomplete data lowers confidence", () => {
++  const input = baseInput();
++  input.phase = "FT";
++  input.normalized_phase = "finished";
++  input.minute = null;
++  input.home_score = 2;
++  input.away_score = 1;
++  input.freshness_score = 0;
++  input.market = {
++    available: false,
++    usable_for_model: false,
++    assessment_id: null,
++    reliability_score: 0,
++    approved_model_weight_cap: 0,
++    final_outcome: null,
++    next_goal: null,
++    direction: "unknown",
++    limitations: ["Internal market limitation."],
++  };
++  input.events = {
++    available: false,
++    home_pressure: 0,
++    away_pressure: 0,
++    home_impact: 0,
++    away_impact: 0,
++    limitations: ["Internal event limitation."],
++  };
++
++  const snapshot = buildCompetitionPredictionSnapshot(input);
++
++  assert.deepEqual(snapshot.model_output.final_outcome, { home: 1, draw: 0, away: 0 });
++  assert.equal(snapshot.confidence.level, "very_low");
++  assert.equal(snapshot.risk.level, "high");
++  assert.equal(snapshot.risk.reasons.includes("stale_data"), true);
++  assert.equal(snapshot.risk.reasons.includes("missing_minute"), true);
++  assert.equal(snapshot.risk.reasons.includes("missing_odds"), true);
++  assert.equal(snapshot.risk.reasons.includes("missing_events"), true);
++});
++
++test("public-shaped explanation does not copy caller limitation text verbatim", () => {
++  const input = baseInput();
++  input.market.limitations = ["ProviderAlpha formula threshold is private."];
++  input.events.limitations = ["Secret event weight is private."];
++
++  const snapshot = buildCompetitionPredictionSnapshot(input);
++  const explanationText = snapshot.explanation.limitations.join(" ");
++
++  assert.equal(explanationText.includes("ProviderAlpha"), false);
++  assert.equal(explanationText.includes("formula threshold"), false);
++  assert.equal(explanationText.includes("Secret event weight"), false);
++  assert.equal(
++    snapshot.explanation.limitations.includes("Market evidence has internal limitations."),
++    true,
++  );
++  assert.equal(
++    snapshot.explanation.limitations.includes("Event evidence has internal limitations."),
++    true,
++  );
++});
+diff --git a/docs/phase-comp-a-competition-prediction-baseline.md b/docs/phase-comp-a-competition-prediction-baseline.md
+--- a/docs/phase-comp-a-competition-prediction-baseline.md
++++ b/docs/phase-comp-a-competition-prediction-baseline.md
+@@ -34,9 +34,12 @@
+ ## Safety and degraded behavior
+ 
+-- Market contribution cannot exceed the approved odds-intelligence cap.
++- Market contribution cannot exceed the approved odds-intelligence cap for any prediction target.
++- Only the explicit market specialist may inject market probability distributions into prediction target composition.
++- Missing specialist outputs contribute the declared fallback at the specialist's global weight; target-specific renormalization cannot amplify market influence.
+ - Missing or unusable odds receive zero market weight.
+ - Missing event evidence does not fabricate pressure.
+-- Missing score or minute activates a complete conservative fallback, lowers confidence and raises risk.
+-- Finished matches collapse to deterministic terminal values.
++- Outside terminal states, missing score or minute activates a complete conservative fallback, lowers confidence and raises risk.
++- Finished matches collapse to deterministic terminal probabilities, while confidence and risk still reflect freshness and data coverage.
++- Caller-supplied limitation text is not copied verbatim into the public-shaped explanation.
+ - The competition profile is intentionally limited and is not described as production calibrated.
+ - No public route or DTO is added in COMP-A; user-facing prediction and odds presentation begins in COMP-B and COMP-C.
