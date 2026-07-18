@@ -1,27 +1,28 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "ready",
-  "phase_id": "MATCHES-PRODUCTION-ROLLOUT-A",
-  "phase_title": "Gated Matches staging and production rollout",
-  "pack_path": "docs/codex-master-plan/phases/phase-matches-production-rollout-a-v1",
-  "pack_version": "MATCHES-PRODUCTION-ROLLOUT-A-v1",
-  "baseline_commit": "03f308be14a330d269c484efc853e307ffb9c7ce",
-  "human_approved": true,
-  "activation_note": "Human-approved execution of SCOPE-DISCOVERY-READONLY only. Railway project metadata may be read; environment, service, variable, domain, database, deployment and migration mutation remain forbidden.",
-  "authorized_gate": {
-    "id": "SCOPE-DISCOVERY-READONLY",
-    "approved_at": "2026-07-18T16:45:13.574Z",
-    "project_id": "e8540514-d2b9-4585-8d2a-a62fc3c87829",
-    "read_only": true,
-    "allowed_credential_name": "RAILWAY_TOKEN",
-    "forbidden_mutations": ["environment", "service", "variable", "domain", "database", "deployment", "migration"]
-  },
+  "state": "awaiting_human_approval",
+  "phase_id": "MATCHES-RAILWAY-TOPOLOGY-A",
+  "phase_title": "Additive Railway topology for Matches rollout",
+  "pack_path": "docs/codex-master-plan/phases/phase-matches-railway-topology-a-v1",
+  "pack_version": "MATCHES-RAILWAY-TOPOLOGY-A-v1",
+  "baseline_commit": "accbd80d6e5a796a19aebea4bfaab1a2b50703c3",
+  "human_approved": false,
+  "activation_note": "Human-approved governance installation only. Every topology operation requires a separately named human gate; no Railway mutation, deployment, migration, database access or variable change is authorized.",
+  "authorized_gate": null,
   "execution": {
-    "continue_until_phase_gate": true,
+    "continue_until_phase_gate": false,
     "allow_next_phase_transition": false,
     "allow_completion_state_update": true,
     "stop_after_phase": true
   },
-  "last_result": null
+  "last_result": {
+    "status": "MISSING_SOURCE",
+    "phase_id": "MATCHES-PRODUCTION-ROLLOUT-A",
+    "pack_version": "MATCHES-PRODUCTION-ROLLOUT-A-v1",
+    "baseline_commit": "03f308be14a330d269c484efc853e307ffb9c7ce",
+    "summary": "Read-only scope discovery found no staging environment, no provable distinct worker bindings and no provable public origins. The successor topology phase is required before rollout can resume.",
+    "migration_applied": false,
+    "network_accessed": true
+  }
 }

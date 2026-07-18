@@ -54,6 +54,8 @@ The mandatory production stop condition remains for every phase except the exact
 
 For `MATCHES-PRODUCTION-ROLLOUT-A-v1`, migration, deployment, backfill and production acceptance are never inferred from `state=ready` or `human_approved=true`. They require their own gate instruction. Mutation attempts are single-attempt unless the pack explicitly classifies the operation as read-only. The migration is limited to `20260718210000_fixture_competition_id`, and rollback is forward-only without dropping source data.
 
+For `MATCHES-RAILWAY-TOPOLOGY-A-v1`, staging environment and service creation, production worker creation, and domain configuration are never inferred from `state=ready` or `human_approved=true`. Each requires its own gate instruction. The phase is additive only and does not authorize variables, migrations, database access or deployments. Preserve the identified production API and Web services and leave ambiguous existing services untouched.
+
 Only `ready` authorizes implementation.
 
 ## 5. Pack manifest contract

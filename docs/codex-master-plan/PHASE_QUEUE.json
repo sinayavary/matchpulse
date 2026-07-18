@@ -1,8 +1,8 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "MATCHES-PRODUCTION-ROLLOUT-A",
-  "updated_at": "2026-07-18T16:45:13Z",
+  "active_phase_id": "MATCHES-RAILWAY-TOPOLOGY-A",
+  "updated_at": "2026-07-18T19:28:05Z",
   "items": [
     {
       "id": "AUTO-DATA-HEALTH-REPORTING-A",
@@ -157,12 +157,22 @@
     {
       "id": "MATCHES-PRODUCTION-ROLLOUT-A",
       "title": "Gated Matches staging and production rollout",
-      "status": "ready",
+      "status": "blocked_missing_topology",
       "depends_on": ["MATCHES-FULL-PRODUCTION-REMEDIATION-A"],
       "pack_version": "MATCHES-PRODUCTION-ROLLOUT-A-v1",
       "baseline_commit": "03f308be14a330d269c484efc853e307ffb9c7ce",
       "human_gate": true,
-      "reason": "Human-selected rollout identity and order. Every environment operation remains behind its own explicit human gate."
+      "reason": "Read-only scope discovery established that required staging, distinct worker bindings and public origins are missing or unprovable. Topology successor must complete before rollout resumes."
+    },
+    {
+      "id": "MATCHES-RAILWAY-TOPOLOGY-A",
+      "title": "Additive Railway topology for Matches rollout",
+      "status": "awaiting_human_approval",
+      "depends_on": ["MATCHES-PRODUCTION-ROLLOUT-A"],
+      "pack_version": "MATCHES-RAILWAY-TOPOLOGY-A-v1",
+      "baseline_commit": "accbd80d6e5a796a19aebea4bfaab1a2b50703c3",
+      "human_gate": true,
+      "reason": "Human-selected additive topology and gate order. Every Railway operation remains behind its own explicit human gate; no variable, migration, database or deployment action is authorized by governance publication."
     },
     {
       "id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",

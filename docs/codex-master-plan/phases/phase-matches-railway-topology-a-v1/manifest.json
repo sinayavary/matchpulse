@@ -1,0 +1,83 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "MATCHES-RAILWAY-TOPOLOGY-A",
+  "phase_id": "MATCHES-RAILWAY-TOPOLOGY-A",
+  "title": "Additive Railway topology for Matches rollout",
+  "pack_version": "MATCHES-RAILWAY-TOPOLOGY-A-v1",
+  "baseline_commit": "accbd80d6e5a796a19aebea4bfaab1a2b50703c3",
+  "depends_on": ["MATCHES-PRODUCTION-ROLLOUT-A"],
+  "allowed_target_files": [
+    "docs/operations/matches-railway-topology-evidence.md"
+  ],
+  "required_validation_commands": [
+    "phase-pack SHA-256 validation",
+    "exact human-gate and Railway project binding validation",
+    "sanitized topology metadata validation after every approved gate",
+    "forbidden secret, raw-payload and fabricated-evidence scan",
+    "git diff --check",
+    "exact changed-path verification"
+  ],
+  "expected_results": [
+    "governance publication performs no Railway operation",
+    "every topology operation has its own explicit human gate",
+    "staging is additive and named exactly staging",
+    "existing production API and Web are preserved",
+    "ambiguous existing production services are untouched",
+    "variables, migrations, database access and deployments remain unauthorized",
+    "worker services never receive public domains"
+  ],
+  "allows_migration": false,
+  "allows_network": true,
+  "allows_deployment": false,
+  "allows_database_connection": false,
+  "allows_topology_mutations": true,
+  "human_gate": true,
+  "initial_authorized_operations": [],
+  "railway_scope": {
+    "project_id": "e8540514-d2b9-4585-8d2a-a62fc3c87829",
+    "staging_environment_name": "staging",
+    "staging_services": [
+      "matchpulse-api-staging",
+      "matchpulse-ingestion-worker-staging",
+      "matchpulse-agent-worker-staging",
+      "matchpulse-evaluation-worker-staging",
+      "matchpulse-web-staging"
+    ],
+    "preserved_production_services": {
+      "api": {"id": "1fd625ca-6da0-4bfd-a5ad-08230ec6a4be", "name": "mathpluse-api"},
+      "web": {"id": "cec81dbb-80c4-4c5d-a332-eac04a03c7a5", "name": "matchpulse-web"}
+    },
+    "untouched_ambiguous_production_services": ["mathpluse-api Copy", "matchpulse"],
+    "production_worker_services": [
+      "matchpulse-ingestion-worker",
+      "matchpulse-agent-worker",
+      "matchpulse-evaluation-worker"
+    ]
+  },
+  "credential_policy": {
+    "allowed_local_names": ["RAILWAY_TOKEN"],
+    "printing_or_copying_values_forbidden": true
+  },
+  "operation_policy": {
+    "mutation_attempts": 1,
+    "read_timeout_seconds": 30,
+    "read_max_attempts": 3,
+    "concurrency": 1,
+    "retryable_reads": ["network", "timeout", "429", "5xx"],
+    "honor_retry_after": true
+  },
+  "gate_order": [
+    "TOPOLOGY-PREFLIGHT-READONLY",
+    "STAGING-ENVIRONMENT-CREATE",
+    "STAGING-SERVICES-CREATE",
+    "PRODUCTION-WORKERS-CREATE",
+    "STAGING-DOMAINS-CONFIGURE",
+    "PRODUCTION-DOMAINS-CONFIGURE",
+    "TOPOLOGY-ACCEPTANCE-READONLY"
+  ],
+  "git": {
+    "allow_commit": true,
+    "allow_push": false,
+    "forbidden_commands": ["git add .", "git add -A", "git stash", "git reset", "git clean", "git rebase", "git push --force"]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "algorithm": "SHA-256",
+  "canonical_encoding": "UTF-8 with LF line endings",
+  "files": {
+    "README.md": "0a03152c1ec499bb46fb8219bb87fb0f08e4b0ecc4babc5a3b320c2acc581a10",
+    "manifest.json": "e43aeb619724647c924bfd7001fa235c391a0683be10bc3c2a9f4a062d0b92a5",
+    "payload/MATCHES_RAILWAY_TOPOLOGY_EVIDENCE.md": "2125bbfe4c3339b7e6fc84146518fb1c83020a4e3ab1d0d49086defbea3a4937"
+  }
+}
