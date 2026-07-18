@@ -1,14 +1,14 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "awaiting_human_approval",
+  "state": "ready",
   "phase_id": "MATCHES-RAILWAY-PROJECT-BINDING-A",
   "phase_title": "Explicit Railway project binding diagnosis and creation",
   "pack_path": "docs/codex-master-plan/phases/phase-matches-railway-project-binding-a-v1",
   "pack_version": "MATCHES-RAILWAY-PROJECT-BINDING-A-v1",
   "baseline_commit": "b597c0720bec6539c8b22c33c6a6ecc43882e94e",
   "human_approved": true,
-  "activation_note": "Human-approved execution of STAGING-ENVIRONMENT-CREATE-EXPLICIT only. One explicitly project-scoped staging-create mutation is authorized.",
+  "activation_note": "Human-approved execution of STAGING-ENVIRONMENT-CREATE-EXPLICIT only. One explicitly project-scoped environment-create mutation for the exact environment staging is authorized; no other Railway operation is authorized.",
   "authorized_gate": {"id":"STAGING-ENVIRONMENT-CREATE-EXPLICIT","approved_at":"2026-07-18T20:18:00.000Z","project_id":"e8540514-d2b9-4585-8d2a-a62fc3c87829","read_only":false,"allowed_credential_name":"RAILWAY_TOKEN","allowed_mutation":{"resource":"environment","operation":"create","name":"staging","attempts":1,"transport":"Railway GraphQL explicit project ID"},"forbidden_mutations":["service","variable","domain","database","deployment","migration","source_connection"]},
   "execution": {
     "continue_until_phase_gate": true,

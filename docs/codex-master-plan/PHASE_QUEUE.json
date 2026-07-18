@@ -2,7 +2,7 @@
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
   "active_phase_id": "MATCHES-RAILWAY-PROJECT-BINDING-A",
-  "updated_at": "2026-07-18T19:57:52Z",
+  "updated_at": "2026-07-18T21:54:51Z",
   "items": [
     {
       "id": "AUTO-DATA-HEALTH-REPORTING-A",
@@ -196,7 +196,7 @@
     {
       "id": "MATCHES-RAILWAY-PROJECT-BINDING-A",
       "title": "Explicit Railway project binding diagnosis and creation",
-      "status": "awaiting_human_approval",
+      "status": "ready",
       "depends_on": ["MATCHES-RAILWAY-TOPOLOGY-RETRY-B"],
       "pack_version": "MATCHES-RAILWAY-PROJECT-BINDING-A-v1",
       "baseline_commit": "b597c0720bec6539c8b22c33c6a6ecc43882e94e",
