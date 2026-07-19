@@ -255,7 +255,7 @@ Phase 29G adds a manual GitHub Actions workflow at `.github/workflows/worker-sch
 
 Use it only for intentional single-cycle schedule refresh after a dry-run has already been reviewed.
 Do not run confirmed execute casually.
-The repository is currently private, so GitHub Environment approval may not be fully protective unless required reviewers or equivalent deployment protection are confirmed to be available and configured for this repo and plan.
+The repository is public. Treat GitHub Environment approval as effective only after required reviewers or equivalent deployment protection are confirmed to be available and configured for the repository plan and settings.
 Do not use it until GitHub Environment `controlled-ingestion` has required reviewers or equivalent protection configured and verified.
 Until then, do not add environment secrets, do not use the confirmed execute workflow for a real DB refresh, and use `Worker Schedule Dry Run` only.
 
@@ -286,7 +286,7 @@ Safety note:
 
 - `controlled-ingestion` should be kept because it documents the safety boundary and can later hold environment secrets safely
 - `controlled-ingestion` should also remain available for future protected execution if the repository visibility, plan, and org settings support it
-- in the current private-repo setup, environment presence alone must not be treated as sufficient approval protection
+- regardless of repository visibility, environment presence alone must not be treated as sufficient approval protection
 - keep the workflow manual-only, keep the confirmation inputs, and keep the dry-run-first behavior
 
 Local PowerShell usage stays the same and should remain the default way to inspect behavior safely:

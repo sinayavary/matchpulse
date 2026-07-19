@@ -16,7 +16,7 @@ The current stack includes:
 - schedule dry-run
 - confirmed single-cycle schedule execute
 - manual GitHub Actions dry-run workflow
-- manual GitHub Actions confirmed execute workflow with private-repo safety notes
+- manual GitHub Actions confirmed execute workflow with environment-protection safety notes
 
 This phase is docs and audit only. It does not add product features.
 
@@ -109,9 +109,9 @@ Confirmed execute exists, but it must not be run casually.
 - It may call TxLINE.
 - It may write refreshed data to the database.
 
-## Private Repo Environment Warning
+## Public Repository Environment Warning
 
-The repository is private, and GitHub Environment required reviewers or equivalent protection may depend on plan and repository settings.
+The repository is public. GitHub Environment required reviewers or equivalent deployment protection can still depend on plan and repository settings.
 
 Do not assume the presence of an environment name alone means confirmed execute is safely gated.
 
