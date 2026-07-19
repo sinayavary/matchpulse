@@ -60,6 +60,8 @@ For `MATCHES-RAILWAY-TOPOLOGY-RETRY-A-v1`, diagnosis is read-only and a retry is
 
 For `MATCHES-RAILWAY-ENVIRONMENT-AUTH-A-v1`, `ACCOUNT-TOKEN-PROJECT-PREFLIGHT-READONLY` and `STAGING-ENVIRONMENT-CREATE-ACCOUNT-TOKEN` are independent human gates. Governance publication authorizes no Railway access. The first gate is read-only; the second may be approved only after a successful first gate and allows at most one non-retried, concurrent-single explicit create for project `e8540514-d2b9-4585-8d2a-a62fc3c87829` and environment `staging`. Existing `staging` forbids creation. Raw GraphQL responses and errors must be reduced to only `transport_error`, `authentication_failed`, `authorization_failed`, `schema_contract_failed`, `project_not_found`, `project_identity_mismatch`, or `ambiguous_result` in evidence and reports.
 
+For `MATCHES-RAILWAY-TRANSPORT-DIAGNOSTIC-A-v1`, governance publication authorizes no network access. After separate human activation, Gate 1 permits only one DNS lookup, one TCP 443 check and one HTTPS reachability request to `https://backboard.railway.com/graphql/v2`, with `authenticated_requests=0`, no token, no Authorization header, no GraphQL data and no retry. Gate 2 requires separate human approval and `HTTP_ENDPOINT_REACHABLE` before one bounded read-only account-token project preflight retry. No mutation, staging create or operational Railway access is inferred or authorized.
+
 Only `ready` authorizes implementation.
 
 ## 5. Pack manifest contract
