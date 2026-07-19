@@ -810,3 +810,19 @@ model FreeAccessAuditEvent {
   @@index([eventType, occurredAt])
   @@map("free_access_audit_events")
 }
+
+model PublicLiveEvent {
+  id          BigInt   @id @default(autoincrement())
+  fixtureId   String?  @map("fixture_id")
+  eventType   String   @map("event_type")
+  dedupeKey   String   @unique @map("dedupe_key")
+  payload     Json     @map("payload_json")
+  payloadHash String   @map("payload_hash")
+  occurredAt  DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@index([fixtureId, id])
+  @@index([eventType, id])
+  @@index([expiresAt])
+  @@map("public_live_events")
+}

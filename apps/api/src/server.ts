@@ -95,6 +95,7 @@ import { registerHistoricalReplayRoute } from "./historical-replay.js";
 import { registerInternalAuthBoundary } from "./internal-auth-boundary.js";
 import { createPrismaServiceAuthResolver } from "./internal-service-identity-store.js";
 import { createPrismaSecurityDependencies, createUnavailableSecurityDependencies, registerSecurityRoutes } from "./security/security-routes.js";
+import { registerPublicLiveRoutes } from "./public-live.js";
 
 const app = Fastify({ logger: true });
 const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);
@@ -192,6 +193,7 @@ app.get("/api/internal/demo/matches/:fixtureId/bundle", async (request) => {
 app.get("/api/demo/matches", async () => getDemoBridgeMatches());
 
 registerPublicApiRoutes(app);
+registerPublicLiveRoutes(app);
 registerTxlineRuntimeAuditRoutes(app);
 
 app.get("/api/demo/matches/:fixtureId/bundle", async (request, reply) => {

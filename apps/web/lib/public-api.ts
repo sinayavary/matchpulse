@@ -322,6 +322,14 @@ export async function fetchPublicMatchBundle(
   );
 }
 
+export const publicLiveEventTypes = ["fixture.snapshot", "fixture.state", "fixture.event", "fixture.odds", "fixture.agent", "fixture.prediction"] as const;
+export type PublicLiveEventType = typeof publicLiveEventTypes[number];
+export function publicLiveUrl(fixtureId?: string, types?: PublicLiveEventType[]): string {
+  const path = fixtureId ? `/api/bff/public/matches/${encodeURIComponent(fixtureId)}/live` : "/api/bff/public/live";
+  const query = types?.length ? `?types=${types.join(",")}` : "";
+  return `${path}${query}`;
+}
+
 export function formatFixtureLabel(match: {
   home_team: string | null;
   away_team: string | null;
