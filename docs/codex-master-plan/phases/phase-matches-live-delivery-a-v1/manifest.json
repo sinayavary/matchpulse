@@ -1,0 +1,45 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "MATCHES-LIVE-DELIVERY-A",
+  "pack_version": "MATCHES-LIVE-DELIVERY-A-v1",
+  "baseline_commit": "669fc8b3ab2140fe8da3fb50b0607f1d7800946f",
+  "allowed_target_files": [
+    ".env.example",
+    "apps/api/src/public-live-events.test.ts",
+    "apps/api/src/public-live-events.ts",
+    "apps/api/src/public-live.ts",
+    "apps/api/src/server.ts",
+    "apps/web/app/api/bff/public/[...segments]/route.ts",
+    "apps/web/lib/public-api.ts",
+    "docs/api/public-live-sse.md",
+    "prisma/migrations/20260719130000_public_live_events/migration.sql",
+    "prisma/schema.prisma"
+  ],
+  "required_validation_commands": [
+    "JSON parse and phase identity validation",
+    "Prisma format, validate, and generate",
+    "focused publisher/outbox/SSE/BFF/Web/worker tests",
+    "API, worker, and web regression suites",
+    "API, worker, and web typechecks",
+    "API, worker, and web production builds",
+    "disposable local PostgreSQL 16 migration and outbox integration",
+    "git diff --check, secret scan, raw/private-field scan, betting-feature scan",
+    "exact changed-path validation"
+  ],
+  "expected_results": [
+    "safe public DTO envelopes only",
+    "deterministic dedupe and bounded cleanup",
+    "ordered resumable SSE with reset on retention gap",
+    "no external network, deployment, Railway, staging, production, or secret access"
+  ],
+  "allows_migration": true,
+  "allows_network": false,
+  "allows_deployment": false,
+  "allows_database_connection": "disposable local PostgreSQL only",
+  "allows_topology_mutations": false,
+  "staging_database": false,
+  "production_database": false,
+  "Railway_database": false,
+  "external_database": false,
+  "allowed_migration": "20260719130000_public_live_events"
+}
