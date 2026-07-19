@@ -1,8 +1,8 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "MATCHES-RAILWAY-ENVIRONMENT-AUTH-A",
-  "updated_at": "2026-07-18T22:29:12Z",
+  "active_phase_id": "MATCHES-RAILWAY-TRANSPORT-DIAGNOSTIC-A",
+  "updated_at": "2026-07-19T10:03:11Z",
   "items": [
     {
       "id": "AUTO-DATA-HEALTH-REPORTING-A",
@@ -206,12 +206,23 @@
     {
       "id": "MATCHES-RAILWAY-ENVIRONMENT-AUTH-A",
       "title": "Account-token authorization for explicit Railway environment creation",
-      "status": "ready",
+      "status": "blocked_transport_failed",
       "depends_on": ["MATCHES-RAILWAY-PROJECT-BINDING-A"],
       "pack_version": "MATCHES-RAILWAY-ENVIRONMENT-AUTH-A-v1",
       "baseline_commit": "f491c805c659d860e41351bb231f606603743132",
       "human_gate": true,
-      "reason": "Fix-forward successor that separates account-token read-only project authorization from the single staging environment create mutation."
+      "reason": "The account-token project preflight failed at transport before project or environment identity was observed. One authenticated request was attempted, but provider receipt is unknown; no mutation occurred. Transport diagnosis is required before any governed retry."
+    },
+    {
+      "id": "MATCHES-RAILWAY-TRANSPORT-DIAGNOSTIC-A",
+      "title": "Classify Railway transport failure and govern preflight retry",
+      "status": "awaiting_human_approval",
+      "depends_on": ["MATCHES-RAILWAY-ENVIRONMENT-AUTH-A"],
+      "pack_version": "MATCHES-RAILWAY-TRANSPORT-DIAGNOSTIC-A-v1",
+      "baseline_commit": "13a97eaeb382f7465838a7c627d7454ab505181a",
+      "human_gate": true,
+      "human_approved": false,
+      "reason": "Two separately governed read-only gates: unauthenticated transport classification, then one account-token project preflight retry only after HTTP_ENDPOINT_REACHABLE and separate approval."
     },
     {
       "id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",
