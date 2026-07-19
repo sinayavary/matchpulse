@@ -3,7 +3,7 @@
   "phase": "AGENT-API-RAILWAY-SMOKE-A",
   "pack_version": "AGENT-API-RAILWAY-SMOKE-A-v1",
   "baseline_commit": "cda2c856f1146929d9656108510fbb1ed27e3877",
-  "allowed_target_files": [],
+  "allowed_target_files": ["docs/api/agent-public-api.md"],
   "required_validation_commands": ["Railway authentication and production API service preflight", "deployed revision verification", "public status and Agent API smoke requests", "public response safety scan"],
   "expected_results": ["published Agent API source is deployed or already active", "public intelligence-card endpoint returns HTTP 200", "public product-intelligence endpoint returns HTTP 200", "no migration or database mutation occurs"],
   "allows_migration": false,
