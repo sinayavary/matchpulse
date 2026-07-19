@@ -1,0 +1,31 @@
+{
+  "schema_version": "matchpulse-phase-pack-v1",
+  "phase": "MATCHES-RAILWAY-TRANSPORT-DIAGNOSTIC-A",
+  "phase_id": "MATCHES-RAILWAY-TRANSPORT-DIAGNOSTIC-A",
+  "title": "Classify Railway transport failure and govern preflight retry",
+  "pack_version": "MATCHES-RAILWAY-TRANSPORT-DIAGNOSTIC-A-v1",
+  "baseline_commit": "13a97eaeb382f7465838a7c627d7454ab505181a",
+  "depends_on": ["MATCHES-RAILWAY-ENVIRONMENT-AUTH-A"],
+  "allowed_target_files": [
+    "docs/codex-master-plan/ACTIVE_PHASE.json",
+    "docs/codex-master-plan/PHASE_QUEUE.json",
+    "docs/codex-master-plan/phases/phase-matches-railway-transport-diagnostic-a-v1/README.md",
+    "docs/codex-master-plan/phases/phase-matches-railway-transport-diagnostic-a-v1/manifest.json",
+    "docs/codex-master-plan/phases/phase-matches-railway-transport-diagnostic-a-v1/EXPECTED_SHA256.json",
+    "docs/codex-master-plan/phases/phase-matches-railway-transport-diagnostic-a-v1/payload/MATCHES_RAILWAY_TRANSPORT_DIAGNOSTIC_EVIDENCE.md"
+  ],
+  "required_validation_commands": ["JSON parse", "phase identity and predecessor validation", "gate ordering and approval validation", "request-limit validation", "credential and secret-output scan", "forbidden-operation scan", "canonical UTF-8/LF SHA-256", "exact changed-path validation", "git diff --check"],
+  "expected_results": ["governance publication performs zero Railway requests", "Gate 1 is unauthenticated and read-only", "Gate 2 requires separate human approval and HTTP_ENDPOINT_REACHABLE", "retry limits are one primary and one conditional schema-correction request", "mutations and operational access remain forbidden", "secret_exposed=false"],
+  "allows_migration": false,
+  "allows_network": false,
+  "allows_deployment": false,
+  "allows_database_connection": false,
+  "allows_topology_mutations": false,
+  "human_gate": true,
+  "railway_scope": {"endpoint": "https://backboard.railway.com/graphql/v2", "host": "backboard.railway.com", "port": 443, "authenticated_requests_gate_1": 0, "mutation_attempts": 0},
+  "credential_policy": {"allowed_local_names": ["RAILWAY_API_TOKEN"], "forbidden_local_names": ["RAILWAY_TOKEN"], "print_copy_persist_secret_values": false, "raw_response_output": false},
+  "transport_diagnostic": {"dns_lookups": 1, "tcp_443_checks": 1, "tls_https_requests": 1, "retry": false, "classifications": ["DNS_RESOLUTION_FAILED", "TCP_443_UNREACHABLE", "TLS_HANDSHAKE_FAILED", "HTTP_ENDPOINT_REACHABLE", "HTTP_TRANSPORT_FAILED", "LOCAL_PROXY_INTERFERENCE_SUSPECTED", "AMBIGUOUS_TRANSPORT_RESULT"]},
+  "preflight_retry": {"requires": ["transport_gate_result=HTTP_ENDPOINT_REACHABLE", "separate_human_approval=true", "RAILWAY_API_TOKEN_PRESENT=true"], "primary_read_requests": 1, "schema_correction_requests": 1, "schema_correction_condition": "schema_contract_failed_only", "allowed_fields": ["project_id", "project_name", "environment_ids", "environment_names"], "mutations": false},
+  "gate_order": ["RAILWAY-ENDPOINT-TRANSPORT-DIAGNOSTIC-READONLY", "ACCOUNT-TOKEN-PROJECT-PREFLIGHT-RETRY-READONLY"],
+  "git": {"governance_only": true, "commit_message": "Govern Railway transport diagnosis and preflight retry", "push": true, "pr": false, "merge": false, "prepare": false, "publish": false}
+}

@@ -1,0 +1,9 @@
+{
+  "algorithm": "SHA-256",
+  "canonical_encoding": "UTF-8 with LF line endings",
+  "files": {
+    "README.md": "2722e3406f0781306c1529751155a8e91ca2c10e295994a2ee66e9d58b878caf",
+    "manifest.json": "3ce6fd233b53c8c6e8ff728fda64faa21e93c2a9eb351700328a79cc229ac553",
+    "payload/MATCHES_RAILWAY_TRANSPORT_DIAGNOSTIC_EVIDENCE.md": "514d667aacc77b4122a1e25f565f7bf7d70edf7029073fdbbd068ed9ce103389"
+  }
+}
