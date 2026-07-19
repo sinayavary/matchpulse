@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "MATCHES-RAILWAY-TRANSPORT-DIAGNOSTIC-A",
+  "active_phase_id": "MATCHES-LIVE-DELIVERY-A",
   "updated_at": "2026-07-19T10:03:11Z",
   "items": [
     {
@@ -187,7 +187,7 @@
     {
       "id": "MATCHES-RAILWAY-TOPOLOGY-RETRY-B",
       "title": "Authorization preflight and third staging environment attempt",
-      "status": "awaiting_human_approval",
+      "status": "paused_deferred_for_live_delivery_source",
       "depends_on": ["MATCHES-RAILWAY-TOPOLOGY-RETRY-A"],
       "pack_version": "MATCHES-RAILWAY-TOPOLOGY-RETRY-B-v1",
       "baseline_commit": "e8908ddfbfd4dee67174b921f1f7bd272c1b9ae3",
@@ -222,7 +222,35 @@
       "baseline_commit": "13a97eaeb382f7465838a7c627d7454ab505181a",
       "human_gate": true,
       "human_approved": false,
-      "reason": "Two separately governed read-only gates: unauthenticated transport classification, then one account-token project preflight retry only after HTTP_ENDPOINT_REACHABLE and separate approval."
+      "reason": "Source-only Live Delivery work requires no Railway access. Railway transport diagnosis remains mandatory before staging rollout.",
+      "resume_required_before": "MATCHES-LIVE-DELIVERY-STAGING-A"
+    },
+    {
+      "id": "MATCHES-LIVE-DELIVERY-A",
+      "title": "Durable public SSE delivery and automatic intelligence event publication",
+      "status": "ready",
+      "depends_on": ["MATCHES-RAILWAY-TRANSPORT-DIAGNOSTIC-A"],
+      "pack_version": "MATCHES-LIVE-DELIVERY-A-v1",
+      "baseline_commit": "669fc8b3ab2140fe8da3fb50b0607f1d7800946f",
+      "human_gate": true,
+      "human_approved": true,
+      "reason": "Source-only implementation is independent of Railway topology."
+    },
+    {
+      "id": "MATCHES-LIVE-DELIVERY-STAGING-A",
+      "title": "Staging rollout and acceptance for durable live delivery",
+      "status": "planned",
+      "depends_on": ["MATCHES-LIVE-DELIVERY-A", "MATCHES-RAILWAY-TRANSPORT-DIAGNOSTIC-A"],
+      "pack_version": "MATCHES-LIVE-DELIVERY-STAGING-A-v1",
+      "human_gate": true
+    },
+    {
+      "id": "MATCHES-LIVE-DELIVERY-PRODUCTION-A",
+      "title": "Production rollout and acceptance for durable live delivery",
+      "status": "planned",
+      "depends_on": ["MATCHES-LIVE-DELIVERY-STAGING-A"],
+      "pack_version": "MATCHES-LIVE-DELIVERY-PRODUCTION-A-v1",
+      "human_gate": true
     },
     {
       "id": "AUTO-DATA-RUNTIME-PRODUCTION-RECOVERY-A",
