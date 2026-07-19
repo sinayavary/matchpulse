@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "MATCHES-LIVE-DELIVERY-A",
+  "active_phase_id": "AGENT-API-DOCUMENTATION-A",
   "updated_at": "2026-07-19T10:03:11Z",
   "items": [
     {
@@ -228,14 +228,15 @@
     {
       "id": "MATCHES-LIVE-DELIVERY-A",
       "title": "Durable public SSE delivery and automatic intelligence event publication",
-      "status": "ready",
+      "status": "published_but_review_rejected",
       "depends_on": ["MATCHES-RAILWAY-TRANSPORT-DIAGNOSTIC-A"],
       "pack_version": "MATCHES-LIVE-DELIVERY-A-v1",
       "baseline_commit": "669fc8b3ab2140fe8da3fb50b0607f1d7800946f",
       "human_gate": true,
       "human_approved": true,
-      "reason": "Source-only implementation is independent of Railway topology."
+      "reason": "Formal review found Live SSE release blockers. SSE remediation is deferred and is not a dependency of the deadline Agent API delivery phase."
     },
+    {"id":"AGENT-API-DOCUMENTATION-A","title":"Agent runtime, public Agent API and delivery documentation","status":"ready","depends_on":["BACKGROUND-AGENT-PREDICTION-A"],"pack_version":"AGENT-API-DOCUMENTATION-A-v1","baseline_commit":"f7594cca82e9979afdaf190b6d8db517fd0b8e23","human_gate":true,"human_approved":true,"reason":"Deadline-critical proof and documentation of the existing Agent worker and public Agent APIs. Authentication redesign and Live SSE remediation are explicitly deferred."},
     {
       "id": "MATCHES-LIVE-DELIVERY-STAGING-A",
       "title": "Staging rollout and acceptance for durable live delivery",
