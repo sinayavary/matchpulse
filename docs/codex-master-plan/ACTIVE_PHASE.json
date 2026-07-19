@@ -1,13 +1,13 @@
 {
   "schema_version": "matchpulse-active-phase-v1",
   "project": "MatchPulse",
-  "state": "ready",
+  "state": "completed_pending_review",
   "phase_id": "AGENT-API-RAILWAY-SMOKE-A",
   "phase_title": "Production Railway deployment and public Agent API smoke",
   "pack_path": "docs/codex-master-plan/phases/phase-agent-api-railway-smoke-a-v1",
   "pack_version": "AGENT-API-RAILWAY-SMOKE-A-v1",
   "baseline_commit": "cda2c856f1146929d9656108510fbb1ed27e3877",
-  "human_approved": true,
+  "human_approved": false,
   "activation_note": "Human-approved deadline phase. Existing production API service only. Railway metadata, at most one deployment, optional MATCHPULSE_PUBLIC_READ_ANONYMOUS=true mutation, and public read-only smoke requests are authorized. Migration, direct database access, worker deployment, resource creation and source modification are prohibited.",
   "execution": {
     "continue_until_phase_gate": true,
@@ -15,5 +15,26 @@
     "allow_completion_state_update": true,
     "stop_after_phase": true
   },
-  "last_result": null
+  "last_result": {
+    "status": "PHASE_COMPLETE",
+    "phase_id": "AGENT-API-RAILWAY-SMOKE-A",
+    "pack_version": "AGENT-API-RAILWAY-SMOKE-A-v1",
+    "baseline_commit": "cda2c856f1146929d9656108510fbb1ed27e3877",
+    "completed_at": "2026-07-19T22:21:40.8508626Z",
+    "files_changed": [],
+    "validation_summary": "Railway production API metadata preflight, deployed revision verification, public status/catalog/intelligence-card/product-intelligence smoke, and public response safety scan passed.",
+    "deployment_status": "already_active",
+    "source_commit": "cda2c856f1146929d9656108510fbb1ed27e3877",
+    "public_status_http": 200,
+    "matches_catalog_http": 200,
+    "intelligence_card_http": 200,
+    "product_intelligence_http": 200,
+    "public_payload_safety_verified": true,
+    "migration_applied": false,
+    "database_mutation_count": 0,
+    "worker_deployed": false,
+    "web_deployed": false,
+    "source_changed": false,
+    "network_accessed": true
+  }
 }
