@@ -1,7 +1,7 @@
 {
   "schema_version": "matchpulse-phase-queue-v1",
   "project": "MatchPulse",
-  "active_phase_id": "AGENT-API-RAILWAY-SMOKE-A",
+  "active_phase_id": "PRODUCTION-DOMAINS-A",
   "updated_at": "2026-07-19T10:03:11Z",
   "items": [
     {
@@ -238,6 +238,7 @@
     },
     {"id":"AGENT-API-DOCUMENTATION-A","title":"Agent runtime, public Agent API and delivery documentation","status":"ready","depends_on":["BACKGROUND-AGENT-PREDICTION-A"],"pack_version":"AGENT-API-DOCUMENTATION-A-v1","baseline_commit":"f7594cca82e9979afdaf190b6d8db517fd0b8e23","human_gate":true,"human_approved":true,"reason":"Deadline-critical proof and documentation of the existing Agent worker and public Agent APIs. Authentication redesign and Live SSE remediation are explicitly deferred."},
     {"id":"AGENT-API-RAILWAY-SMOKE-A","title":"Production Railway deployment and public Agent API smoke","status":"active","depends_on":["AGENT-API-DOCUMENTATION-A"],"pack_version":"AGENT-API-RAILWAY-SMOKE-A-v1","baseline_commit":"cda2c856f1146929d9656108510fbb1ed27e3877","human_gate":true},
+    {"id":"PRODUCTION-DOMAINS-A","title":"Production API and Web domains","status":"active","depends_on":["AGENT-API-RAILWAY-SMOKE-A"],"pack_version":"PRODUCTION-DOMAINS-A-v1","baseline_commit":"ff077f8d6a1065809fd23998e696f4b3e479111d","human_gate":true},
     {
       "id": "MATCHES-LIVE-DELIVERY-STAGING-A",
       "title": "Staging rollout and acceptance for durable live delivery",
