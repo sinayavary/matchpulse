@@ -1,3 +1,3 @@
 # DOCS-ONLY-WEB-HOTFIX-A-v1
 
-Replace only the Web root page with static public Agent API documentation. No API, Worker, database, migration, custom domain, or environment change is allowed. One existing Web-service deployment and public HTML smoke are allowed.
+Replace the Web root with static Agent API documentation and every existing non-root Web page with a static redirect to `/`. No API, Worker, database, migration, domain, or environment change is authorized; one existing Web-service deployment and public smoke are allowed.
